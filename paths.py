@@ -24,11 +24,19 @@ transcriptions_path = data_input_path / "transcripciones/"
 exports_path = data_input_path / "exports"
 raw_export_filepath = exports_path / "raw_export.json"
 simplified_filepath = exports_path / "simplified_export.json"
+usernames_filepath = exports_path / "usernames.txt"
 
 # carpetas donde se van a colocar los datos generados.
 output_path = data_path / "output"
 crops_path = output_path / "crops"
 
 
-for path in [images_path, transcriptions_path, exports_path, output_path, crops_path, data_input_path]:
-    os.makedirs(path, exist_ok = True)
+for path in [
+    images_path,
+    transcriptions_path,
+    exports_path,
+    output_path,
+    crops_path,
+    data_input_path,
+]:
+    os.makedirs(path, exist_ok=True)

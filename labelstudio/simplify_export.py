@@ -179,7 +179,6 @@ def simplify_export(raw_export_filepath: Path, simplified_filepath: Path):
     print(f"Se han guardado en {simplified_filepath}")
 
 
-# TODO: Quitar todas las referencias de load_simplified_export y usar directamente LabelStudioInterface.
 def load_simplified_export(path=simplified_filepath):
     """
     Carga el archivo export.json y devuelve la lista de tareas.

@@ -2,11 +2,12 @@ from label_studio_sdk import Client
 from LS_token import ls_token
 from paths import (
     LS_url,
+    exports_path,
     raw_export_filepath as default_raw_export_filepath,
     simplified_filepath as default_simplified_export_filepath,
 )
 import json
-from preprocessing.simplify.simplify_export import (
+from labelstudio.simplify_export import (
     simplify_export,
     load_simplified_export,
 )
@@ -57,6 +58,8 @@ class LabelStudioInterface:
                 ordered_usernames.append(0)
         self.usernames = ordered_usernames
 
+        (exports_path / "usernames.txt").write_text(json.dumps(self.usernames))
+
         self.__raw_tasks = None
         self.local_last_update = None
 
@@ -70,23 +73,32 @@ class LabelStudioInterface:
 
             if last_update > loaded_export_last_updated_at:
                 self._update_tasks_conditional(forced=True)
-                self._set_and_save_simplified_tasks()
 
             else:
                 self.__raw_tasks = loaded_export
                 self.local_last_update = loaded_export_last_updated_at
+                self.__simplified_tasks = load_simplified_export(
+                    self.simplified_filepath
+                )
 
         else:
             self._update_tasks_conditional(forced=True)
 
     @property
-    def raw_tasks(self, check_updated: bool = True) -> dict:
+    def raw_tasks(self, check_updated: bool = True) -> list:
         """
         Devuelve las tareas ya etiquetadas del servidor de LabelStudio al que se está accediendo.
         Si check_updated, se comprueba primero que estén actualizadas comparadas con las del servidor.
         """
         if check_updated:
             self._update_tasks_conditional()
+        return self.__raw_tasks
+
+    @property
+    def simplified_tasks(self, check_updated: bool = True) -> list:
+        if check_updated and self.is_outdated:
+            self._update_tasks_conditional(forced=True)
+            self._set_and_save_simplified_tasks()
         return self.__raw_tasks
 
     def users(self) -> list["str"]:
@@ -103,14 +115,18 @@ class LabelStudioInterface:
         update_date = most_recently_updated_task["updated_at"]
         return update_date
 
+    @property
+    def is_outdated(self):
+
+        return (self.local_last_update is None) or (
+            self._get_latest_update_of_LS() > self.local_last_update
+        )
+
     def _update_tasks_conditional(self, forced=False):
         try:
             latest_update_of_LS = self._get_latest_update_of_LS()
-            if forced or (
-                not self.local_last_update
-                or (latest_update_of_LS > self.local_last_update)
-            ):
-                print("Actualizando export.")
+            if forced or self.is_outdated:
+                print("Actualizando export (update_tasks_conditional).")
                 # cargamos el export
                 self.__raw_tasks = self.project.export_tasks()
                 self.local_last_update = latest_update_of_LS
@@ -131,7 +147,7 @@ class LabelStudioInterface:
         """
         Saves the raw export, simplifies it and saves the simplified tasks.
         """
-        self.save_raw_export(raw_only=True)
+        self.save_raw_export()
         simplify_export(self.raw_export_path, self.simplified_filepath)
         self.__simplified_tasks = load_simplified_export(self.simplified_filepath)
         self.save_simplified_export()
