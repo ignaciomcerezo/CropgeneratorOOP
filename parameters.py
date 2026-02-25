@@ -6,3 +6,4 @@ orders_to_consider = [1]
 generate_full_pages = True
 max_samples_per_order = 0
 time_limit_subgraph_generation = 1
+TIME_LIMIT = 1
