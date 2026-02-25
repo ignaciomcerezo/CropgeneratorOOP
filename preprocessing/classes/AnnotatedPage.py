@@ -7,16 +7,22 @@ from preprocessing.classes.helper_to_classes import (
     get_union_rect,
     unrotate_image,
     reemplazar_latex_espaciado,
-    trim_star_nodes
+    trim_star_nodes,
 )
 from parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
 from shapely import box as boxshape
-from downloaders.LabelStudioInterface import LabelStudioInterface
+from labelstudio.LabelStudioInterface import LabelStudioInterface
 from display import display
 import re
 from PIL import Image
+from paths import simplified_filepath, usernames_filepath
+import json
 
-ordered_usernames_LS = LabelStudioInterface().usernames
+if usernames_filepath.exists():
+    # si podemos evitar instanciar LSI, mejor
+    ordered_usernames_LS = json.loads(usernames_filepath.read_text())
+else:
+    ordered_usernames_LS = LabelStudioInterface().usernames
 
 
 class AnnotatedPage:
@@ -597,11 +603,10 @@ class AnnotatedPage:
 
         if None in associated_fragments:
             print(
-                f'Tarea {self.task_id} - Hay Cajas con un número anómalo de fragmentos asociados (!= 1).'
+                f"Tarea {self.task_id} - Hay Cajas con un número anómalo de fragmentos asociados (!= 1)."
             )
 
         associated_fragments = [x for x in associated_fragments if x is not None]
-
 
         sindex = 0
         for fragment in associated_fragments:
@@ -611,10 +616,11 @@ class AnnotatedPage:
             else:
                 sindex += 1
 
-    def trim_star_nodes(self,
-                        relative_threshold: float = BIG_BOX_THRESHOLD,
-                        min_nodes:int  = min_nodes_for_big_box_removal
-                        ) -> None:
+    def trim_star_nodes(
+        self,
+        relative_threshold: float = BIG_BOX_THRESHOLD,
+        min_nodes: int = min_nodes_for_big_box_removal,
+    ) -> None:
         if self.order > min_nodes:
             self.graph = trim_star_nodes(self.graph, relative_threshold)
 
@@ -624,7 +630,9 @@ class AnnotatedPage:
         """
 
         collage = self.generate_collage(box_ids)
-        transcription, sindex = self.concatenate_transcritions(box_ids, cc_ordering = (box_ids == self.graph.keys()), return_first_sindex= True)
+        transcription, sindex = self.concatenate_transcritions(
+            box_ids,
+            cc_ordering=(box_ids == self.graph.keys()),
+            return_first_sindex=True,
+        )
         return collage, transcription, sindex
-
-

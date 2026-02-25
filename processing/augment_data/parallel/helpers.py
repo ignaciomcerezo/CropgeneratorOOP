@@ -1,4 +1,6 @@
-from processing.augment_data.augment_data_sequential import augment_data_sequential
+from processing.augment_data.sequential.augment_data_sequential import (
+    augment_data_sequential,
+)
 from paths import simplified_filepath, output_path
 import pandas as pd
 import os
@@ -10,7 +12,7 @@ def run_chunk(
     orders_to_consider=[1, 2, 3],
     generate_full_pages=True,
     max_samples_per_order=0,
-    time_limit=0,
+    time_limit_subgraph_generation=0,
 ):
     """
     Función de aumento de datos para un solo bloque.
@@ -27,7 +29,7 @@ def run_chunk(
         generate_full_pages=generate_full_pages,
         task_only=tasks_subset,
         max_samples_per_order=max_samples_per_order,
-        time_limit=time_limit,
+        time_limit_subgraph_generation=time_limit_subgraph_generation,
         is_parallel=True,
     )
     return f"Tarea del trabajador {worker_id} terminada."

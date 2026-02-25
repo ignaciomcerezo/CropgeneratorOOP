@@ -1,24 +1,33 @@
 from paths import output_path, crops_path
-from preprocessing.simplify.simplify_export import load_simplified_export
+from labelstudio.simplify_export import load_simplified_export
 from pathlib import Path
 from PIL import Image, ImageOps
 from preprocessing.classes.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
-from processing.augment_data.helpers import generate_connected_subgraphs, create_reservoir
-from preprocessing.classes.helper_to_classes import get_image_path_from_task, get_deterministic_id
+from processing.augment_data.sequential.helpers import (
+    generate_connected_subgraphs,
+    create_reservoir,
+)
+from preprocessing.classes.helper_to_classes import (
+    get_image_path_from_task,
+    get_deterministic_id,
+)
 from parameters import min_nodes_for_big_box_removal, BIG_BOX_THRESHOLD
 import pandas as pd
 
-def augment_data_sequential(simplified_filepath,
-                 output_excel_name = "pairs.xlsx",
-                 orders_to_consider = "all",
-                 generate_full_pages = True,
-                 page_only: list[int] = None,
-                 task_only: list[int] = None,
-                 max_samples_per_order = 0,
-                 time_limit = 10,
-                 is_parallel = False,
-                 additive_excel = False):
+
+def augment_data_sequential(
+    simplified_filepath,
+    output_excel_name="pairs.xlsx",
+    orders_to_consider="all",
+    generate_full_pages=True,
+    page_only: list[int] = None,
+    task_only: list[int] = None,
+    max_samples_per_order=0,
+    time_limit_subgraph_generation=10,
+    is_parallel=False,
+    additive_excel=False,
+):
     """
     Función principal para procesar las tareas y generar los recortes aumentados.
     """
@@ -27,14 +36,22 @@ def augment_data_sequential(simplified_filepath,
     crops_path.mkdir(parents=True, exist_ok=True)
 
     # filtros por si solamente queremos procesar unas páginas o tareas concretas
-    page_only = [str(x).rjust(3, "0") for x in page_only] if isinstance(page_only, (list, tuple)) else None
-    task_only = [str(x) for x in task_only] if isinstance(task_only, (list, tuple)) else None
+    page_only = (
+        [str(x).rjust(3, "0") for x in page_only]
+        if isinstance(page_only, (list, tuple))
+        else None
+    )
+    task_only = (
+        [str(x) for x in task_only] if isinstance(task_only, (list, tuple)) else None
+    )
 
     if not isinstance(simplified_filepath, Path):
         simplified_filepath = Path(simplified_filepath)
 
     if not simplified_filepath.exists():
-        print(f"No existe el archivo de datos exportados simplificado de LabelStudio (indicado {simplified_filepath})")
+        print(
+            f"No existe el archivo de datos exportados simplificado de LabelStudio (indicado {simplified_filepath})"
+        )
         return
 
     tasks = load_simplified_export(simplified_filepath)
@@ -45,7 +62,9 @@ def augment_data_sequential(simplified_filepath,
 
     # la creación del excel se hace al final.
     if excel_path.exists() and additive_excel:
-        print(f"Archivo Excel existente detectado: {excel_path} (se añadirán los datos)")
+        print(
+            f"Archivo Excel existente detectado: {excel_path} (se añadirán los datos)"
+        )
     else:
         print(f"Creando archivo excel: {excel_path}")
 
@@ -54,8 +73,12 @@ def augment_data_sequential(simplified_filepath,
     if (orders_to_consider == "all") or (orders_to_consider is None):
         orders_to_consider = None
     else:
-        assert isinstance(orders_to_consider, (list)), f"orders_to_consider debe ser una lista, NoneType, tupla o \"all\""
-        assert all([isinstance(x, int) for x in orders_to_consider]), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
+        assert isinstance(
+            orders_to_consider, (list)
+        ), f'orders_to_consider debe ser una lista, NoneType, tupla o "all"'
+        assert all(
+            [isinstance(x, int) for x in orders_to_consider]
+        ), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
 
     # no se procesan todas las tareas?
     task_only_set = set(str(x) for x in task_only) if task_only else None
@@ -64,10 +87,14 @@ def augment_data_sequential(simplified_filepath,
 
     # total de tareas a procesar
     total_tqdm = len(tasks)
-    total_tqdm = min(total_tqdm, len(task_only)) if (task_only is not None) else total_tqdm
-    total_tqdm = min(total_tqdm, len(page_only)) if (page_only is not None) else total_tqdm
+    total_tqdm = (
+        min(total_tqdm, len(task_only)) if (task_only is not None) else total_tqdm
+    )
+    total_tqdm = (
+        min(total_tqdm, len(page_only)) if (page_only is not None) else total_tqdm
+    )
 
-    progressbar = tqdm(total = total_tqdm)
+    progressbar = tqdm(total=total_tqdm)
 
     for task_idx, task in enumerate(tasks, start=1):
 
@@ -78,7 +105,9 @@ def augment_data_sequential(simplified_filepath,
             if task_id not in task_only_set:
                 continue
 
-        img_path = get_image_path_from_task(task) # cogemos la imagen que le corresponde
+        img_path = get_image_path_from_task(
+            task
+        )  # cogemos la imagen que le corresponde
 
         if img_path is None:
             print(f"No hay imagen para la tarea {task.get('id')}")
@@ -86,9 +115,9 @@ def augment_data_sequential(simplified_filepath,
 
         page_number = img_path.stem if img_path else "N/A"
 
-        if filtering_active: # si no es paralelo y hay filtros (page_only o task_only)
-            pageok = False # pg. marcada para procesar
-            taskok = False # tarea marcada para procesar
+        if filtering_active:  # si no es paralelo y hay filtros (page_only o task_only)
+            pageok = False  # pg. marcada para procesar
+            taskok = False  # tarea marcada para procesar
 
             if page_only_set is not None:
                 pageok = str(page_number) in page_only_set
@@ -96,14 +125,14 @@ def augment_data_sequential(simplified_filepath,
             if task_only_set is not None:
                 taskok = task_id in task_only_set
 
-            if not (pageok or taskok): # si no está en ningún filtro, no la procesamos
+            if not (pageok or taskok):  # si no está en ningún filtro, no la procesamos
                 continue
 
         progressbar.update(1)
 
-        try: # abrimos y preparamos la imagen
+        try:  # abrimos y preparamos la imagen
             img = Image.open(img_path)
-            img = ImageOps.exif_transpose(img) # posible corrección de orientación
+            img = ImageOps.exif_transpose(img)  # posible corrección de orientación
         except Exception as e:
             print(f"Error cargando {img_path}: {e}")
             continue
@@ -111,9 +140,12 @@ def augment_data_sequential(simplified_filepath,
         annotations = task.get("annotations", [])
 
         # por cada anotación
-        for Ann in (AnnotatedPage(ann, task_id, img, unrotate = False, cc_ordering = True) for ann in annotations):
+        for Ann in (
+            AnnotatedPage(ann, task_id, img, unrotate=False, cc_ordering=True)
+            for ann in annotations
+        ):
             if not Ann.image_boxes:
-                continue # si la anotación está vacía, simplemente pasamos
+                continue  # si la anotación está vacía, simplemente pasamos
 
             # ---------------------------------------------------------
             # GENERACIÓN PÁGINA COMPLETA
@@ -126,28 +158,32 @@ def augment_data_sequential(simplified_filepath,
                 # Obtenemos todos los IDs de la página para pasarlos a la función
                 all_boxes_sequence = list(Ann.image_boxes.keys())
 
-
                 try:
-                    full_page_collage, full_page_transcription, sindex = Ann.cluster_reading_order(list(Ann.graph.keys()))
+                    full_page_collage, full_page_transcription, sindex = (
+                        Ann.cluster_reading_order(list(Ann.graph.keys()))
+                    )
 
                     full_page_collage.save(FULL_DIR / full_filename)
 
                     # sanity check
-                    assert sindex == 0, f"La concatenación de todas las cajas en la tarea {task_id} no consigue un sindex de 0 en Ann.concatenate_transcriptions(...)."
+                    assert (
+                        sindex == 0
+                    ), f"La concatenación de todas las cajas en la tarea {task_id} no consigue un sindex de 0 en Ann.concatenate_transcriptions(...)."
 
-                    new_rows_data.append({ # nueva fila para el dataframe
-                        "task": task_id,
-                        "order": "FULL",
-                        "sindex": 0,
-                        "text": full_page_transcription,
-                        "page": page_number,
-                        "crop_file": full_filename,
-                        "background_color" : Ann.background_color
-                    })
+                    new_rows_data.append(
+                        {  # nueva fila para el dataframe
+                            "task": task_id,
+                            "order": "FULL",
+                            "sindex": 0,
+                            "text": full_page_transcription,
+                            "page": page_number,
+                            "crop_file": full_filename,
+                            "background_color": Ann.background_color,
+                        }
+                    )
                     total_saved += 1
                 except Exception as e:
                     print(f"Error guardando la página completa {full_filename}. {e}")
-
 
             # ---------------------------------------------------------
             # GENERACIÓN SUBGRAFOS
@@ -158,10 +194,13 @@ def augment_data_sequential(simplified_filepath,
             ccomponents = Ann.ordered_connected_components
 
             max_comp_size = max(len(c) for c in ccomponents) if ccomponents else 0
-            saved_subgraphs_ids = set() # para evitar duplicados
+            saved_subgraphs_ids = set()  # para evitar duplicados
 
-            range_orders = [a for a in orders_to_consider if a <= max_comp_size] \
-                if (orders_to_consider is not None) else range(1, max_comp_size +1)
+            range_orders = (
+                [a for a in orders_to_consider if a <= max_comp_size]
+                if (orders_to_consider is not None)
+                else range(1, max_comp_size + 1)
+            )
 
             for order in range_orders:
                 # carpeta de outputs para esta longitud
@@ -170,11 +209,17 @@ def augment_data_sequential(simplified_filepath,
                 # buscamos subgrafos en componentes conexas de tamaño suficiente
                 big_enough_cc = [c for c in ccomponents if len(c) >= order]
 
-                for idx_comp, comp in enumerate(big_enough_cc): # por cada componente conexa
+                for idx_comp, comp in enumerate(
+                    big_enough_cc
+                ):  # por cada componente conexa
                     subgraph_gen = generate_connected_subgraphs(comp, Ann.graph, order)
 
                     if max_samples_per_order > 0:
-                        reservoir = create_reservoir(subgraph_gen, time_limit, max_samples_per_order)
+                        reservoir = create_reservoir(
+                            subgraph_gen,
+                            time_limit_subgraph_generation,
+                            max_samples_per_order,
+                        )
                     else:
                         reservoir = subgraph_gen
 
@@ -182,29 +227,37 @@ def augment_data_sequential(simplified_filepath,
 
                     for box_id_sequence in reservoir:
 
-                        seq_hash = get_deterministic_id("".join(sorted(box_id_sequence)))[:16]
-                        filename = f"pg_{page_number}_t{task_id}_order{order}_h{seq_hash}.png"
+                        seq_hash = get_deterministic_id(
+                            "".join(sorted(box_id_sequence))
+                        )[:16]
+                        filename = (
+                            f"pg_{page_number}_t{task_id}_order{order}_h{seq_hash}.png"
+                        )
 
                         if seq_hash in saved_subgraphs_ids:
                             # esto debería ser imposible a no ser que no haya reservoir.
                             continue
 
                         try:
-                            collage, transcripcion, sindex = Ann.cluster_reading_order(box_id_sequence)
+                            collage, transcripcion, sindex = Ann.cluster_reading_order(
+                                box_id_sequence
+                            )
                             collage.save(order_dir / filename)
 
                             # en el caso en el que pasamos solamente un subgrafo, como este está dentro de una componente conexa no necesitamos
                             # emplear la ordenación que respeta componentes conexas.
 
-                            new_rows_data.append({ # nueva fila para el dataframe
-                                "task": task_id,
-                                "order": order,
-                                "text": transcripcion,
-                                "page": page_number,
-                                "crop_file": filename,
-                                "sindex" : sindex,
-                                "background_color" : Ann.background_color
-                            })
+                            new_rows_data.append(
+                                {  # nueva fila para el dataframe
+                                    "task": task_id,
+                                    "order": order,
+                                    "text": transcripcion,
+                                    "page": page_number,
+                                    "crop_file": filename,
+                                    "sindex": sindex,
+                                    "background_color": Ann.background_color,
+                                }
+                            )
 
                             total_saved += 1
                             saved_subgraphs_ids.add(seq_hash)
@@ -232,6 +285,8 @@ def augment_data_sequential(simplified_filepath,
     # lo guardamos a un excel
     try:
         final_df.to_excel(excel_path, index=False)
-        print(f"\nGenerados {total_saved} recortes aumentados y guardados en {output_excel_name}.")
+        print(
+            f"\nGenerados {total_saved} recortes aumentados y guardados en {output_excel_name}."
+        )
     except Exception as e:
         print(f"Error guardando el archivo excel: {e}")
