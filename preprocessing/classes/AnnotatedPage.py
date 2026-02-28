@@ -489,11 +489,14 @@ class AnnotatedPage:
 
         return adjacency_mx
 
-    def generate_collage(self, box_id_sequence):
+    def generate_collage(self, box_id_sequence: set[str] | list[str]):
         """
         Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo).
         """
         # 1. Obtenemos los polígonos de la secuencia solicitada
+
+        if not isinstance(box_id_sequence, set):
+            box_id_sequence = set(box_id_sequence)
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]
 
@@ -564,6 +567,8 @@ class AnnotatedPage:
         aparecen en la transcripción completa.
         self.cc_ordering define cómo se compone la transcripción total (funciona como en reading_order)
         """
+        if not isinstance(box_id_sequence, set):
+            box_id_sequence = set(box_id_sequence)
 
         box_id_sequence_reading_order = self.reading_order(box_id_sequence, cc_ordering)
         concatenated_transcription = " ".join(

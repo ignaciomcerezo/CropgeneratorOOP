@@ -1,4 +1,4 @@
-from processing.augment_data.sequential.augment_data_sequential import (
+from processing.checks.augment_data_sequential import (
     augment_data_sequential,
 )
 from paths import simplified_filepath, raw_export_filepath
@@ -14,7 +14,7 @@ simplify_export(
     simplified_filepath=simplified_filepath, raw_export_filepath=raw_export_filepath
 )
 
-
+# TODO comprobar que los sindex se calculan bien...
 augment_data_sequential(
     simplified_filepath, orders_to_consider=[1, 2, 3], task_only=[5, 6, 7]
 )

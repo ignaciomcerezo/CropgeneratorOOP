@@ -1,4 +1,3 @@
-from paths import output_path, crops_path
 from labelstudio.simplify_export import load_simplified_export
 from pathlib import Path
 from PIL import Image, ImageOps
@@ -12,6 +11,7 @@ from preprocessing.classes.helper_to_classes import (
     get_image_path_from_task,
     get_deterministic_id,
 )
+from paths import crops_path as default_crops_path, output_path as default_output_path
 from parameters import min_nodes_for_big_box_removal, BIG_BOX_THRESHOLD
 import pandas as pd
 
@@ -27,10 +27,15 @@ def augment_data_sequential(
     time_limit_subgraph_generation=10,
     is_parallel=False,
     additive_excel=False,
+    output_path: Path = default_output_path,
+    crops_path: Path = default_crops_path,
 ):
     """
     Función principal para procesar las tareas y generar los recortes aumentados.
     """
+    output_path = output_path if isinstance(output_path, Path) else Path(output_path)
+    crops_path = crops_path if isinstance(crops_path, Path) else Path(crops_path)
+
     # nos aseguramos de que las carpetas de salida existen
     output_path.mkdir(parents=True, exist_ok=True)
     crops_path.mkdir(parents=True, exist_ok=True)
@@ -243,9 +248,6 @@ def augment_data_sequential(
                                 box_id_sequence
                             )
                             collage.save(order_dir / filename)
-
-                            # en el caso en el que pasamos solamente un subgrafo, como este está dentro de una componente conexa no necesitamos
-                            # emplear la ordenación que respeta componentes conexas.
 
                             new_rows_data.append(
                                 {  # nueva fila para el dataframe
