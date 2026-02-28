@@ -64,7 +64,7 @@ class LabelStudioInterface:
         self.local_last_update = None
 
         if self.raw_export_path.exists():
-            loaded_export = json.loads(self.raw_export_path.read_text())
+            loaded_export = list(json.loads(self.raw_export_path.read_text()))
 
             loaded_export_last_updated_at = sorted(
                 [task["updated_at"] for task in loaded_export]
@@ -75,6 +75,8 @@ class LabelStudioInterface:
                 self._update_tasks_conditional(forced=True)
 
             else:
+                loaded_export.sort(key=lambda tsk: int(tsk["id"]))
+
                 self.__raw_tasks = loaded_export
                 self.local_last_update = loaded_export_last_updated_at
                 self.__simplified_tasks = load_simplified_export(
@@ -85,7 +87,7 @@ class LabelStudioInterface:
             self._update_tasks_conditional(forced=True)
 
     @property
-    def raw_tasks(self, check_updated: bool = True) -> list:
+    def raw_tasks(self, check_updated: bool = False) -> list:
         """
         Devuelve las tareas ya etiquetadas del servidor de LabelStudio al que se está accediendo.
         Si check_updated, se comprueba primero que estén actualizadas comparadas con las del servidor.
@@ -95,11 +97,11 @@ class LabelStudioInterface:
         return self.__raw_tasks
 
     @property
-    def simplified_tasks(self, check_updated: bool = True) -> list:
+    def simplified_tasks(self, check_updated: bool = False) -> list:
         if check_updated and self.is_outdated:
             self._update_tasks_conditional(forced=True)
             self._set_and_save_simplified_tasks()
-        return self.__raw_tasks
+        return self.__simplified_tasks
 
     def users(self) -> list["str"]:
         """
@@ -107,6 +109,14 @@ class LabelStudioInterface:
         Si se ha borrado un usuario, su nombre se sustituye con 0
         """
         return self.usernames
+
+    @property
+    def annotations(self):
+        return [
+            r["annotations"][i]
+            for r in self.simplified_tasks
+            for i in range(len(r["annotations"]))
+        ]
 
     def _get_latest_update_of_LS(self):
         most_recently_updated_task = self.project.get_paginated_tasks(
@@ -125,10 +135,14 @@ class LabelStudioInterface:
     def _update_tasks_conditional(self, forced=False):
         try:
             latest_update_of_LS = self._get_latest_update_of_LS()
-            if forced or self.is_outdated:
+
+            if forced or (not self.raw_export_path.exists()) or self.is_outdated:
                 print("Actualizando export (update_tasks_conditional).")
                 # cargamos el export
-                self.__raw_tasks = self.project.export_tasks()
+
+                self.__raw_tasks = sorted(
+                    self.project.export_tasks().copy(), key=lambda tsk: int(tsk["id"])
+                )
                 self.local_last_update = latest_update_of_LS
                 self._set_and_save_simplified_tasks()
         except Exception as e:
@@ -151,3 +165,21 @@ class LabelStudioInterface:
         simplify_export(self.raw_export_path, self.simplified_filepath)
         self.__simplified_tasks = load_simplified_export(self.simplified_filepath)
         self.save_simplified_export()
+
+    def __getitem__(self, index: int | str) -> list[dict]:
+        """Devuelve todas las anotaciones de self.simplified_export que tengan ["id"] = index.
+        No comprueba que esté actualizado."""
+        if isinstance(index, str):
+            index = int(index)
+        if not isinstance(index, (str, int)):
+            raise TypeError(
+                "El valor del índice dado a la instancia de LabelStudioInterface debe ser un entero o un string."
+            )
+
+        items = []
+        for tsk in self.__simplified_tasks:
+            if int(tsk["id"]) > index:
+                return items
+            elif tsk["id"] == index:
+                items.extend(tsk["annotations"])
+        return items

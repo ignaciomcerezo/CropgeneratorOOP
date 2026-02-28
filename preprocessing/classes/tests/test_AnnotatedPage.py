@@ -16,10 +16,11 @@ Annotated_task_5 = AnnotatedPage(
 )
 
 if __name__ == "__main__":
-    cimg, complete_transcription, _ = Annotated_task_5.cluster_reading_order(Annotated_task_5.graph.keys())
+    cimg, complete_transcription, _ = Annotated_task_5.cluster_reading_order(
+        Annotated_task_5.graph.keys()
+    )
 
     heu_sindex = lambda text: complete_transcription.index(text)
-
 
     for image_box in Annotated_task_5.image_boxes.values():
 
@@ -29,5 +30,3 @@ if __name__ == "__main__":
             print(f"cindex != hey_sindex @{image_box.id}")
         if cindex != heu_sindex(image_box.fragment.text):
             print(f"cindex != hey_sindex @{image_box.id}")
-
-
