@@ -8,15 +8,18 @@ from preprocessing.classes.helper_to_classes import (
     unrotate_image,
     reemplazar_latex_espaciado,
     trim_star_nodes,
+    get_image_path_from_task,
 )
 from parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
 from shapely import box as boxshape
 from labelstudio.LabelStudioInterface import LabelStudioInterface
 from display import display
 import re
+from paths import images_path
 from PIL import Image
 from paths import simplified_filepath, usernames_filepath
 import json
+import numpy as np
 
 if usernames_filepath.exists():
     # si podemos evitar instanciar LSI, mejor
@@ -96,6 +99,7 @@ class AnnotatedPage:
         (r"\emph{", "}"),
         (r"\footnote{", "}"),
         (r"\begin{center}", r"\end{center}"),
+        (r"\tag{", "}"),
     ]
 
     regex_replacements = [
@@ -120,8 +124,16 @@ class AnnotatedPage:
         "ordered_connected_components",
     )
 
-    def __init__(self, ann, task_id, img, cc_ordering: bool, unrotate: bool = False):
-
+    def __init__(
+        self,
+        ann,
+        task_id: int = None,
+        img: Image = None,
+        cc_ordering: bool = True,
+        unrotate: bool = False,
+    ):
+        if task_id is None:
+            task_id = ann["task"]
         if unrotate and AnnotatedPage.warn_unrotate:
             print(
                 f"Usar unrotate = True destruye la información sobre la posición del crop en la instancia de AnnotatedPage. "
@@ -129,6 +141,7 @@ class AnnotatedPage:
                 "artefactos visuales en los bordes de la imagen. Úsese solamente en caso de revisión manual de las imágenes, y "
                 "NO para el código de generación del dataset."
             )
+
         # corrige los resultados realizando las sustituciones
         results = self.correct_results(
             ann.get("result", [])
@@ -185,23 +198,29 @@ class AnnotatedPage:
             self.build_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
 
-        # colocamos las componentes conexas siguiendo el orden de lectura.
-        cc = get_connected_components(self.__graph)
+        # TODO: does this produce good results always? Does this cc_ordering and using the raw ccs cause any problems?
 
-        for index, component in enumerate(cc):  # orden intra-componente
-            cc[index] = self.reading_order(
-                component, False
+        # colocamos las componentes conexas siguiendo el orden de lectura.
+        ccs = get_connected_components(self.__graph)
+
+        self.set_corrected_centroid(ccs)
+
+        for index, component in enumerate(
+            ccs
+        ):  # orden intra-componente: orden de proyección
+            ccs[index] = self.reading_order(
+                component, False, projection_ordering=True
             )  # lo ordenamos en orden de lectura
 
-        cc = sorted(
-            cc,
+        ccs = sorted(
+            ccs,
             key=lambda comp: (  # los ordenamos usando el orden naif: el "párrafo" que empiece antes va antes.
                 self.image_boxes[comp[0]].polygon.bounds[1],
                 self.image_boxes[comp[0]].polygon.bounds[0],
             ),
         )
 
-        self.ordered_connected_components = cc
+        self.ordered_connected_components = ccs
 
         self.__cc_ordering = cc_ordering
         self.assign_starting_indices()  # asignamos los sindex a cada fragmento
@@ -244,21 +263,21 @@ class AnnotatedPage:
     def graph(self, value):
 
         self.__graph = value
-        cc = get_connected_components(self.__graph)
+        ccs = get_connected_components(self.__graph)
 
-        for index, component in enumerate(cc):  # orden intra-componente
-            cc[index] = self.reading_order(
+        for index, component in enumerate(ccs):  # orden intra-componente
+            ccs[index] = self.reading_order(
                 component, False
             )  # lo ordenamos en orden de lectura
 
-        cc = sorted(
-            cc,
+        ccs = sorted(
+            ccs,
             key=lambda comp: (  # los ordenamos usando el orden naif: el "párrafo" que empiece antes va antes.
                 self.image_boxes[comp[0]].polygon.bounds[1],
                 self.image_boxes[comp[0]].polygon.bounds[0],
             ),
         )
-        self.ordered_connected_components = cc
+        self.ordered_connected_components = ccs
 
     def setup_mappings(self, results: list):
         """
@@ -474,8 +493,73 @@ class AnnotatedPage:
 
         return results
 
+    def get_average_rotation(self, cc: list | None = None):
+        """Calcula la rotación media de una componente conexa. Si no se pasa una componente conexa, se calcula la del
+        documento completo."""
+        if cc is None:
+            cc = self.graph.keys()
+        total_words = 0
+        rotation = 0
+
+        image_boxes_in_cc = [self.image_boxes[box_id] for box_id in cc]
+
+        for image_box in image_boxes_in_cc:
+            fragment = image_box.fragment
+
+            n_words = len(
+                fragment.text.split()
+            )  # realmente esto es una aproximación bastante cruda, en las mates hay muchos espacios
+            rotation += image_box.rotation * n_words
+            total_words += n_words
+        return rotation / total_words
+
+    def set_corrected_centroid(self, ccs: list[str] = None) -> None:
+        """
+        Asigna a cada una de las cajas-imagen su centroide corregido usando la rotación media de las palabras de su
+        componente conexa.
+        """
+        if ccs is None:
+            ccs = self.ordered_connected_components
+
+        for cc in ccs:
+
+            image_boxes_in_cc = [self.image_boxes[box_id] for box_id in cc]
+
+            local_centroid = np.zeros((2,))
+            n_words = 0
+            for image_box in image_boxes_in_cc:
+                fragment = image_box.fragment
+                n_words_in_box = len(fragment.text.split())
+                local_centroid += (
+                    np.array(image_box.centroid()) * n_words_in_box
+                )  # pondera por el número de palabras
+                n_words += n_words_in_box
+
+            assert (
+                n_words > 0
+            ), f"Se ha encontrado una componente conexa con 0 palabras en la tarea {self.task_id}, completada por {self.completer}."
+            local_centroid /= n_words
+
+            avg_rot_cc = np.radians(self.get_average_rotation(cc))
+
+            for image_box in image_boxes_in_cc:
+                x_glob, y_glob = image_box.centroid()
+
+                x = x_glob - local_centroid[0]
+                y = y_glob - local_centroid[1]
+
+                x_corr = (
+                    float(x * np.cos(avg_rot_cc) + y * np.sin(avg_rot_cc))
+                    + local_centroid[0]
+                )
+                y_corr = (
+                    float(-x * np.sin(avg_rot_cc) + y * np.cos(avg_rot_cc))
+                    + local_centroid[1]
+                )
+
+                image_box.corrected_centroid = (x_corr, y_corr)
+
     def adjacency_matrix(self):
-        import numpy as np
 
         adjacency_mx = np.zeros((self.order, self.order))
 
@@ -530,14 +614,34 @@ class AnnotatedPage:
 
         return collage
 
-    def reading_order(self, box_id_sequence, cc_ordering: bool = None):
+    def reading_order(
+        self,
+        box_id_sequence,
+        cc_ordering: bool = None,
+        projection_ordering: bool = None,
+    ):
         """Dado un grupo de ids de cajas, los pone en orden de lectura.
         Si self.cc_ordering, los fragmentos de una misma componente conexa siempre se colocan seguidos (en el orden de lectura).
 
         Si no, se usa el orden de lectura 'naif', arriba-abajo izquierda-derecha (el mismo que se impone dentro de cada componente conexa)
         """
         if cc_ordering is None:
-            cc_ordering = self.cc_ordering
+            if projection_ordering is None:
+                cc_ordering = self.cc_ordering
+            else:
+                cc_ordering = True
+        # TODO check if this all makes sense: projection ordering needs cc_ordering or not?
+
+        if projection_ordering:
+            return sorted(
+                list(box_id_sequence),
+                key=lambda box_id: (
+                    (
+                        self.image_boxes[box_id].corrected_centroid[1],
+                        self.image_boxes[box_id].corrected_centroid[0],
+                    )
+                ),
+            )
 
         if cc_ordering:
             assert set(box_id_sequence) == set(

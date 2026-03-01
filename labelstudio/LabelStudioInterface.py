@@ -11,6 +11,8 @@ from labelstudio.simplify_export import (
     simplify_export,
     load_simplified_export,
 )
+from preprocessing.classes.helper_to_classes import get_image_path_from_task
+from PIL import Image
 
 
 class LabelStudioInterface:
@@ -183,3 +185,7 @@ class LabelStudioInterface:
             elif tsk["id"] == index:
                 items.extend(tsk["annotations"])
         return items
+
+    def get_image(self, task_id):
+        task = [task for task in self.simplified_tasks if task["id"] == int(task_id)][0]
+        return Image.open(get_image_path_from_task(task))
