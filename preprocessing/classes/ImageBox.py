@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Optional
 from PIL.Image import Image
 from shapely import Polygon
 from display import display
@@ -14,6 +15,7 @@ class ImageBox:
     task_id: int
     associated_fragments: list["TextFragment"] = field(default_factory=lambda: list())
     true_rectangle: bool
+    corrected_centroid: Optional[tuple[float, float]] = None
 
     def associate_fragment(self, fragment: "TextFragment", warn: bool = True):
         if (
@@ -35,6 +37,8 @@ class ImageBox:
                     display(f"Fragmento {i + 2}: {old_fragment.text}")
 
         self.associated_fragments.append(fragment)
+
+        self.corrected_centroid = None
 
     def __hash__(self):
         return (
@@ -64,3 +68,7 @@ class ImageBox:
             raise ValueError(
                 f"La caja-imagen {self.id} de la tarea {self.task_id} tiene más de un fragmento asociado: {' '.join(self.associated_fragments)}"
             )
+
+    def centroid(self) -> tuple[float, float]:
+        pol_centroid = self.polygon.centroid
+        return pol_centroid.x, pol_centroid.y
