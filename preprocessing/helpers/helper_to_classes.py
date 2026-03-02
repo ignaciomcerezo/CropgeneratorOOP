@@ -390,8 +390,7 @@ def get_rotated_region(val, W, H, img, bg_color):
 
 def calculate_reading_angle(polygon: Polygon) -> float:
     """
-    Calculates the true reading angle of a polygon by locking onto the
-    longest edge of its minimum bounding rectangle.
+    Calcula el ángulo "de lectura" de una caja fijando el lado más largo de su rectángulo delimitador mínimo.
     """
     min_rect = polygon.minimum_rotated_rectangle
 
