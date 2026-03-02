@@ -16,6 +16,7 @@ class ImageBox:
     associated_fragments: list["TextFragment"] = field(default_factory=lambda: list())
     true_rectangle: bool
     corrected_centroid: Optional[tuple[float, float]] = None
+    corrected_polygon: Optional[Polygon] = None
 
     def associate_fragment(self, fragment: "TextFragment", warn: bool = True):
         if (
@@ -39,6 +40,7 @@ class ImageBox:
         self.associated_fragments.append(fragment)
 
         self.corrected_centroid = None
+        self.corrected_polygon = None
 
     def __hash__(self):
         return (

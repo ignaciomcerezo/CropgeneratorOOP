@@ -1,6 +1,6 @@
 from processing.augment_data.sequential.helpers import generate_connected_subgraphs
 
-from preprocessing.classes.tests.test_AnnotatedPage import Annotated_task_5
+from preprocessing.tests.test_AnnotatedPage import Annotated_task_5
 
 graph = Annotated_task_5.graph
 ccs = Annotated_task_5.ordered_connected_components

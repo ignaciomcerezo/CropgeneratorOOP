@@ -1,18 +1,17 @@
 from labelstudio.simplify_export import load_simplified_export
 from pathlib import Path
 from PIL import Image, ImageOps
-from preprocessing.classes.AnnotatedPage import AnnotatedPage
+from preprocessing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
 from processing.augment_data.sequential.helpers import (
     generate_connected_subgraphs,
     create_reservoir,
 )
-from preprocessing.classes.helper_to_classes import (
+from preprocessing.helpers.helper_to_classes import (
     get_image_path_from_task,
     get_deterministic_id,
 )
 from paths import crops_path as default_crops_path, output_path as default_output_path
-from parameters import min_nodes_for_big_box_removal, BIG_BOX_THRESHOLD
 import pandas as pd
 
 
@@ -146,7 +145,7 @@ def augment_data_sequential(
 
         # por cada anotación
         for Ann in (
-            AnnotatedPage(ann, task_id, img, unrotate=False, cc_ordering=True)
+            AnnotatedPage(ann, img, unrotate=False, cc_ordering=True)
             for ann in annotations
         ):
             if not Ann.image_boxes:
@@ -194,7 +193,8 @@ def augment_data_sequential(
             # GENERACIÓN SUBGRAFOS
             # ---------------------------------------------------------
 
-            Ann.trim_star_nodes(BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal)
+            # esto ya se hace dentro de la anotación
+            # Ann.trim_star_nodes(BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal)
 
             ccomponents = Ann.ordered_connected_components
 

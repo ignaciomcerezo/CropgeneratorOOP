@@ -1,7 +1,7 @@
-from preprocessing.classes.ImageBox import ImageBox
-from preprocessing.classes.TextFragment import TextFragment
-from preprocessing.classes.Paragraph import Paragraph
-from preprocessing.classes.helpers.helper_to_classes import (
+from preprocessing.ImageBox import ImageBox
+from preprocessing.TextFragment import TextFragment
+from preprocessing.Paragraph import Paragraph
+from preprocessing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
     get_rotated_region,
@@ -10,7 +10,7 @@ from preprocessing.classes.helpers.helper_to_classes import (
     trim_star_nodes,
     compose_collage,
 )
-from preprocessing.classes.helpers.text_replacements import (
+from preprocessing.helpers.text_replacements import (
     replacements,
     replacements_envs,
     regex_replacements,
@@ -55,25 +55,26 @@ class AnnotatedPage:
     def __init__(
         self,
         ann,
-        task_id: int = None,
         img: Image.Image = None,
         unrotate: bool = False,
     ):
-        if task_id is None:
-            task_id = ann["task"]
+
         if unrotate and AnnotatedPage.warn_unrotate:
             print(
-                f"Usar unrotate = True destruye la información sobre la posición del crop en la instancia de AnnotatedPage. "
+                f"[!!!] Usar unrotate = True destruye la información sobre la posición del crop en la instancia de AnnotatedPage. "
                 "Además, reduce la calidad de las imágenes por usar interpolación bicúbica, y esta misma interpolación introduce "
                 "artefactos visuales en los bordes de la imagen. Úsese solamente en caso de revisión manual de las imágenes, y "
                 "NO para el código de generación del dataset."
+            )
+            print(
+                "También invalida la forma en la que se generan los párrafos, la transcripción y los starting_indices."
             )
 
         # corrige los resultados realizando las sustituciones
         results = self.correct_results(
             ann.get("result", [])
         )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
-        self.task_id = int(task_id)
+        self.task_id = int(ann["task"])
 
         self.background_color = get_dominant_color(img)
 
@@ -85,22 +86,24 @@ class AnnotatedPage:
             if r.get("type") in ("rectanglelabels", "polygonlabels")
         }
 
-        self.image_boxes = {  # conjunto de cajas-imagen (instancias de ImageBox)
-            imgbox_id: ImageBox(
-                id=imgbox_id,
-                task_id=self.task_id,
-                **self.rotatedregion(imgbox_id, img, img_boxes_json, unrotate),
-            )
-            for imgbox_id in img_boxes_json
-        }
+        self.image_boxes: dict[str, ImageBox] = (
+            {  # conjunto de cajas-imagen (instancias de ImageBox)
+                imgbox_id: ImageBox(
+                    id=imgbox_id,
+                    task_id=self.task_id,
+                    **self.rotatedregion(imgbox_id, img, img_boxes_json, unrotate),
+                )
+                for imgbox_id in img_boxes_json
+            }
+        )
 
-        txt_boxes_json = {
+        txt_boxes_json: dict[str, dict] = {
             rid: r
             for rid, r in res_map.items()
             if r.get("type") in ("labels", "hypertextlabels", "textarea")
         }
 
-        self.text_fragments = (
+        self.text_fragments: dict[str, TextFragment] = (
             {  # conjunto de fragmentos de texto (instancias de TextFragment)
                 fragment_id: TextFragment(
                     id=fragment_id,
@@ -121,7 +124,7 @@ class AnnotatedPage:
 
         self.assert_pairing()  # nos aseguramos de que todas las imágenes tengan fragmento, y viceversa
 
-        self.__graph = (
+        self.__graph: dict[str, set[str]] = (
             self.build_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
 
@@ -139,7 +142,15 @@ class AnnotatedPage:
         # generamos los párrafos (componentes conexas con información extra), que añaden automáticamente información sobre
         # los centroides corregidos a cada caja-imagen. El sorted se ejecuta atuomáticamente, y se hace usando el orden
         # naif.
-        self.paragraphs = sorted([Paragraph(box_cc) for box_cc in box_ccs])
+        self.paragraphs: list[Paragraph] = sorted(
+            [Paragraph(box_cc) for box_cc in box_ccs]
+        )
+
+        sindex = 0  # índices de inicio de cada fragmento de texto (empleando
+        for paragraph in self.paragraphs:
+            for fragment in paragraph.text_fragments:
+                fragment.starting_index = sindex
+                sindex += len(fragment.text) + 1
 
         self.last_update_time = " ".join(
             ann["updated_at"].replace("Z", "").split("T")
@@ -429,6 +440,7 @@ class AnnotatedPage:
         collage = self.generate_collage(box_ids)
 
         fragments = [self.image_boxes[box_id].fragment for box_id in box_ids]
+        # usando .starting_index estamos usando el mismo orden de lectura de image_boxes
         fragments = sorted(fragments, key=lambda x: x.starting_index)
 
         transcription = " ".join([fragment.text for fragment in fragments])
