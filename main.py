@@ -1,4 +1,4 @@
-from processing.checks.augment_data_sequential import (
+from processing.augment_data.sequential.augment_data_sequential import (
     augment_data_sequential,
 )
 from paths import simplified_filepath, raw_export_filepath

@@ -1,6 +1,9 @@
-from preprocessing.classes.TextFragment import TextFragment
-from preprocessing.classes.ImageBox import ImageBox
+from preprocessing.TextFragment import TextFragment
+from preprocessing.ImageBox import ImageBox
+from preprocessing.helpers.helper_to_classes import compose_collage, unrotate_image
+from shapely.affinity import affine_transform
 import numpy as np
+from PIL import Image
 
 
 class Paragraph:
@@ -40,42 +43,55 @@ class Paragraph:
 
         self.centroid: np.ndarray = np.zeros((2,))
         self.total_words: int = 0
-        self.avg_rotation: float = 0
+        total_area = 0
+
+        sum_sin = 0.0
+        sum_cos = 0.0
 
         for image_box in self.image_boxes:
-            words = len(image_box.fragment.text.split())
-            self.centroid += np.array(image_box.centroid()) * words
-            self.avg_rotation += image_box.rotation * words
-            self.total_words += words
+            self.total_words += len(image_box.fragment.text.split())
+            area = image_box.polygon.area
+
+            self.centroid += np.array(image_box.centroid()) * area
+
+            theta_rad = np.radians(image_box.rotation)
+            sum_sin += np.sin(theta_rad) * area
+            sum_cos += np.cos(theta_rad) * area
+
+            total_area += area
+
         assert self.total_words > 0, "Se ha pasado un párrafo sin palabras."
 
-        self.centroid /= self.total_words
-        self.avg_rotation /= self.total_words
+        self.centroid /= total_area
+
+        # reconstruimos el ángulo
+        avg_theta_rad = np.arctan2(sum_sin, sum_cos)
+        self.avg_rotation = -np.degrees(avg_theta_rad)
 
         self.top: float = min([box.top for box in self.image_boxes])
         self.left: float = min([box.left for box in self.image_boxes])
 
-        avg_rot_rad = np.radians(self.avg_rotation)
+        theta_rad = -np.radians(-self.avg_rotation)
+
+        cos_theta = np.cos(theta_rad)
+        sin_theta = np.sin(theta_rad)
+
+        cx_para, cy_para = self.centroid
 
         for image_box in self.image_boxes:
-            x_glob, y_glob = image_box.centroid()
+            cx, cy = image_box.centroid()
 
-            x = x_glob - self.centroid[0]
-            y = y_glob - self.centroid[1]
+            dx = cx - cx_para
+            dy = cy - cy_para
 
-            x_corr = (
-                float(x * np.cos(avg_rot_rad) + y * np.sin(avg_rot_rad))
-                + self.centroid[0]
-            )
-            y_corr = (
-                float(-x * np.sin(avg_rot_rad) + y * np.cos(avg_rot_rad))
-                + self.centroid[1]
-            )
+            corrected_x = dx * cos_theta - dy * sin_theta + cx_para
+            corrected_y = dx * sin_theta + dy * cos_theta + cy_para
 
-            image_box.corrected_centroid = (x_corr, y_corr)
+            image_box.corrected_centroid = (corrected_x, corrected_y)
 
         self.image_boxes = sorted(
-            self.image_boxes, key=lambda box: box.corrected_centroid[::-1]
+            self.image_boxes,
+            key=lambda box: tuple(box.corrected_centroid[::-1]),
         )
 
         # reordenamos
@@ -91,3 +107,30 @@ class Paragraph:
 
     def __gt__(self, other: "Paragraph"):
         return (self.top, self.left) > (other.top, other.left)
+
+    def collage(self, fill_color: tuple[int] = (255, 0, 255)):
+        return compose_collage(self.image_boxes, fill_color)
+
+    def transcription(self):
+        return " ".join([fragment.text for fragment in self.text_fragments])
+
+    def cluster_reading_order(
+        self, unrotate: bool = False, fill_color: tuple[int] | None = (255, 0, 255)
+    ):
+        if not unrotate:
+            collage = compose_collage(self.image_boxes, (255, 0, 255))
+        else:
+            transp_collage = compose_collage(
+                self.image_boxes, tuple(list(fill_color) + [0])
+            )
+
+            unrotated = unrotate_image(transp_collage, -self.avg_rotation)
+
+            collage = Image.new("RGB", unrotated.size, fill_color)
+            collage.paste(unrotated, (0, 0), mask=unrotated)
+
+        return (
+            collage,
+            " ".join([fragment.text for fragment in self.text_fragments]),
+            self.text_fragments[0].starting_index,
+        )

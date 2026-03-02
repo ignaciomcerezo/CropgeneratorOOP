@@ -5,6 +5,7 @@ import hashlib  # para los identificadores únicos de subgrafos
 from shapely import Polygon, box as boxshape
 from paths import images_path
 from pathlib import Path
+import numpy as np
 
 
 def reemplazar_latex_espaciado(texto, apertura, cierre="}"):
@@ -313,7 +314,7 @@ def get_rotated_region(val, W, H, img, bg_color):
 
         # dibujamos el polígono relleno en blanco (255 = opaco)
         draw.polygon(local_points, fill=255)
-        calculated_rotation = calculate_polygon_angle(poly)
+        calculated_rotation = calculate_reading_angle(poly)
 
         final_image = raw_crop.convert("RGBA")
         final_image.putalpha(mask)
@@ -387,6 +388,39 @@ def get_rotated_region(val, W, H, img, bg_color):
     return final_image, poly, rotation, False
 
 
+def calculate_reading_angle(polygon: Polygon) -> float:
+    """
+    Calculates the true reading angle of a polygon by locking onto the
+    longest edge of its minimum bounding rectangle.
+    """
+    min_rect = polygon.minimum_rotated_rectangle
+
+    coords = list(min_rect.exterior.coords)[:-1]
+
+    dx_a = coords[1][0] - coords[0][0]
+    dy_a = coords[1][1] - coords[0][1]
+    len_a = np.hypot(dx_a, dy_a)
+
+    dx_b = coords[2][0] - coords[1][0]
+    dy_b = coords[2][1] - coords[1][1]
+    len_b = np.hypot(dx_b, dy_b)
+
+    if len_a >= len_b:
+        dx, dy = dx_a, dy_a
+    else:
+        dx, dy = dx_b, dy_b
+
+    angle_rad = np.arctan2(dy, dx)
+    angle_deg = np.degrees(angle_rad)
+
+    if angle_deg > 90:
+        angle_deg -= 180
+    elif angle_deg < -90:
+        angle_deg += 180
+
+    return angle_deg
+
+
 def get_union_rect(polys):
     """
     Dada una lista coordenadas de cajas imagen con el formato
@@ -441,7 +475,10 @@ def compose_collage(image_boxes, fill_color):
     crop_width, crop_height = X2 - X1, Y2 - Y1
 
     # creamos el collage
-    collage = Image.new("RGB", (crop_width, crop_height), tuple(fill_color))
+    mode = (
+        "RGBA" if len(fill_color) == 4 else "RGB"
+    )  # si tiene transparencia, usamos RGBA
+    collage = Image.new(mode, (crop_width, crop_height), tuple(fill_color))
 
     for box in image_boxes:
         box_x0, box_y0, _, _ = box.polygon.bounds

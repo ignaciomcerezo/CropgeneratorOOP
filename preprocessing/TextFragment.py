@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from preprocessing.classes.ImageBox import ImageBox
+from preprocessing.ImageBox import ImageBox
 from display import display
 
 
