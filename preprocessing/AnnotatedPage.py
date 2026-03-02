@@ -1,23 +1,27 @@
 from preprocessing.classes.ImageBox import ImageBox
 from preprocessing.classes.TextFragment import TextFragment
-from preprocessing.classes.helper_to_classes import (
+from preprocessing.classes.Paragraph import Paragraph
+from preprocessing.classes.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
     get_rotated_region,
-    get_union_rect,
     unrotate_image,
     reemplazar_latex_espaciado,
     trim_star_nodes,
-    get_image_path_from_task,
+    compose_collage,
+)
+from preprocessing.classes.helpers.text_replacements import (
+    replacements,
+    replacements_envs,
+    regex_replacements,
 )
 from parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
-from shapely import box as boxshape
+from shapely import Polygon, box as boxshape
 from labelstudio.LabelStudioInterface import LabelStudioInterface
 from display import display
 import re
-from paths import images_path
 from PIL import Image
-from paths import simplified_filepath, usernames_filepath
+from paths import usernames_filepath
 import json
 import numpy as np
 
@@ -36,81 +40,6 @@ class AnnotatedPage:
     """
 
     warn_unrotate = True
-    replacements = [
-        (r"\'e", "é"),
-        (r"\^e", "ê"),
-        (r"\`e", "è"),
-        (r"\"e", "ë"),
-        (r"\'a", "á"),
-        (r"\^a", "ä"),
-        (r"\`a", "à"),
-        (r"\"a", "ä"),
-        (r"\'i", "í"),
-        (r"\^i", "î"),
-        (r"\`i", "ì"),
-        (r"\"i", "ï"),
-        (r"\'o", "ò"),
-        (r"\^o", "ô"),
-        (r"\`o", "ò"),
-        (r"\"o", "ö"),
-        (r"\'u", "ú"),
-        (r"\^u", "û"),
-        (r"\`u", "ù"),
-        (r"\"u", "ü"),
-        (r"\c{c}", "ç"),
-        (r"\smallskip", ""),
-        (r"\medskip", ""),
-        (r"\bigskip", ""),
-        (r"\begin{equation}", "$"),
-        (r"\begin{equation}", "$"),
-        (r"\end{equation}", "$"),
-        (r"\begin{equation*}", "$"),
-        (r"\end{equation*}", "$"),
-        (r"\(", "$"),
-        (r"\)", "$"),
-        (r"\[", "$"),
-        (r"\]", "$"),
-        (r"$$", "$"),
-        (r"\dots", "..."),
-        (r"\quad", ""),
-        (r"\colon", ":"),
-        (r"\,", " "),
-        (r"\;", " "),
-        (r"\ ", " "),
-        (r"\etale", "étale"),
-        (" e0", "à"),
-        (" e9", "é"),
-        (" f9", "ù"),
-        (r"\{\mathcal U\}", r"\mathcal U"),
-        (r"\{\mathcal{U}\}", r"\mathcal U"),
-    ]
-    replacements_envs = [
-        # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
-        (r"{\bf", "}"),
-        (r"{ \bf", "}"),
-        (r"{\it", "}"),
-        (r"{ \it", "}"),
-        (r"{\sl", "}"),
-        (r"{ \sl", "}"),
-        (r"\textit{", "}"),
-        (r"\textbf{", "}"),
-        (r"\textsl{", "}"),
-        (r"\underline{", "}"),
-        (r"\emph{", "}"),
-        (r"\footnote{", "}"),
-        (r"\begin{center}", r"\end{center}"),
-        (r"\tag{", "}"),
-    ]
-
-    regex_replacements = [
-        (
-            r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|natural|eg|earrow|warrow|abla)\b)",
-            " ",
-        ),
-        # reemplazar nuevas líneas
-        (r"\\U\b", r"\\mathcal U"),
-        (r"\\E\b", r"\\mathcal E"),
-    ]
     __slots__ = (
         "background_color",
         "image_boxes",
@@ -120,16 +49,14 @@ class AnnotatedPage:
         "last_update_time",
         "completer",
         "updater",
-        "__cc_ordering",
-        "ordered_connected_components",
+        "paragraphs",
     )
 
     def __init__(
         self,
         ann,
         task_id: int = None,
-        img: Image = None,
-        cc_ordering: bool = True,
+        img: Image.Image = None,
         unrotate: bool = False,
     ):
         if task_id is None:
@@ -198,32 +125,21 @@ class AnnotatedPage:
             self.build_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
 
+        if self.order > min_nodes_for_big_box_removal:
+            self.trim_star_nodes()
+
         # TODO: does this produce good results always? Does this cc_ordering and using the raw ccs cause any problems?
 
         # colocamos las componentes conexas siguiendo el orden de lectura.
-        ccs = get_connected_components(self.__graph)
+        box_ccs = [
+            [self.image_boxes[box_id] for box_id in component]
+            for component in get_connected_components(self.__graph)
+        ]
 
-        self.set_corrected_centroid(ccs)
-
-        for index, component in enumerate(
-            ccs
-        ):  # orden intra-componente: orden de proyección
-            ccs[index] = self.reading_order(
-                component, False, projection_ordering=True
-            )  # lo ordenamos en orden de lectura
-
-        ccs = sorted(
-            ccs,
-            key=lambda comp: (  # los ordenamos usando el orden naif: el "párrafo" que empiece antes va antes.
-                self.image_boxes[comp[0]].polygon.bounds[1],
-                self.image_boxes[comp[0]].polygon.bounds[0],
-            ),
-        )
-
-        self.ordered_connected_components = ccs
-
-        self.__cc_ordering = cc_ordering
-        self.assign_starting_indices()  # asignamos los sindex a cada fragmento
+        # generamos los párrafos (componentes conexas con información extra), que añaden automáticamente información sobre
+        # los centroides corregidos a cada caja-imagen. El sorted se ejecuta atuomáticamente, y se hace usando el orden
+        # naif.
+        self.paragraphs = sorted([Paragraph(box_cc) for box_cc in box_ccs])
 
         self.last_update_time = " ".join(
             ann["updated_at"].replace("Z", "").split("T")
@@ -241,43 +157,14 @@ class AnnotatedPage:
         return len(self.graph)
 
     @property
-    def cc_ordering(self) -> bool:
-        return self.__cc_ordering
-
-    @cc_ordering.setter
-    def cc_ordering(self, value: bool) -> None:
-        if value == self.cc_ordering:
-            pass
-        else:
-            self.__cc_ordering = value
-            print(
-                "El orden interno de los fragmentos para la anotación ha cambiado. Redefiniendo los starting_index de cada instancia de TextFragment."
-            )
-            self.assign_starting_indices()
-
-    @property
     def graph(self):
         return self.__graph
 
     @graph.setter
     def graph(self, value):
-
-        self.__graph = value
-        ccs = get_connected_components(self.__graph)
-
-        for index, component in enumerate(ccs):  # orden intra-componente
-            ccs[index] = self.reading_order(
-                component, False
-            )  # lo ordenamos en orden de lectura
-
-        ccs = sorted(
-            ccs,
-            key=lambda comp: (  # los ordenamos usando el orden naif: el "párrafo" que empiece antes va antes.
-                self.image_boxes[comp[0]].polygon.bounds[1],
-                self.image_boxes[comp[0]].polygon.bounds[0],
-            ),
+        raise ValueError(
+            "Por causas de starting_index y composición del documento, no es posible modificar el grafo!"
         )
-        self.ordered_connected_components = ccs
 
     def setup_mappings(self, results: list):
         """
@@ -356,11 +243,13 @@ class AnnotatedPage:
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
 
-    def rotatedregion(self, key, img, img_boxes_json, unrotate=False):
+    def rotatedregion(
+        self, key: str, img: Image.Image, img_boxes_json, unrotate=False
+    ) -> dict[str, Image.Image | Polygon | bool]:
         """
         Calcula la región recortada y el polígono asociado para cada fragmento.
         Devuelve, en orden:
-            crop: Image -> imagen recortada
+            crop: PIL.Image.Image -> imagen recortada
             polygon: Polygon -> polígono de shapely
             rotation: bool -> ángulo de rotación (manual o calculado) de la región para su lectura.
             true_rectangle: bool -> si se generó usando la herramienta rectángulo.
@@ -456,16 +345,16 @@ class AnnotatedPage:
 
                     for i in range(len(text_res)):
                         text = text_res[i]
-                        for old, new in AnnotatedPage.replacements:
+                        for old, new in replacements:
                             newtext = text.replace(
                                 old, new
                             )  # hacemos todos los cambios indicados
                             text = newtext
 
-                        for beg, end in AnnotatedPage.replacements_envs:
+                        for beg, end in replacements_envs:
                             text = reemplazar_latex_espaciado(text, beg, end)
 
-                        for pattern, substitution in AnnotatedPage.regex_replacements:
+                        for pattern, substitution in regex_replacements:
                             text = re.sub(pattern, substitution, text)
 
                         text_res[i] = text
@@ -476,15 +365,15 @@ class AnnotatedPage:
 
                 elif isinstance(text_res, str):
 
-                    for old, new in AnnotatedPage.replacements:
+                    for old, new in replacements:
                         text_res = text_res.replace(
                             old, new
                         )  # hacemos todos los cambios indicados
 
-                    for beg, end in AnnotatedPage.replacements_envs:
+                    for beg, end in replacements_envs:
                         text_res = reemplazar_latex_espaciado(text_res, beg, end)
 
-                    for pattern, substitution in AnnotatedPage.regex_replacements:
+                    for pattern, substitution in regex_replacements:
                         text_res = re.sub(pattern, substitution, text_res)
 
                     # para terminar, quitamos un <.strip> para eliminar los espacios que Malgoire haya podido
@@ -493,73 +382,7 @@ class AnnotatedPage:
 
         return results
 
-    def get_average_rotation(self, cc: list | None = None):
-        """Calcula la rotación media de una componente conexa. Si no se pasa una componente conexa, se calcula la del
-        documento completo."""
-        if cc is None:
-            cc = self.graph.keys()
-        total_words = 0
-        rotation = 0
-
-        image_boxes_in_cc = [self.image_boxes[box_id] for box_id in cc]
-
-        for image_box in image_boxes_in_cc:
-            fragment = image_box.fragment
-
-            n_words = len(
-                fragment.text.split()
-            )  # realmente esto es una aproximación bastante cruda, en las mates hay muchos espacios
-            rotation += image_box.rotation * n_words
-            total_words += n_words
-        return rotation / total_words
-
-    def set_corrected_centroid(self, ccs: list[str] = None) -> None:
-        """
-        Asigna a cada una de las cajas-imagen su centroide corregido usando la rotación media de las palabras de su
-        componente conexa.
-        """
-        if ccs is None:
-            ccs = self.ordered_connected_components
-
-        for cc in ccs:
-
-            image_boxes_in_cc = [self.image_boxes[box_id] for box_id in cc]
-
-            local_centroid = np.zeros((2,))
-            n_words = 0
-            for image_box in image_boxes_in_cc:
-                fragment = image_box.fragment
-                n_words_in_box = len(fragment.text.split())
-                local_centroid += (
-                    np.array(image_box.centroid()) * n_words_in_box
-                )  # pondera por el número de palabras
-                n_words += n_words_in_box
-
-            assert (
-                n_words > 0
-            ), f"Se ha encontrado una componente conexa con 0 palabras en la tarea {self.task_id}, completada por {self.completer}."
-            local_centroid /= n_words
-
-            avg_rot_cc = np.radians(self.get_average_rotation(cc))
-
-            for image_box in image_boxes_in_cc:
-                x_glob, y_glob = image_box.centroid()
-
-                x = x_glob - local_centroid[0]
-                y = y_glob - local_centroid[1]
-
-                x_corr = (
-                    float(x * np.cos(avg_rot_cc) + y * np.sin(avg_rot_cc))
-                    + local_centroid[0]
-                )
-                y_corr = (
-                    float(-x * np.sin(avg_rot_cc) + y * np.cos(avg_rot_cc))
-                    + local_centroid[1]
-                )
-
-                image_box.corrected_centroid = (x_corr, y_corr)
-
-    def adjacency_matrix(self):
+    def adjacency_matrix(self) -> np.ndarray:
 
         adjacency_mx = np.zeros((self.order, self.order))
 
@@ -573,175 +396,173 @@ class AnnotatedPage:
 
         return adjacency_mx
 
-    def generate_collage(self, box_id_sequence: set[str] | list[str]):
+    def generate_collage(self, box_id_sequence: set[str] | list[str]) -> Image.Image:
         """
         Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo).
         """
-        # 1. Obtenemos los polígonos de la secuencia solicitada
-
         if not isinstance(box_id_sequence, set):
+            if len(box_id_sequence) != len(set(box_id_sequence)):
+                raise ValueError("Hay cajas-imagen repetidas en generate_collage()")
             box_id_sequence = set(box_id_sequence)
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]
 
-        # 2. Calculamos la mínima región de la imagen que contiene todas las cajas
-        X1, Y1, X2, Y2 = get_union_rect([box.polygon for box in subgraph_image_boxes])
-
-        # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
-        X1, Y1 = int(X1), int(Y1)
-        X2, Y2 = int(X2) + 1, int(Y2) + 1
-
-        crop_width, crop_height = X2 - X1, Y2 - Y1
-
-        # 3. Creamos el lienzo
-        collage = Image.new(
-            "RGB", (crop_width, crop_height), tuple(self.background_color)
-        )
-
-        # 4. Pegamos las imágenes (respetando el orden dado en box_id_sequence)
-
-        for box in subgraph_image_boxes:
-            box_x0, box_y0, _, _ = box.polygon.bounds
-
-            # Calculamos posición relativa al nuevo lienzo
-            paste_x, paste_y = int(box_x0 - X1), int(box_y0 - Y1)
-
-            if box.crop.mode == "RGBA":
-                # Usamos la propia imagen como máscara de transparencia
-                collage.paste(box.crop, (paste_x, paste_y), mask=box.crop)
-            else:
-                collage.paste(box.crop, (paste_x, paste_y))
-
-        return collage
-
-    def reading_order(
-        self,
-        box_id_sequence,
-        cc_ordering: bool = None,
-        projection_ordering: bool = None,
-    ):
-        """Dado un grupo de ids de cajas, los pone en orden de lectura.
-        Si self.cc_ordering, los fragmentos de una misma componente conexa siempre se colocan seguidos (en el orden de lectura).
-
-        Si no, se usa el orden de lectura 'naif', arriba-abajo izquierda-derecha (el mismo que se impone dentro de cada componente conexa)
-        """
-        if cc_ordering is None:
-            if projection_ordering is None:
-                cc_ordering = self.cc_ordering
-            else:
-                cc_ordering = True
-        # TODO check if this all makes sense: projection ordering needs cc_ordering or not?
-
-        if projection_ordering:
-            return sorted(
-                list(box_id_sequence),
-                key=lambda box_id: (
-                    (
-                        self.image_boxes[box_id].corrected_centroid[1],
-                        self.image_boxes[box_id].corrected_centroid[0],
-                    )
-                ),
-            )
-
-        if cc_ordering:
-            assert set(box_id_sequence) == set(
-                self.image_boxes.keys()
-            ), "Para usar cc_ordering = True, deben pasarse todas las ids de las cajas."
-
-        if not cc_ordering:
-            return sorted(
-                list(box_id_sequence),
-                key=lambda box_id: (
-                    self.image_boxes[box_id].polygon.bounds[1],
-                    self.image_boxes[box_id].polygon.bounds[0],
-                ),
-            )
-
-        return [
-            box_id
-            for component in self.ordered_connected_components
-            for box_id in component
-        ]  # aplanamos la lista de listas ordenadamente
-
-    def concatenate_transcritions(
-        self, box_id_sequence, cc_ordering=None, return_first_sindex: bool = False
-    ):
-        """
-        Concatena las transcripciones correspondientes a un grupo de cajas (un subgrafo), siguiendo el orden en el que
-        aparecen en la transcripción completa.
-        self.cc_ordering define cómo se compone la transcripción total (funciona como en reading_order)
-        """
-        if not isinstance(box_id_sequence, set):
-            box_id_sequence = set(box_id_sequence)
-
-        box_id_sequence_reading_order = self.reading_order(box_id_sequence, cc_ordering)
-        concatenated_transcription = " ".join(
-            [
-                self.image_boxes[box_id].associated_fragments[0].text
-                for box_id in box_id_sequence_reading_order
-            ]
-        )
-        if not return_first_sindex:
-            return concatenated_transcription
-        else:
-            return (
-                concatenated_transcription,
-                self.image_boxes[box_id_sequence_reading_order[0]]
-                .associated_fragments[0]
-                .starting_index,
-            )
-
-    def assign_starting_indices(self):
-        """
-        Asigna los índices de comienzo (relativos a la transcripción completa) a cada instancia de TextFragment en self.text_fragments.
-        Se toma self.cc_ordering en las llamadas a self.reading_order: define cómo se compone la transcripción total.
-        """
-        box_id_sequence_reading_order = self.reading_order(
-            list(self.image_boxes.keys())
-        )
-
-        fragments_att_ordered = [
-            self.image_boxes[box_id].associated_fragments
-            for box_id in box_id_sequence_reading_order
-        ]
-
-        associated_fragments = [
-            fragments[0] if (len(fragments) == 1) else None
-            for fragments in fragments_att_ordered
-        ]
-
-        if None in associated_fragments:
-            print(
-                f"Tarea {self.task_id} - Hay Cajas con un número anómalo de fragmentos asociados (!= 1)."
-            )
-
-        associated_fragments = [x for x in associated_fragments if x is not None]
-
-        sindex = 0
-        for fragment in associated_fragments:
-            if isinstance(fragment, TextFragment):
-                fragment.starting_index = sindex
-                sindex += len(fragment.text) + 1
-            else:
-                sindex += 1
+        return compose_collage(subgraph_image_boxes, self.background_color)
 
     def trim_star_nodes(
         self,
         relative_threshold: float = BIG_BOX_THRESHOLD,
-        min_nodes: int = min_nodes_for_big_box_removal,
     ) -> None:
-        if self.order > min_nodes:
-            self.graph = trim_star_nodes(self.graph, relative_threshold)
 
-    def cluster_reading_order(self, box_ids: list["str"]) -> tuple[Image, str, int]:
+        self.__graph = trim_star_nodes(self.graph, relative_threshold)
+
+    def cluster_reading_order(
+        self, box_ids: list["str"]
+    ) -> tuple[Image.Image, str, int]:
         """
-        Given a list of box_ids, returns the corresponding collage, its concatenated text, and the starting index of it all.
+        Dada una lista de IDs de cajas-imagen, devuelve:
+        - su collage correspondiente
+        - la transcripción en el orden de lectura
+        - el índice de inicio de este bloque en la transcripción total.
         """
 
         collage = self.generate_collage(box_ids)
-        transcription, sindex = self.concatenate_transcritions(
-            box_ids,
-            cc_ordering=(box_ids == self.graph.keys()),
-            return_first_sindex=True,
-        )
+
+        fragments = [self.image_boxes[box_id].fragment for box_id in box_ids]
+        fragments = sorted(fragments, key=lambda x: x.starting_index)
+
+        transcription = " ".join([fragment.text for fragment in fragments])
+        sindex = fragments[0].starting_index
+
         return collage, transcription, sindex
+
+    def are_in_same_cc(self, box_id_sequence: list[str]) -> bool:
+        if not box_id_sequence:
+            return True
+
+        first_box_id = box_id_sequence[0]
+
+        for paragraph in self.paragraphs:
+            if first_box_id in paragraph.image_boxes_ids:
+                break
+        else:
+            raise ValueError(
+                "El primer box_id no pertenece a ninguna componente conexa (párrafo) de esta anotación. ¿Pertenece a esta página?"
+            )
+
+        return set(box_id_sequence[1:]).issubset(set(paragraph.image_boxes_ids))
+
+    # def reading_order(
+    #     self,
+    #     box_id_sequence,
+    #     cc_ordering: bool = None,
+    #     # projection_ordering: bool = None, # en realidad projection_ordering siempre debe ser = not cc_ordering
+    # ):
+    #     """Dado un grupo de ids de cajas, los pone en orden de lectura.
+    #     Si self.cc_ordering, los fragmentos de una misma componente conexa siempre se colocan seguidos (en el orden de lectura).
+    #
+    #     Si no, se usa el orden de lectura 'naif', arriba-abajo izquierda-derecha (el mismo que se impone dentro de cada componente conexa)
+    #     """
+    #     if cc_ordering is None:
+    #         cc_ordering = set(box_id_sequence) == set(self.graph.keys())
+    #     # TODO check if this all makes sense: projection ordering needs cc_ordering or not?
+    #
+    #     if not cc_ordering:
+    #
+    #         # TODO: add paragraph check ¿is this all the same connected component?
+    #         return sorted(
+    #             list(box_id_sequence),
+    #             key=lambda box_id: (
+    #                 (
+    #                     self.image_boxes[box_id].corrected_centroid[1],
+    #                     self.image_boxes[box_id].corrected_centroid[0],
+    #                 )
+    #             ),
+    #         )
+    #
+    #     if cc_ordering:
+    #         assert set(box_id_sequence) == set(
+    #             self.image_boxes.keys()
+    #         ), "Para usar cc_ordering = True, deben pasarse todas las ids de las cajas."
+    #
+    #     if not cc_ordering:
+    #         return sorted(
+    #             list(box_id_sequence),
+    #             key=lambda box_id: (
+    #                 self.image_boxes[box_id].polygon.bounds[1],
+    #                 self.image_boxes[box_id].polygon.bounds[0],
+    #             ),
+    #         )
+    #
+    #     return [
+    #         box_id
+    #         for component in self.ordered_connected_components
+    #         for box_id in component
+    #     ]  # aplanamos la lista de listas ordenadamente
+    #
+    #
+    # def get_average_rotation(self, cc: list | None = None):
+    #     """Calcula la rotación media de una componente conexa. Si no se pasa una componente conexa, se calcula la del
+    #     documento completo."""
+    #     if cc is None:
+    #         cc = self.graph.keys()
+    #     total_words = 0
+    #     rotation = 0
+    #
+    #     image_boxes_in_cc = [self.image_boxes[box_id] for box_id in cc]
+    #
+    #     for image_box in image_boxes_in_cc:
+    #         fragment = image_box.fragment
+    #
+    #         n_words = len(
+    #             fragment.text.split()
+    #         )  # realmente esto es una aproximación bastante cruda, en las mates hay muchos espacios
+    #         rotation += image_box.rotation * n_words
+    #         total_words += n_words
+    #     return rotation / total_words
+
+    # def set_corrected_centroid(self, ccs: list[list[str]] = None) -> None:
+    #     """
+    #     Asigna a cada una de las cajas-imagen su centroide corregido usando la rotación media de las palabras de su
+    #     componente conexa.
+    #     """
+    #     if ccs is None:
+    #         ccs = self.ordered_connected_components
+    #
+    #     for cc in ccs:
+    #
+    #         image_boxes_in_cc = [self.image_boxes[box_id] for box_id in cc]
+    #
+    #         local_centroid = np.zeros((2,))
+    #         n_words = 0
+    #         for image_box in image_boxes_in_cc:
+    #             fragment = image_box.fragment
+    #             n_words_in_box = len(fragment.text.split())
+    #             local_centroid += (
+    #                 np.array(image_box.centroid()) * n_words_in_box
+    #             )  # pondera por el número de palabras
+    #             n_words += n_words_in_box
+    #
+    #         assert (
+    #             n_words > 0
+    #         ), f"Se ha encontrado una componente conexa con 0 palabras en la tarea {self.task_id}, completada por {self.completer}."
+    #         local_centroid /= n_words
+    #
+    #         avg_rot_cc = np.radians(self.get_average_rotation(cc))
+    #
+    #         for image_box in image_boxes_in_cc:
+    #             x_glob, y_glob = image_box.centroid()
+    #
+    #             x = x_glob - local_centroid[0]
+    #             y = y_glob - local_centroid[1]
+    #
+    #             x_corr = (
+    #                 float(x * np.cos(avg_rot_cc) + y * np.sin(avg_rot_cc))
+    #                 + local_centroid[0]
+    #             )
+    #             y_corr = (
+    #                 float(-x * np.sin(avg_rot_cc) + y * np.cos(avg_rot_cc))
+    #                 + local_centroid[1]
+    #             )
+    #
+    #             image_box.corrected_centroid = (x_corr, y_corr)

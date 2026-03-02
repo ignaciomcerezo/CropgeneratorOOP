@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional
-from PIL.Image import Image
+from PIL import Image
 from shapely import Polygon
 from display import display
 
@@ -8,7 +8,7 @@ from display import display
 @dataclass(slots=True, kw_only=True)
 class ImageBox:
     id: str
-    crop: Image
+    crop: Image.Image
     polygon: Polygon
     rotation: float
     unrotated: bool
@@ -72,3 +72,11 @@ class ImageBox:
     def centroid(self) -> tuple[float, float]:
         pol_centroid = self.polygon.centroid
         return pol_centroid.x, pol_centroid.y
+
+    @property
+    def top(self):
+        return self.polygon.bounds[1]
+
+    @property
+    def left(self):
+        return self.polygon.bounds[0]

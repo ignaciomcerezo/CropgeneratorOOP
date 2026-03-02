@@ -428,3 +428,31 @@ def get_connected_components(adj):
             # añadimos la componente conexa
             components.append(comp)
     return components
+
+
+def compose_collage(image_boxes, fill_color):
+    # calculamos la región mínima de la imagen que contiene todas las cajas
+    X1, Y1, X2, Y2 = get_union_rect([box.polygon for box in image_boxes])
+
+    # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
+    X1, Y1 = int(X1), int(Y1)
+    X2, Y2 = int(X2) + 1, int(Y2) + 1
+
+    crop_width, crop_height = X2 - X1, Y2 - Y1
+
+    # creamos el collage
+    collage = Image.new("RGB", (crop_width, crop_height), tuple(fill_color))
+
+    for box in image_boxes:
+        box_x0, box_y0, _, _ = box.polygon.bounds
+
+        # calculamos la posición relativa al nuevo lienzo
+        paste_x, paste_y = int(box_x0 - X1), int(box_y0 - Y1)
+
+        if box.crop.mode == "RGBA":
+            # usamos la propia imagen como máscara de transparencia
+            collage.paste(box.crop, (paste_x, paste_y), mask=box.crop)
+        else:
+            collage.paste(box.crop, (paste_x, paste_y))
+
+    return collage
