@@ -55,3 +55,6 @@ class TextFragment:
             raise ValueError(
                 f"El fragmento {self.id} de la tarea {self.task_id} tiene más de una caja-imagen asociada: {' '.join(self.associated_fragments)}"
             )
+
+    def is_open(self) -> bool:
+        return self.text.count("{") != self.text.count("}")
