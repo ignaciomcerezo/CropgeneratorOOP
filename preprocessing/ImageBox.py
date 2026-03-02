@@ -5,6 +5,18 @@ from shapely import Polygon
 from display import display
 
 
+class MultipleAssociationError(ValueError):
+    pass
+
+
+class RepeatedSameAssociationError(ValueError):
+    pass
+
+
+class NoAssociationError(ValueError):
+    pass
+
+
 @dataclass(slots=True, kw_only=True)
 class ImageBox:
     id: str
@@ -23,19 +35,20 @@ class ImageBox:
             len(self.associated_fragments) != 0
         ):  # si ya tenemos un fragmento de texto asociado
             if warn and (fragment.id in self.associated_fragments):
-                print(
-                    f"(Tarea {self.task_id}) - Asociación repetida: La imagen {self.id} tiene asociado el fragmento {fragment.id} más de una vez."
-                )
                 display(self.crop)
                 display(f"Fragmento: {fragment.text}")
-            else:
-                print(
-                    f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos:"
+                raise RepeatedSameAssociationError(
+                    f"(Tarea {self.task_id}) - Asociación repetida: La imagen {self.id} tiene asociado el fragmento {fragment.id} más de una vez."
                 )
+            else:
+
                 display(self.crop)
                 display(f"Fragmento 1: {fragment.text}")
                 for i, old_fragment in enumerate(self.associated_fragments):
                     display(f"Fragmento {i + 2}: {old_fragment.text}")
+                raise MultipleAssociationError(
+                    f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos:"
+                )
 
         self.associated_fragments.append(fragment)
 
@@ -61,14 +74,14 @@ class ImageBox:
         """If the ImageBox has only one associated TextFragment, returns it.
         If it has more than one, raises a ValueError."""
         if len(self.associated_fragments) == 0:
-            raise ValueError(
-                f"La caja-imagen {self.id} de la tarea {self.task_id} no tiene fragmento de texto asociado."
+            raise MultipleAssociationError(
+                f"(Tarea {self.task_id}) La caja-imagen {self.id} de la tarea {self.task_id} no tiene fragmento de texto asociado."
             )
         elif len(self.associated_fragments) == 1:
             return self.associated_fragments[0]
         else:
-            raise ValueError(
-                f"La caja-imagen {self.id} de la tarea {self.task_id} tiene más de un fragmento asociado: {' '.join(self.associated_fragments)}"
+            raise NoAssociationError(
+                f"(Tarea {self.task_id}) La caja-imagen {self.id} de la tarea {self.task_id} tiene más de un fragmento asociado: {' '.join([f.text for f in self.associated_fragments])}"
             )
 
     def centroid(self) -> tuple[float, float]:

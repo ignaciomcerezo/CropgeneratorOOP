@@ -1,0 +1,19 @@
+from preprocessing.AnnotatedPage import AnnotatedPage
+from labelstudio.LabelStudioInterface import LabelStudioInterface
+from preprocessing.helpers.helper_to_classes import get_image_path_from_task
+from PIL import Image
+from tqdm.auto import tqdm
+
+LSI = LabelStudioInterface()
+
+for task in tqdm(LSI.simplified_tasks):
+    image_path = get_image_path_from_task(task)
+    image = Image.open(image_path)
+    for ann in task["annotations"]:
+        try:
+            Ann = AnnotatedPage(ann, image)
+        except ValueError as e:
+            print(e)
+        pass
+
+assert AnnotatedPage.n_annotation_errors == 0

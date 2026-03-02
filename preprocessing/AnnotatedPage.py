@@ -39,6 +39,7 @@ class AnnotatedPage:
     accesible de forma que la función augment_data tenga menor complejidad.
     """
 
+    n_annotation_errors = 0
     warn_unrotate = True
     __slots__ = (
         "background_color",
@@ -203,6 +204,7 @@ class AnnotatedPage:
                 elif (source_id in self.image_boxes) and (
                     target_id in self.image_boxes
                 ):
+                    AnnotatedPage.register_error()
                     # asociación caja-imagen -> caja-imagen (error de anotación)
                     print(f"(Task {self.task_id}) Asociación caja-imagen->caja-imagen:")
                     print("Caja 1 (source):")
@@ -213,12 +215,14 @@ class AnnotatedPage:
                 elif (source_id in self.text_fragments) and (
                     target_id in self.text_fragments
                 ):
+                    AnnotatedPage.register_error()
                     # asociación fragmento -> fragmento (error de anotación)
                     print(f"(Task {self.task_id}) Asociación texto->texto.")
                     print(self.text_fragments[source_id].text)
                     print(self.text_fragments[target_id].text)
                     continue
                 else:
+                    AnnotatedPage.register_error()
                     # otro tipo de asociación (extraña)
                     print(f"(Task {self.task_id}) Asociación rara.")
                     continue
@@ -242,6 +246,7 @@ class AnnotatedPage:
                 print(
                     f"\n\n\n(Task {self.task_id}) - La caja-imagen {box_id} no tiene texto asociado:"
                 )
+                AnnotatedPage.register_error()
                 display(box.crop)
 
         for fragment_id, fragment in self.text_fragments.items():
@@ -249,6 +254,7 @@ class AnnotatedPage:
                 print(
                     f"\n\n\n(Task {self.task_id}) - El fragmento {fragment_id} no tiene caja-imagen asociada:"
                 )
+                AnnotatedPage.register_error()
                 display(fragment.text)
 
     def __repr__(self):
@@ -463,6 +469,14 @@ class AnnotatedPage:
             )
 
         return set(box_id_sequence[1:]).issubset(set(paragraph.image_boxes_ids))
+
+    @property
+    def is_single_paragraph(self):
+        return len([paragraph for paragraph in self.paragraphs if len(paragraph)]) == 1
+
+    @staticmethod
+    def register_error():
+        AnnotatedPage.n_annotation_errors += 1
 
     # def reading_order(
     #     self,

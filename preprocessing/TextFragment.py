@@ -1,5 +1,9 @@
 from dataclasses import dataclass, field
-from preprocessing.ImageBox import ImageBox
+from preprocessing.ImageBox import (
+    ImageBox,
+    NoAssociationError,
+    MultipleAssociationError,
+)
 from display import display
 
 
@@ -17,19 +21,19 @@ class TextFragment:
             len(self.associated_boxes) != 0
         ):  # si ya tenemos un fragmento de texto asociado
             if box.id in self.associated_boxes:
-                print(
-                    f"(Tarea {self.task_id}) - Asociación repetida: El fragmento {self.id} tiene asociada la caja-imagen {box.id} más de una vez."
-                )
                 display(f"Fragmento: {self.text}")
                 display(box.crop)
-            else:
-                print(
-                    f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} tiene asociada más de una caja-imagen:"
+                raise MultipleAssociationError(
+                    f"(Tarea {self.task_id}) El fragmento {self.id} tiene asociada la caja-imagen {box.id} más de una vez."
                 )
+            else:
                 display(f"Fragmento: {self.text}")
                 display(box.crop)
                 for old_box in self.associated_boxes:
                     display(old_box.crop)
+                raise MultipleAssociationError(
+                    f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} tiene asociada más de una caja-imagen:"
+                )
 
         self.associated_boxes.append(box)
 
@@ -56,5 +60,5 @@ class TextFragment:
                 f"El fragmento {self.id} de la tarea {self.task_id} tiene más de una caja-imagen asociada: {' '.join(self.associated_fragments)}"
             )
 
-    def is_open(self) -> bool:
+    def is_open(self) -> bool:  # TODO: import this kind of checks
         return self.text.count("{") != self.text.count("}")
