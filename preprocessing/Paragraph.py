@@ -97,7 +97,7 @@ class Paragraph:
         # reordenamos
         self.text_fragments = [box.fragment for box in self.image_boxes]
 
-        self.image_boxes_ids = (box.id for box in self.image_boxes)
+        self.image_boxes_ids = [box.id for box in self.image_boxes]
         self.text_fragments_ids = [fragment.id for fragment in self.text_fragments]
 
     def __lt__(
@@ -134,3 +134,6 @@ class Paragraph:
             " ".join([fragment.text for fragment in self.text_fragments]),
             self.text_fragments[0].starting_index,
         )
+
+    def __len__(self):
+        return len(self.image_boxes_ids)
