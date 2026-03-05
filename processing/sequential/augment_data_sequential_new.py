@@ -1,11 +1,9 @@
-from labelstudio.simplify_export import load_simplified_export
 from pathlib import Path
 from PIL import Image, ImageOps
 from preprocessing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
-from processing.augment_data.sequential.helpers import (
+from processing.sequential.helpers import (
     generate_connected_subgraphs,
-    create_reservoir,
 )
 from preprocessing.helpers.helper_to_classes import (
     get_image_path_from_task,
@@ -18,7 +16,6 @@ from parameters import (
 from paths import (
     crops_path as default_crops_path,
     output_path as default_output_path,
-    simplified_filepath as default_simplified_filepath,
 )
 import pandas as pd
 from labelstudio.LabelStudioInterface import LabelStudioInterface

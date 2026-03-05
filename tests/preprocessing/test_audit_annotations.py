@@ -1,5 +1,6 @@
 from preprocessing.AnnotatedPage import AnnotatedPage
 from labelstudio.LabelStudioInterface import LabelStudioInterface
+from preprocessing.ImageBox import PairingError
 from preprocessing.helpers.helper_to_classes import get_image_path_from_task
 from PIL import Image
 from tqdm.auto import tqdm
@@ -12,7 +13,7 @@ for task in tqdm(LSI.simplified_tasks):
     for ann in task["annotations"]:
         try:
             Ann = AnnotatedPage(ann, image)
-        except ValueError as e:
+        except PairingError as e:
             print(e)
         pass
 

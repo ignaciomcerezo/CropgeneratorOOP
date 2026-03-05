@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from preprocessing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
-from processing.augment_data.sequential.helpers import (
+from processing.sequential.helpers import (
     generate_connected_subgraphs,
     create_reservoir,
 )

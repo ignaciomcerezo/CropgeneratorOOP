@@ -1,5 +1,4 @@
-from preprocessing.tests.test_AnnotatedPage import load_particular_annotation
-from IPython.display import Latex
+from tests.tests_helper import load_particular_annotation
 
 Ann = load_particular_annotation(344, 1)
 

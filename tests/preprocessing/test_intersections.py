@@ -1,4 +1,4 @@
-from preprocessing.tests.test_AnnotatedPage import load_particular_annotation
+from tests.tests_helper import load_particular_annotation
 
 Ann = load_particular_annotation(5, 0)
 A = Ann.image_boxes["5LKgXZs7ij"]

@@ -1,5 +1,5 @@
 from multiprocessing import Pool, cpu_count
-from processing.augment_data.parallel.helpers import run_chunk, merge_excel_files
+from processing.parallel.helpers import run_chunk, merge_excel_files
 import numpy as np
 from parameters import time_limit_subgraph_generation
 from labelstudio.LabelStudioInterface import LabelStudioInterface
