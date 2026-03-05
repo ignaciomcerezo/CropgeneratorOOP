@@ -1,26 +1,5 @@
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from tests.tests_helper import load_particular_annotation
 from preprocessing.AnnotatedPage import AnnotatedPage
-from preprocessing.helpers.helper_to_classes import get_image_path_from_task
-from paths import images_path
-from PIL import Image
-
-
-def load_particular_annotation(
-    task_id: int, annotation_number_in_task: int = 0
-) -> AnnotatedPage:
-
-    lsi = LabelStudioInterface()
-    tsk = lsi[task_id][annotation_number_in_task]
-
-    task = [task for task in lsi.raw_tasks if task.get("id") == int(task_id)][0]
-    img_path = get_image_path_from_task(task)
-    # img_path = images_path / f"{str(task_id).rjust(3,"0")}.png"
-    ann = AnnotatedPage(
-        tsk,
-        Image.open(img_path),
-        False,
-    )
-    return ann
 
 
 def show_paragraph_clusters(annotation: AnnotatedPage):
