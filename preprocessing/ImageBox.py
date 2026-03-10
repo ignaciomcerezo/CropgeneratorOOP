@@ -9,12 +9,29 @@ class PairingError(ValueError):
     pass
 
 
-class MultipleAssociationError(PairingError):
-    pass
-
-
 class RepeatedSameAssociationError(PairingError):
+
     pass
+
+
+class MultipleAssociationError(PairingError):
+    def __init__(self, box_or_fragment):
+        object_type = type(box_or_fragment).__name__
+        if object_type == "ImageBox":
+            msg = f"(Task {box_or_fragment.task_id}) - Multiasociación: La caja-imagen {box_or_fragment.id} tiene asociado más de un fragmento de texto:"
+            for i, fragment in enumerate(box_or_fragment.associated_fragments):
+                msg += f"Fragmento {i}: {fragment.text}"
+            self.message = msg
+        elif object_type == "TextFragment":
+            msg = f"(Task {box_or_fragment.task_id}) - Multiasociación: El fragmento de texto {box_or_fragment.id} tiene asociada más de una caja-imagen:"
+            for i, box in enumerate(box_or_fragment.associated_boxes):
+                msg += f"Caja {i}: {box.id}"
+            self.message = msg
+        else:
+            raise ValueError(
+                f"No se ha detectado que sea ni un ImageBox ni un TextFragment, el tipo {object_type} no se acepta."
+            )
+
 
 
 class NoAssociationError(PairingError):
@@ -29,6 +46,7 @@ class ImageBox:
     rotation: float
     unrotated: bool
     task_id: int
+    index: Optional[int] = -1
     associated_fragments: list["TextFragment"] = field(default_factory=lambda: list())
     true_rectangle: bool
     corrected_centroid: Optional[tuple[float, float]] = None
@@ -42,22 +60,16 @@ class ImageBox:
                 display(self.crop)
                 display(f"Fragmento: {fragment.text}")
                 raise RepeatedSameAssociationError(
-                    f"(Tarea {self.task_id}) - Asociación repetida: La imagen {self.id} tiene asociado el fragmento {fragment.id} más de una vez."
+                    f"(Tarea {self.task_id}) - Asociación repetida: La imagen {self.id} tiene asociado el fragmento {fragment.id}, texto {fragment.text} más de una vez."
                 )
             else:
+                fragmentos_string = f"\nFragmento 1: {fragment.text}"
+                for i, old_fragment in enumerate(self.associated_fragments):
+                    fragmentos_string += f"\nFragmento {i + 2}: {old_fragment.text}"
 
                 display(self.crop)
                 raise MultipleAssociationError(
-                    f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos:\n"
-                    f"Fragmento 1: {fragment.text}"
-                    "\n".join(
-                        [
-                            f"Fragmento {i + 2}: {old_fragment.text}"
-                            for (i, old_fragment) in enumerate(
-                                self.associated_fragments
-                            )
-                        ]
-                    )
+                    f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos: {fragmentos_string}"
                 )
 
         self.associated_fragments.append(fragment)
@@ -87,12 +99,12 @@ class ImageBox:
             raise MultipleAssociationError(
                 f"(Tarea {self.task_id}) La caja-imagen {self.id} de la tarea {self.task_id} no tiene fragmento de texto asociado."
             )
-        elif len(self.associated_fragments) == 1:
-            return self.associated_fragments[0]
-        else:
+        elif len(self.associated_fragments) != 1:
             raise NoAssociationError(
                 f"(Tarea {self.task_id}) La caja-imagen {self.id} de la tarea {self.task_id} tiene más de un fragmento asociado: {' '.join([f.text for f in self.associated_fragments])}"
             )
+        else:
+            return self.associated_fragments[0]
 
     def centroid(self) -> tuple[float, float]:
         pol_centroid = self.polygon.centroid
