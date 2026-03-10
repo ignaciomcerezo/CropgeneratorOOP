@@ -14,6 +14,9 @@ class RepeatedSameAssociationError(PairingError):
     pass
 
 
+# TODO: finish this
+
+
 class MultipleAssociationError(PairingError):
     def __init__(self, box_or_fragment):
         object_type = type(box_or_fragment).__name__
@@ -31,7 +34,6 @@ class MultipleAssociationError(PairingError):
             raise ValueError(
                 f"No se ha detectado que sea ni un ImageBox ni un TextFragment, el tipo {object_type} no se acepta."
             )
-
 
 
 class NoAssociationError(PairingError):
@@ -59,6 +61,7 @@ class ImageBox:
             if warn and (fragment.id in self.associated_fragments):
                 display(self.crop)
                 display(f"Fragmento: {fragment.text}")
+                # TODO: change this to use the new better errors
                 raise RepeatedSameAssociationError(
                     f"(Tarea {self.task_id}) - Asociación repetida: La imagen {self.id} tiene asociado el fragmento {fragment.id}, texto {fragment.text} más de una vez."
                 )
@@ -68,6 +71,7 @@ class ImageBox:
                     fragmentos_string += f"\nFragmento {i + 2}: {old_fragment.text}"
 
                 display(self.crop)
+                # TODO: change this to use the new better errors
                 raise MultipleAssociationError(
                     f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos: {fragmentos_string}"
                 )
@@ -96,10 +100,12 @@ class ImageBox:
         """If the ImageBox has only one associated TextFragment, returns it.
         If it has more than one, raises a ValueError."""
         if len(self.associated_fragments) == 0:
+            # TODO: change this to use the new better errors
             raise MultipleAssociationError(
                 f"(Tarea {self.task_id}) La caja-imagen {self.id} de la tarea {self.task_id} no tiene fragmento de texto asociado."
             )
         elif len(self.associated_fragments) != 1:
+            # TODO: change this to use the new better errors
             raise NoAssociationError(
                 f"(Tarea {self.task_id}) La caja-imagen {self.id} de la tarea {self.task_id} tiene más de un fragmento asociado: {' '.join([f.text for f in self.associated_fragments])}"
             )

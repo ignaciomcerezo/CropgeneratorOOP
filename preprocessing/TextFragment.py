@@ -42,6 +42,7 @@ class TextFragment:
             if box.id in self.associated_boxes:
                 display(f"Fragmento: {self.text}")
                 display(box.crop)
+                # TODO: change this to use the new better errors
                 raise RepeatedSameAssociationError(
                     f"(Tarea {self.task_id}) - Asociación repetida: fragmento {self.id} tiene asociada la "
                     f"caja-imagen {box.id} más de una vez.\n\tTexto: {self.text}"
@@ -51,6 +52,7 @@ class TextFragment:
                 display(box.crop)
                 for old_box in self.associated_boxes:
                     display(old_box.crop)
+                # TODO: change this to use the new better errors
                 raise MultipleAssociationError(
                     f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} "
                     f"tiene asociada más de una caja-imagen.\n\tTexto: {self.text}"
@@ -71,6 +73,7 @@ class TextFragment:
         """If the TextFragment has only one associated ImageBox, returns it.
         Ifit has more than one or none, raises a ValueError."""
         if len(self.associated_boxes) == 0:
+            # TODO: change this to use the new better errors
             raise NoAssociationError(
                 f"(Tarea {self.task_id}) - Sin asociación  El fragmento {self.id} de la tarea {self.task_id} no tiene"
                 f" caja-imagen asociada.\n\tTexto: {self.text}"
@@ -79,6 +82,7 @@ class TextFragment:
             return self.associated_boxes[0]
         else:
             boxes_ids = [box.id for box in self.associated_boxes]
+            # TODO: change this to use the new better errors
             raise MultipleAssociationError(
                 f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} de la tarea {self.task_id} "
                 f"tiene más de una caja-imagen asociada: {' '.join(boxes_ids)}.\n\tTexto: {self.text}"
