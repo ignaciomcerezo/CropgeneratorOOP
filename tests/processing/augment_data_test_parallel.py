@@ -1,4 +1,4 @@
-from processing.augment_data.parallel.augment_data_parallel import augment_data_parallel
+from processing.parallel.augment_data_parallel import augment_data_parallel
 
 if __name__ == "__main__":
     augment_data_parallel(

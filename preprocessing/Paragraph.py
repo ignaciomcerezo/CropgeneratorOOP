@@ -1,6 +1,7 @@
 from preprocessing.TextFragment import TextFragment
 from preprocessing.ImageBox import ImageBox
 from preprocessing.helpers.helper_to_classes import compose_collage, unrotate_image
+from shapely import coverage_union_all
 from shapely.affinity import affine_transform
 import numpy as np
 from PIL import Image
@@ -17,12 +18,16 @@ class Paragraph:
         "left",
         "image_boxes_ids",
         "text_fragments_ids",
+        "task_id",
+        "index",
     )
 
     def __init__(
         self,
         image_boxes: list[ImageBox] | None = None,
         text_fragments: list[TextFragment] | None = None,
+        task_id: int | None = None,
+        index: int | None = None,
     ):
         assert (
             image_boxes or text_fragments
@@ -40,39 +45,33 @@ class Paragraph:
 
         self.image_boxes: list[ImageBox] = image_boxes
         self.text_fragments: list[TextFragment] = text_fragments
+        self.task_id = task_id
+        self.index = index
 
         self.centroid: np.ndarray = np.zeros((2,))
         self.total_words: int = 0
         total_area = 0
-
-        sum_sin = 0.0
-        sum_cos = 0.0
 
         for image_box in self.image_boxes:
             self.total_words += len(image_box.fragment.text.split())
             area = image_box.polygon.area
 
             self.centroid += np.array(image_box.centroid()) * area
-
-            theta_rad = np.radians(image_box.rotation)
-            sum_sin += np.sin(theta_rad) * area
-            sum_cos += np.cos(theta_rad) * area
-
             total_area += area
 
         assert self.total_words > 0, "Se ha pasado un párrafo sin palabras."
 
         self.centroid /= total_area
 
-        # reconstruimos el ángulo
-        avg_theta_rad = np.arctan2(sum_sin, sum_cos)
-        self.avg_rotation = -np.degrees(avg_theta_rad)
+        self.avg_rotation = self._get_average_rotation(
+            [box.rotation for box in self.image_boxes],
+            [box.polygon.area for box in self.image_boxes],
+        )
 
         self.top: float = min([box.top for box in self.image_boxes])
         self.left: float = min([box.left for box in self.image_boxes])
 
         theta_rad = -np.radians(-self.avg_rotation)
-
         cos_theta = np.cos(theta_rad)
         sin_theta = np.sin(theta_rad)
 
@@ -137,3 +136,28 @@ class Paragraph:
 
     def __len__(self):
         return len(self.image_boxes_ids)
+
+    def __repr__(self):
+        return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
+
+    def union_polygon(self):
+        return coverage_union_all([box.polygon for box in self.image_boxes])
+
+    def corrected_polygon(self, box: ImageBox):
+        # TODO: check this works as expected
+        t = np.radians(self.avg_rotation)
+        a = np.cos(t)
+        b = -np.sin(t)
+        c = np.sin(t)
+        d = np.cos(t)
+        x_c = -self.centroid[0]
+        y_c = -self.centroid[1]
+        return affine_transform(box.polygon, [a, b, c, d, -x_c, -y_c])
+
+    @staticmethod
+    def _get_average_rotation(angles_in_degrees: list[float], areas: list[float]):
+
+        angles_in_radians = np.radians(angles_in_degrees)
+        sum_sin = np.sum(np.sin(np.radians(angles_in_radians)) * np.array(areas))
+        sum_cos = np.sum(np.cos(np.radians(angles_in_radians)) * np.array(areas))
+        return -np.degrees(np.arctan(sum_sin, sum_cos))
