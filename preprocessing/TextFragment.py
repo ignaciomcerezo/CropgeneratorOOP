@@ -19,7 +19,7 @@ class TextFragment:
     id: str
     text: str
     task_id: int
-    associated_boxes: list[ImageBox] = list
+    associated_boxes: list[ImageBox] = field(default_factory=list)
     starting_index: Optional[int] = None
 
     math_percentage: float = field(init=False)
@@ -96,7 +96,7 @@ class TextFragment:
         return extract_math_from_dollars(self.text)
 
     def text_outside_math(self):
-        extract_math_from_dollars("$" + self.text + "$")
+        return extract_math_from_dollars("$" + self.text + "$")
 
     def _math_percentage(self):
         if self._is_open():
