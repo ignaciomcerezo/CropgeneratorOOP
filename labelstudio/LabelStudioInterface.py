@@ -11,8 +11,8 @@ from labelstudio.simplify_export import (
     simplify_export,
     load_simplified_export,
 )
-from preprocessing.helpers.helper_to_classes import get_image_path_from_task
 from PIL import Image
+from preprocessing.helpers.helper_to_classes import get_image_path_from_task
 
 
 class LabelStudioInterface:

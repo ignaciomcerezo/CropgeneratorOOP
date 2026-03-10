@@ -144,11 +144,12 @@ class AnnotatedPage:
         # los centroides corregidos a cada caja-imagen. El sorted se ejecuta atuomáticamente, y se hace usando el orden
         # naif.
         self.paragraphs: list[Paragraph] = sorted(
-            [Paragraph(box_cc) for box_cc in box_ccs]
+            [Paragraph(box_cc, task_id=self.task_id) for box_cc in box_ccs]
         )
 
         sindex = 0  # índices de inicio de cada fragmento de texto (empleando
-        for paragraph in self.paragraphs:
+        for paragraph_index, paragraph in enumerate(self.paragraphs):
+            paragraph.index = paragraph_index
             for fragment in paragraph.text_fragments:
                 fragment.starting_index = sindex
                 sindex += len(fragment.text) + 1
@@ -471,8 +472,20 @@ class AnnotatedPage:
         return set(box_id_sequence[1:]).issubset(set(paragraph.image_boxes_ids))
 
     @property
+    def n_paragraphs(self):
+        return len([paragraph for paragraph in self.paragraphs if (len(paragraph) > 1)])
+
+    @property
     def is_single_paragraph(self):
-        return len([paragraph for paragraph in self.paragraphs if len(paragraph)]) == 1
+        return self.n_paragraphs == 1
+
+    def math_percentage(self, box_id_sequence: list[str] = None):
+        if box_id_sequence is None:
+            box_id_sequence = list(self.image_boxes.keys())
+            return 0
+        fragments = [self.image_boxes.fragment for box_id in box_id_sequence]
+
+        return np.sum([fragment.math_percentage * len() for fragment in fragments])
 
     @staticmethod
     def register_error():

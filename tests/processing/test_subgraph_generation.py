@@ -1,6 +1,6 @@
-from processing.augment_data.sequential.helpers import generate_connected_subgraphs
+from processing.sequential.helpers import generate_connected_subgraphs
 
-from preprocessing.tests.test_AnnotatedPage import Annotated_task_5
+from tests.preprocessing.test_AnnotatedPage import Annotated_task_5
 
 graph = Annotated_task_5.graph
 ccs = Annotated_task_5.ordered_connected_components
@@ -11,7 +11,7 @@ for subgraph in generate_connected_subgraphs(
     pass
     # print(subgraph)
 
-# TODO add proper tests to this all
+# TODO add proper preprocessing to this all
 
 
 subgraphs_generated = lambda k: set(

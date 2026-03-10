@@ -5,15 +5,19 @@ from shapely import Polygon
 from display import display
 
 
-class MultipleAssociationError(ValueError):
+class PairingError(ValueError):
     pass
 
 
-class RepeatedSameAssociationError(ValueError):
+class MultipleAssociationError(PairingError):
     pass
 
 
-class NoAssociationError(ValueError):
+class RepeatedSameAssociationError(PairingError):
+    pass
+
+
+class NoAssociationError(PairingError):
     pass
 
 
@@ -43,11 +47,17 @@ class ImageBox:
             else:
 
                 display(self.crop)
-                display(f"Fragmento 1: {fragment.text}")
-                for i, old_fragment in enumerate(self.associated_fragments):
-                    display(f"Fragmento {i + 2}: {old_fragment.text}")
                 raise MultipleAssociationError(
-                    f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos:"
+                    f"(Tarea {self.task_id}) - Multiasociación: La imagen {self.id} tiene asociados varios fragmentos:\n"
+                    f"Fragmento 1: {fragment.text}"
+                    "\n".join(
+                        [
+                            f"Fragmento {i + 2}: {old_fragment.text}"
+                            for (i, old_fragment) in enumerate(
+                                self.associated_fragments
+                            )
+                        ]
+                    )
                 )
 
         self.associated_fragments.append(fragment)
