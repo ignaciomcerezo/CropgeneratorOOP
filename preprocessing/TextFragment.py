@@ -4,6 +4,7 @@ from typing import Optional
 from preprocessing.ImageBox import (
     ImageBox,
     NoAssociationError,
+    RepeatedSameAssociationError,
     MultipleAssociationError,
 )
 from display import display
@@ -41,8 +42,9 @@ class TextFragment:
             if box.id in self.associated_boxes:
                 display(f"Fragmento: {self.text}")
                 display(box.crop)
-                raise MultipleAssociationError(
-                    f"(Tarea {self.task_id}) El fragmento {self.id} tiene asociada la caja-imagen {box.id} más de una vez."
+                raise RepeatedSameAssociationError(
+                    f"(Tarea {self.task_id}) - Asociación repetida: fragmento {self.id} tiene asociada la "
+                    f"caja-imagen {box.id} más de una vez.\n\tTexto: {self.text}"
                 )
             else:
                 display(f"Fragmento: {self.text}")
@@ -50,7 +52,8 @@ class TextFragment:
                 for old_box in self.associated_boxes:
                     display(old_box.crop)
                 raise MultipleAssociationError(
-                    f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} tiene asociada más de una caja-imagen:"
+                    f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} "
+                    f"tiene asociada más de una caja-imagen.\n\tTexto: {self.text}"
                 )
 
         self.associated_boxes.append(box)
@@ -68,15 +71,17 @@ class TextFragment:
         """If the TextFragment has only one associated ImageBox, returns it.
         Ifit has more than one or none, raises a ValueError."""
         if len(self.associated_boxes) == 0:
-            raise ValueError(
-                f"El fragmento {self.id} de la tarea {self.task_id} no tiene caja-imagen asociada."
+            raise NoAssociationError(
+                f"(Tarea {self.task_id}) - Sin asociación  El fragmento {self.id} de la tarea {self.task_id} no tiene"
+                f" caja-imagen asociada.\n\tTexto: {self.text}"
             )
         elif len(self.associated_boxes) == 1:
             return self.associated_boxes[0]
         else:
             boxes_ids = [box.id for box in self.associated_boxes]
-            raise ValueError(
-                f"El fragmento {self.id} de la tarea {self.task_id} tiene más de una caja-imagen asociada: {' '.join(boxes_ids)}"
+            raise MultipleAssociationError(
+                f"(Tarea {self.task_id}) - Multiasociación: El fragmento {self.id} de la tarea {self.task_id} "
+                f"tiene más de una caja-imagen asociada: {' '.join(boxes_ids)}.\n\tTexto: {self.text}"
             )
 
     def _is_open(
@@ -101,8 +106,11 @@ class TextFragment:
     def _math_percentage(self):
         if self._is_open():
             return -1
+
         in_math_length = sum([len(block) for block in self.text_inside_math()])
         out_math_length = sum([len(block) for block in self.text_outside_math()])
+        if not in_math_length and not out_math_length:
+            return 0
         return in_math_length / (out_math_length + in_math_length)
 
 

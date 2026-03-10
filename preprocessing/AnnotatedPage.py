@@ -253,7 +253,8 @@ class AnnotatedPage:
         for fragment_id, fragment in self.text_fragments.items():
             if len(fragment.associated_boxes) == 0:
                 print(
-                    f"\n\n\n(Task {self.task_id}) - El fragmento {fragment_id} no tiene caja-imagen asociada:"
+                    f"\n\n\n(Task {self.task_id}) - El fragmento {fragment_id} no tiene caja-imagen asociada:\n"
+                    f"Texto: {fragment.text}"
                 )
                 AnnotatedPage.register_error()
                 display(fragment.text)

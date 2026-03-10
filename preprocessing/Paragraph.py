@@ -158,6 +158,6 @@ class Paragraph:
     def _get_average_rotation(angles_in_degrees: list[float], areas: list[float]):
 
         angles_in_radians = np.radians(angles_in_degrees)
-        sum_sin = np.sum(np.sin(np.radians(angles_in_radians)) * np.array(areas))
-        sum_cos = np.sum(np.cos(np.radians(angles_in_radians)) * np.array(areas))
+        sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
+        sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
         return -np.degrees(np.arctan2(sum_sin, sum_cos))
