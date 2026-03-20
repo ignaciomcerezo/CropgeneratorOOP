@@ -1,6 +1,6 @@
 from preprocessing.AnnotatedPage import AnnotatedPage
 from labelstudio.LabelStudioInterface import LabelStudioInterface
-from preprocessing.ImageBox import PairingError
+from preprocessing.helpers.PairingErrors import PairingError
 from preprocessing.helpers.helper_to_classes import get_image_path_from_task
 from PIL import Image
 from tqdm.auto import tqdm

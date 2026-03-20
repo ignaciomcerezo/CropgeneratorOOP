@@ -241,23 +241,27 @@ class AnnotatedPage:
         """
         Compruba que todas las cajas están asociadas a un texto, y viceversa
         """
+        for image_box in self.image_boxes.values():
+            image_box.fragment
+        for fragment in self.text_fragments.values():
+            fragment.box
 
-        for box_id, box in self.image_boxes.items():
-            if len(box.associated_fragments) == 0:
-                print(
-                    f"\n\n\n(Task {self.task_id}) - La caja-imagen {box_id} no tiene texto asociado:"
-                )
-                AnnotatedPage.register_error()
-                display(box.crop)
-
-        for fragment_id, fragment in self.text_fragments.items():
-            if len(fragment.associated_boxes) == 0:
-                print(
-                    f"\n\n\n(Task {self.task_id}) - El fragmento {fragment_id} no tiene caja-imagen asociada:\n"
-                    f"Texto: {fragment.text}"
-                )
-                AnnotatedPage.register_error()
-                display(fragment.text)
+        # for box_id, box in self.image_boxes.items():
+        #     if len(box.associated_fragments) == 0:
+        #         print(
+        #             f"\n\n\n(Task {self.task_id}) - La caja-imagen {box_id} no tiene texto asociado:"
+        #         )
+        #         AnnotatedPage.register_error()
+        #         display(box.crop)
+        #
+        # for fragment_id, fragment in self.text_fragments.items():
+        #     if len(fragment.associated_boxes) == 0:
+        #         print(
+        #             f"\n\n\n(Task {self.task_id}) - El fragmento {fragment_id} no tiene caja-imagen asociada:\n"
+        #             f"Texto: {fragment.text}"
+        #         )
+        #         AnnotatedPage.register_error()
+        #         display(fragment.text)
 
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
