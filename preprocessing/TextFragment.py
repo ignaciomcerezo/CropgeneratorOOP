@@ -53,7 +53,7 @@ class TextFragment:
         )  # podemos devolver el id sabiendo que, en caso de colisión, no es culpa nuestra, sino de label studio
 
     def __repr__(self):
-        return f"TextFragment {self.id} de la tarea {self.task_id}"
+        return f"<TextFragment {self.id} de la tarea ({self.task_id})>."
 
     @property
     def box(self):

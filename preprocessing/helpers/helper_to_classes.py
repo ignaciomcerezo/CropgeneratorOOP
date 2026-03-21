@@ -93,28 +93,6 @@ def get_deterministic_id(text):
     return hash_object.hexdigest()
 
 
-def trim_star_nodes(adj_graph, star_threshold):
-    """
-    Elimina los nodos estrellados que sobrepasan una conectividad igual a star_threshold.
-    """
-
-    nodes_to_remove = []
-
-    for rid, neighbors in adj_graph.items():
-        if len(neighbors) / (len(adj_graph) - 1) > star_threshold:  # si pasa el umbral
-            nodes_to_remove.append(rid)
-
-    if nodes_to_remove:  # si hay nodos que quitar, los quitamos.
-        for rid in nodes_to_remove:
-
-            del adj_graph[rid]  # quitamos el nodo en forma de estrella
-
-            for other in adj_graph:  # eliminamos todas sus referencias
-                adj_graph[other].discard(rid)
-
-    return adj_graph
-
-
 def unrotate_image(img, rotation_degrees):
     """
     Des-rota una imagen, quitando también la máscara transparente.
