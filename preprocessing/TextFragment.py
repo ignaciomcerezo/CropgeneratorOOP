@@ -35,14 +35,14 @@ class TextFragment:
         self.word_count = len(self.text.split())
         self.char_count = len(self.text)
 
-    def associate_box(self, box: ImageBox, warn: bool = True):
+    def associate_box(self, box: ImageBox, warn: bool = False):
 
         if warn and (
             len(self.associated_boxes) != 0
         ):  # si ya tenemos un fragmento de texto asociado
             if box.id in self.associated_boxes:
                 raise RepeatedSameAssociationError(self)
-            else:
+            elif warn:
                 raise MultipleAssociationError(self)
 
         self.associated_boxes.append(box)
@@ -57,15 +57,11 @@ class TextFragment:
 
     @property
     def box(self):
-        """If the TextFragment has only one associated ImageBox, returns it.
-        Ifit has more than one or none, raises a ValueError."""
+        """Returns the first of the associated boxes of the text fragment."""
         if len(self.associated_boxes) == 0:
             raise NoAssociationError(self)
-
-        elif len(self.associated_boxes) == 1:
-            return self.associated_boxes[0]
         else:
-            raise MultipleAssociationError(self)
+            return self.associated_boxes[0]
 
     def _is_open(
         self, thigs_to_close=_things_to_close
