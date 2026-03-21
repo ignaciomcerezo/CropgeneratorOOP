@@ -18,3 +18,6 @@ simplify_export(
 augment_data_sequential(
     simplified_filepath, orders_to_consider=[1, 2, 3], task_only=[5, 6, 7]
 )
+
+
+# TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1

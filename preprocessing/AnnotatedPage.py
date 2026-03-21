@@ -13,7 +13,6 @@ from preprocessing.helpers.helper_to_classes import (
     get_rotated_region,
     unrotate_image,
     reemplazar_latex_espaciado,
-    trim_star_nodes,
     compose_collage,
 )
 from preprocessing.helpers.text_replacements import (
@@ -47,6 +46,7 @@ class AnnotatedPage:
 
     n_annotation_errors = 0
     warn_unrotate = True
+    min_nodes_for_big_box_removal = min_nodes_for_big_box_removal
     __slots__ = (
         "background_color",
         "image_boxes",
@@ -135,7 +135,7 @@ class AnnotatedPage:
             self.build_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
 
-        if self.order > min_nodes_for_big_box_removal:
+        if self.order > AnnotatedPage.min_nodes_for_big_box_removal:
             self.trim_star_nodes()
 
         # TODO: does this always produce good results? (the projection ordering, that is)
@@ -153,7 +153,9 @@ class AnnotatedPage:
             [Paragraph(box_cc, task_id=self.task_id) for box_cc in box_ccs]
         )
 
-        sindex = 0  # índices de inicio de cada fragmento de texto (empleando
+        sindex = 0  # índices de inicio de cada fragmento de texto
+
+        # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
             for fragment in paragraph.text_fragments:
@@ -426,7 +428,11 @@ class AnnotatedPage:
 
         return adjacency_mx
 
-    def generate_collage(self, box_id_sequence: set[str] | list[str]) -> Image.Image:
+    def generate_collage(
+        self,
+        box_id_sequence: set[str] | list[str],
+        background_color: tuple | None = None,
+    ) -> Image.Image:
         """
         Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo).
         """
@@ -437,14 +443,34 @@ class AnnotatedPage:
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]
 
-        return compose_collage(subgraph_image_boxes, self.background_color)
+        return compose_collage(
+            subgraph_image_boxes,
+            background_color if background_color else self.background_color,
+        )
 
     def trim_star_nodes(
         self,
         relative_threshold: float = BIG_BOX_THRESHOLD,
     ) -> None:
 
-        self.__graph = trim_star_nodes(self.graph, relative_threshold)
+        adj_graph = self.__graph.copy()
+        nodes_to_remove = []
+
+        for rid, neighbors in adj_graph.items():
+            if (
+                len(neighbors) / (len(adj_graph) - 1) > relative_threshold
+            ):  # si pasa el umbral
+                nodes_to_remove.append(rid)
+
+        for rid in nodes_to_remove:
+            self.image_boxes[rid].fragment.starting_index = -1
+
+            del adj_graph[rid]  # quitamos el nodo en forma de estrella
+
+            for other in adj_graph:  # eliminamos todas sus referencias
+                adj_graph[other].discard(rid)
+
+        self.__graph = adj_graph
 
     def cluster_reading_order(
         self, box_ids: list["str"]
@@ -502,3 +528,16 @@ class AnnotatedPage:
     @staticmethod
     def register_error():
         AnnotatedPage.n_annotation_errors += 1
+
+    def fragments_without_paragraph(self) -> list[TextFragment]:
+        in_paragraph = []
+        out_paragraph = []
+        for paragraph in self.paragraphs:
+            in_paragraph += [f.id for f in paragraph.text_fragments]
+        if len(in_paragraph) == len(self.text_fragments):
+            return []
+
+        for f in self.text_fragments.values():
+            if f.id not in in_paragraph:
+                out_paragraph.append(f.id)
+        return [self.text_fragments[id] for id in out_paragraph]
