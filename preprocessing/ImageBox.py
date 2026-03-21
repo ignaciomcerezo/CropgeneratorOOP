@@ -23,19 +23,19 @@ class ImageBox:
     corrected_centroid: Optional[tuple[float, float]] = None
     corrected_polygon: Optional[Polygon] = None
 
-    def associate_fragment(self, fragment: "TextFragment", warn: bool = True):
+    def associate_fragment(self, fragment: "TextFragment", warn: bool = False):
         if (
             len(self.associated_fragments) != 0
         ):  # si ya tenemos un fragmento de texto asociado
             if warn and (fragment.id in self.associated_fragments):
                 raise RepeatedSameAssociationError(self)
-            else:
+            elif warn:
                 raise MultipleAssociationError(self)
 
         self.associated_fragments.append(fragment)
 
-        self.corrected_centroid = None
-        self.corrected_polygon = None
+        # self.corrected_centroid = None ??? why was this here #TODO: check why this was here
+        # self.corrected_polygon = None
 
     def __hash__(self):
         return (
@@ -53,11 +53,8 @@ class ImageBox:
 
     @property
     def fragment(self) -> "TextFragment":
-        """If the ImageBox has only one associated TextFragment, returns it.
-        If it has more than one, raises a ValueError."""
+        """Returns the first of the associated fragments of the image box."""
         if len(self.associated_fragments) == 0:
-            raise MultipleAssociationError(self)
-        elif len(self.associated_fragments) != 1:
             raise NoAssociationError(self)
         else:
             return self.associated_fragments[0]

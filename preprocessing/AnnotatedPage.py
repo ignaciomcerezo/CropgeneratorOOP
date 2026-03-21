@@ -1,5 +1,11 @@
 from preprocessing.ImageBox import ImageBox
 from preprocessing.TextFragment import TextFragment
+from preprocessing.helpers.PairingErrors import (
+    NoAssociationError,
+    MultipleAssociationError,
+    RepeatedSameAssociationError,
+    SameToSameAssociation,
+)
 from preprocessing.Paragraph import Paragraph
 from preprocessing.helpers.helper_to_classes import (
     get_connected_components,
@@ -132,7 +138,7 @@ class AnnotatedPage:
         if self.order > min_nodes_for_big_box_removal:
             self.trim_star_nodes()
 
-        # TODO: does this produce good results always? Does this cc_ordering and using the raw ccs cause any problems?
+        # TODO: does this always produce good results? (the projection ordering, that is)
 
         # colocamos las componentes conexas siguiendo el orden de lectura.
         box_ccs = [
@@ -241,27 +247,28 @@ class AnnotatedPage:
         """
         Compruba que todas las cajas están asociadas a un texto, y viceversa
         """
-        for image_box in self.image_boxes.values():
-            image_box.fragment
-        for fragment in self.text_fragments.values():
-            fragment.box
+        for box in self.image_boxes.values():
+            if any([isinstance(obj, ImageBox) for obj in box.associated_fragments]):
+                raise SameToSameAssociation(box)
 
-        # for box_id, box in self.image_boxes.items():
-        #     if len(box.associated_fragments) == 0:
-        #         print(
-        #             f"\n\n\n(Task {self.task_id}) - La caja-imagen {box_id} no tiene texto asociado:"
-        #         )
-        #         AnnotatedPage.register_error()
-        #         display(box.crop)
-        #
-        # for fragment_id, fragment in self.text_fragments.items():
-        #     if len(fragment.associated_boxes) == 0:
-        #         print(
-        #             f"\n\n\n(Task {self.task_id}) - El fragmento {fragment_id} no tiene caja-imagen asociada:\n"
-        #             f"Texto: {fragment.text}"
-        #         )
-        #         AnnotatedPage.register_error()
-        #         display(fragment.text)
+            if len(set(box.associated_fragments)) != len(box.associated_fragments):
+                raise RepeatedSameAssociationError(box)
+            elif len(box.associated_fragments) > 1:
+                raise MultipleAssociationError(box)
+            elif len(box.associated_fragments) == 0:
+                raise NoAssociationError(box)
+        for fragment in self.text_fragments.values():
+            if any(
+                [isinstance(obj, TextFragment) for obj in fragment.associated_boxes]
+            ):
+                raise SameToSameAssociation(fragment)
+
+            if len(set(fragment.associated_boxes)) != len(fragment.associated_boxes):
+                raise RepeatedSameAssociationError(fragment)
+            elif len(fragment.associated_boxes) > 1:
+                raise MultipleAssociationError(fragment)
+            elif len(fragment.associated_boxes) == 0:
+                raise NoAssociationError(fragment)
 
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
