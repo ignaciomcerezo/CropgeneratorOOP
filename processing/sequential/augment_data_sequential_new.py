@@ -2,9 +2,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from preprocessing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
-from processing.sequential.helpers import (
-    generate_connected_subgraphs,
-)
+from processing.sequential.helpers import generate_connected_subgraphs
 from preprocessing.helpers.helper_to_classes import (
     get_image_path_from_task,
     get_deterministic_id,
@@ -22,11 +20,10 @@ from labelstudio.LabelStudioInterface import LabelStudioInterface
 
 
 def augment_data_sequential(
-    generate_full_pages: bool = False,
-    generate_full_paragraphs: bool = False,
+    generate_full_pages: bool = True,
+    generate_full_paragraphs: bool = True,
     pages_only: list[int] | None = None,
     tasks_only: list[int] | None = None,
-    time_lmit_subgraph_generation: int = default_time_limit_subgraph_generation,
     is_parallel: bool = False,
     output_excel_name: str = default_output_excel_name,
     additive_excel: bool = False,
@@ -141,83 +138,90 @@ def augment_data_sequential(
         for Ann in (AnnotatedPage(ann, img, unrotate=False) for ann in LSI[task_id]):
             if generate_full_pages:
                 image, transcription, sindex = Ann.cluster_reading_order(
-                    Ann.graph.keys()
+                    list(Ann.graph.keys())
                 )
 
                 assert sindex == 0
 
-                filename = f"pg_{page_number}_t{task_id}_full_ann{get_deterministic_id(transcription)}.png"
+                filename = f"pg_{page_number}_t{task_id}_h{get_deterministic_id(transcription)}.png"
 
                 image.save(full_dir / filename)
 
                 new_rows_data.append(
                     {  # nueva fila para el dataframe
                         "task": task_id,
-                        "order": "FULL",
+                        "paragraph": "full",
+                        "order": "full",
                         "sindex": 0,
                         "text": transcription,
                         "page": page_number,
                         "crop_file": filename,
                         "background_color": Ann.background_color,
+                        "average_rotation": Ann.get_average_rotation(Ann.graph.keys()),
                     }
                 )
                 total_saved += 1
-            if generate_full_paragraphs:
 
-                if not paragraphs_dir.exists():
-                    paragraphs_dir.mkdir()
+            for paragraph in Ann.paragraphs:
+                if generate_full_paragraphs and not (
+                    Ann.is_single_paragraph and generate_full_pages
+                ):
 
-                for i, paragraph in enumerate(Ann.paragraphs):
+                    if not paragraphs_dir.exists():
+                        paragraphs_dir.mkdir()
 
-                    try:
+                    for paragraph in Ann.paragraphs:
                         image, transcription, sindex = Ann.cluster_reading_order(
                             paragraph.image_boxes_ids
                         )
 
-                        filename = f"pg_{page_number}_t{task_id}_paragraph{i}.png"
+                        filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
                         image.save(paragraphs_dir / filename)
                         new_rows_data.append(
                             {  # nueva fila para el dataframe
                                 "task": task_id,
-                                "order": "PARAGRAPH",
-                                "sindex": 0,
+                                "order": "paragraph",
+                                "paragraph": paragraph.index,
+                                "sindex": sindex,
                                 "text": transcription,
                                 "page": page_number,
                                 "crop_file": filename,
                                 "background_color": Ann.background_color,
+                                "average_rotation": Ann.get_average_rotation(
+                                    paragraph.subgraph.keys()
+                                ),
                             }
                         )
                         total_saved += 1
-                    except:
-                        print(f"Error guardando {i, paragraph} de {Ann.task_id}")
 
-            saved_subgraphs_ids = set()  # para evitar duplicados
+                saved_subgraphs_ids = set()  # para evitar duplicados
 
-            for i, paragraph in enumerate(Ann.paragraphs):
-                if Ann.is_single_paragraph and generate_full_pages:
-                    break
+                for order in range(
+                    1, len(paragraph) - generate_full_paragraphs + 1
+                ):  # aquí ya forzamos que no se generen dos veces los párrafos completos. Sin embargo si
+                    # generate_full_paragraphs = False, sí que los generamos si cumplen el orden (lo que no hacemos
+                    # es repetir generación).
 
-                for order in range(1, len(paragraph) - 1):
                     if order not in orders_to_consider:
                         continue
+
                     order_dir = crops_path / str(order)
 
                     if not order_dir.exists():
                         order_dir.mkdir()
 
                     for box_id_sequence in generate_connected_subgraphs(
-                        paragraph.image_boxes_ids, Ann.graph, order
+                        paragraph.image_boxes_ids, paragraph.subgraph, order
                     ):
                         seq_hash = get_deterministic_id(
                             "".join(sorted(box_id_sequence))
-                        )[:16]
-                        filename = (
-                            f"pg_{page_number}_t{task_id}_order{order}_h{seq_hash}.png"
                         )
 
                         if seq_hash in saved_subgraphs_ids:
                             # esto debería ser imposible a no ser que no haya reservoir.
                             continue
+
+                        filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{seq_hash}.png"
 
                         collage, transcripcion, sindex = Ann.cluster_reading_order(
                             box_id_sequence
@@ -228,11 +232,15 @@ def augment_data_sequential(
                             {  # nueva fila para el dataframe
                                 "task": task_id,
                                 "order": order,
+                                "paragraph": paragraph.index,
+                                "sindex": sindex,
                                 "text": transcripcion,
                                 "page": page_number,
                                 "crop_file": filename,
-                                "sindex": sindex,
                                 "background_color": Ann.background_color,
+                                "average_rotation": Ann.get_average_rotation(
+                                    box_id_sequence
+                                ),
                             }
                         )
 
@@ -253,7 +261,19 @@ def augment_data_sequential(
             final_df = new_df
     else:
         if new_df.empty:
-            final_df = pd.DataFrame(columns=["task", "order", "crop_file", "text"])
+            final_df = pd.DataFrame(
+                columns=[
+                    "task",
+                    "page",
+                    "order",
+                    "paragraph",
+                    "sindex",
+                    "text",
+                    "crop_file",
+                    "background_color",
+                    "average_rotation",
+                ]
+            )
         else:
             final_df = new_df
 

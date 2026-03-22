@@ -1,5 +1,6 @@
 from preprocessing.ImageBox import ImageBox
 from preprocessing.TextFragment import TextFragment
+from collections.abc import Iterable
 from preprocessing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
@@ -14,6 +15,7 @@ from preprocessing.helpers.helper_to_classes import (
     unrotate_image,
     reemplazar_latex_espaciado,
     compose_collage,
+    subdictionary,
 )
 from preprocessing.helpers.text_replacements import (
     replacements,
@@ -98,7 +100,7 @@ class AnnotatedPage:
                 imgbox_id: ImageBox(
                     id=imgbox_id,
                     task_id=self.task_id,
-                    **self.rotatedregion(imgbox_id, img, img_boxes_json, unrotate),
+                    **self._rotatedregion(imgbox_id, img, img_boxes_json, unrotate),
                 )
                 for imgbox_id in img_boxes_json
             }
@@ -125,14 +127,14 @@ class AnnotatedPage:
             }
         )
 
-        self.setup_mappings(
+        self._setup_mappings(
             results
         )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de labelstudio
 
         self.assert_pairing()  # nos aseguramos de que todas las imágenes tengan fragmento, y viceversa
 
         self.__graph: dict[str, set[str]] = (
-            self.build_graph()
+            self._build_intersection_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
 
         if self.order > AnnotatedPage.min_nodes_for_big_box_removal:
@@ -141,16 +143,27 @@ class AnnotatedPage:
         # TODO: does this always produce good results? (the projection ordering, that is)
 
         # colocamos las componentes conexas siguiendo el orden de lectura.
+
+        connected_components = get_connected_components(self.__graph)
+
         box_ccs = [
             [self.image_boxes[box_id] for box_id in component]
-            for component in get_connected_components(self.__graph)
+            for component in connected_components
+        ]
+
+        subgraphs_ccs = [
+            subdictionary(component, subdictionary(component, self.graph))
+            for component in connected_components
         ]
 
         # generamos los párrafos (componentes conexas con información extra), que añaden automáticamente información sobre
         # los centroides corregidos a cada caja-imagen. El sorted se ejecuta atuomáticamente, y se hace usando el orden
         # naif.
         self.paragraphs: list[Paragraph] = sorted(
-            [Paragraph(box_cc, task_id=self.task_id) for box_cc in box_ccs]
+            [
+                Paragraph(box_cc, task_id=self.task_id, subgraph=subgraph)
+                for (box_cc, subgraph) in zip(box_ccs, subgraphs_ccs)
+            ]
         )
 
         sindex = 0  # índices de inicio de cada fragmento de texto
@@ -174,11 +187,11 @@ class AnnotatedPage:
         ]  # útlima persona en actualizar la tarea
 
     @property
-    def order(self):
+    def order(self) -> int:
         return len(self.graph)
 
     @property
-    def graph(self):
+    def graph(self) -> dict[str, set[str]]:
         return self.__graph
 
     @graph.setter
@@ -187,7 +200,7 @@ class AnnotatedPage:
             "Por causas de starting_index y composición del documento, no es posible modificar el grafo!"
         )
 
-    def setup_mappings(self, results: list):
+    def _setup_mappings(self, results: list) -> None:
         """
         A partir de las relaciones creadas en cada tarea de LS, genera respectivos diccionarios:
             1. img2text_rel, [box_id] -> fragment_id,
@@ -275,7 +288,7 @@ class AnnotatedPage:
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
 
-    def rotatedregion(
+    def _rotatedregion(
         self, key: str, img: Image.Image, img_boxes_json, unrotate=False
     ) -> dict[str, Image.Image | Polygon | bool]:
         """
@@ -341,7 +354,7 @@ class AnnotatedPage:
                 "unrotated": True,
             }
 
-    def build_graph(self):
+    def _build_intersection_graph(self):
         """
         Genera el grafo de intersecciones de una anotación.
         Devuelve un diccionario de adyacencia {id: set(id_adyacentes)}.
@@ -541,3 +554,13 @@ class AnnotatedPage:
             if f.id not in in_paragraph:
                 out_paragraph.append(f.id)
         return [self.text_fragments[id] for id in out_paragraph]
+
+    def get_average_rotation(self, img_box_ids: Iterable[str]):
+        image_boxes = [self.image_boxes[box_id] for box_id in img_box_ids]
+        areas = [box.polygon.area for box in image_boxes]
+        angles_in_radians = [np.radians(box.rotation) for box in image_boxes]
+
+        sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
+        sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
+
+        return -np.degrees(np.arctan2(sum_sin, sum_cos))

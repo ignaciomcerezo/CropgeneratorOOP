@@ -1,15 +1,14 @@
 from processing.sequential.helpers import generate_connected_subgraphs
+from tests.tests_helper import load_particular_annotation
 
-from tests.preprocessing.test_AnnotatedPage import Annotated_task_5
+Annotated_task_5 = load_particular_annotation(5)
 
 graph = Annotated_task_5.graph
-ccs = Annotated_task_5.ordered_connected_components
 
 for subgraph in generate_connected_subgraphs(
     Annotated_task_5.graph.keys(), Annotated_task_5.graph, 1
 ):
     pass
-    # print(subgraph)
 
 # TODO add proper preprocessing to this all
 

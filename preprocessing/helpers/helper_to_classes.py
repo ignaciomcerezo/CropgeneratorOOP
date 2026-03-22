@@ -90,7 +90,7 @@ def get_deterministic_id(text):
     a partir de un texto dado usando SHA-256.
     """
     hash_object = hashlib.sha256(text.encode("utf-8"))
-    return hash_object.hexdigest()
+    return hash_object.hexdigest()[:8]
 
 
 def unrotate_image(img, rotation_degrees):
@@ -470,3 +470,10 @@ def compose_collage(image_boxes, fill_color):
             collage.paste(box.crop, (paste_x, paste_y))
 
     return collage
+
+
+def subdictionary(nodes, adj) -> dict[str, set[str]]:
+    subdict = {}
+    for node in nodes:
+        subdict[node] = adj[node]
+    return subdict

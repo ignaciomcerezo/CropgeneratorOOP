@@ -1,3 +1,4 @@
+from typing import Optional
 from preprocessing.TextFragment import TextFragment
 from preprocessing.ImageBox import ImageBox
 from preprocessing.helpers.helper_to_classes import compose_collage, unrotate_image
@@ -20,6 +21,7 @@ class Paragraph:
         "text_fragments_ids",
         "task_id",
         "index",
+        "subgraph",
     )
 
     def __init__(
@@ -28,6 +30,7 @@ class Paragraph:
         text_fragments: list[TextFragment] | None = None,
         task_id: int | None = None,
         index: int | None = None,
+        subgraph: dict[str, list[str]] = None,
     ):
         assert (
             image_boxes or text_fragments
@@ -45,8 +48,11 @@ class Paragraph:
 
         self.image_boxes: list[ImageBox] = image_boxes
         self.text_fragments: list[TextFragment] = text_fragments
-        self.task_id = task_id
-        self.index = index
+        self.task_id: int = task_id
+        self.index: int = index
+        self.subgraph: Optional[dict[str, set[str]]] = (
+            subgraph  # TODO: check the subgraph setting and subgraph generation
+        )
 
         self.centroid: np.ndarray = np.zeros((2,))
         self.total_words: int = 0
@@ -141,6 +147,7 @@ class Paragraph:
         return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
 
     def union_polygon(self):
+        print("¡Recuerda que la y está invertida!")
         return coverage_union_all([box.polygon for box in self.image_boxes])
 
     def corrected_polygon(self, box: ImageBox):

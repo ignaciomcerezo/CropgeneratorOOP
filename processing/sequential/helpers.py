@@ -1,6 +1,7 @@
 from time import time
 from parameters import max_samples_per_order, time_limit_subgraph_generation
 
+
 def generate_connected_subgraphs(nodes, adj, k):
     """
     Genera todos los subgrafos conexos de orden k a partir del conjunto de
@@ -25,16 +26,22 @@ def generate_connected_subgraphs(nodes, adj, k):
 
         for i, node in enumerate(sorted_candidates):
 
-            remaining = set(sorted_candidates[i + 1:])  # extensiones de subgrafo no exploradas
+            remaining = set(
+                sorted_candidates[i + 1 :]
+            )  # extensiones de subgrafo no exploradas
 
             new_extensions = set()  # posibles extensiones a partir de la actual
 
             for n in adj[node]:
                 if n not in current_set and n not in candidates:
-                    new_extensions.add(n)  # posible nueva extensión (no visitado y no en la actual)
+                    new_extensions.add(
+                        n
+                    )  # posible nueva extensión (no visitado y no en la actual)
 
             # coge el yield de una subllamada a sí mismo, completando
-            yield from backtrack(current_set.union({node}), remaining.union(new_extensions))
+            yield from backtrack(
+                current_set.union({node}), remaining.union(new_extensions)
+            )
 
     # llamamos a la función inicial sobre todos los vértices del grafo.
     for start_node in sorted_nodes:
@@ -42,9 +49,7 @@ def generate_connected_subgraphs(nodes, adj, k):
         yield from backtrack({start_node}, valid_neighbors)
 
 
-def create_reservoir(subgraph_gen,
-                     time_limit,
-                     max_samples):
+def create_reservoir(subgraph_gen, time_limit, max_samples):
     """
     Genera el reservorio de subgrafos a generar, aceptando o rechazando de manera
     probabilística cada posible subgrafo, hasta alcanzar el límite.
