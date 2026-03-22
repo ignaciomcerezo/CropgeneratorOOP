@@ -170,29 +170,28 @@ def augment_data_sequential(
                     if not paragraphs_dir.exists():
                         paragraphs_dir.mkdir()
 
-                    for paragraph in Ann.paragraphs:
-                        image, transcription, sindex = Ann.cluster_reading_order(
-                            paragraph.image_boxes_ids
-                        )
+                    image, transcription, sindex = Ann.cluster_reading_order(
+                        paragraph.image_boxes_ids
+                    )
 
-                        filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
-                        image.save(paragraphs_dir / filename)
-                        new_rows_data.append(
-                            {  # nueva fila para el dataframe
-                                "task": task_id,
-                                "order": "paragraph",
-                                "paragraph": paragraph.index,
-                                "sindex": sindex,
-                                "text": transcription,
-                                "page": page_number,
-                                "crop_file": filename,
-                                "background_color": Ann.background_color,
-                                "average_rotation": Ann.get_average_rotation(
-                                    paragraph.subgraph.keys()
-                                ),
-                            }
-                        )
-                        total_saved += 1
+                    filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
+                    image.save(paragraphs_dir / filename)
+                    new_rows_data.append(
+                        {  # nueva fila para el dataframe
+                            "task": task_id,
+                            "order": "paragraph",
+                            "paragraph": paragraph.index,
+                            "sindex": sindex,
+                            "text": transcription,
+                            "page": page_number,
+                            "crop_file": filename,
+                            "background_color": Ann.background_color,
+                            "average_rotation": Ann.get_average_rotation(
+                                paragraph.subgraph.keys()
+                            ),
+                        }
+                    )
+                    total_saved += 1
 
                 saved_subgraphs_ids = set()  # para evitar duplicados
 

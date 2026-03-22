@@ -1,6 +1,7 @@
-from processing.sequential.augment_data_sequential import (
+from processing.sequential.augment_data_sequential_new import (
     augment_data_sequential,
 )
+from parameters import orders_to_consider as default_orders_to_consider
 from paths import simplified_filepath, output_path
 import pandas as pd
 import os
@@ -9,10 +10,9 @@ import re
 
 def run_chunk(
     chunk_args,
-    orders_to_consider=[1, 2, 3],
+    orders_to_consider=default_orders_to_consider,
     generate_full_pages=True,
-    max_samples_per_order=0,
-    time_limit_subgraph_generation=0,
+    generate_paragraphs=True,
 ):
     """
     Función de aumento de datos para un solo bloque.
@@ -23,13 +23,11 @@ def run_chunk(
     part_excel_name = f"pairs_part_{worker_id}.xlsx"
 
     augment_data_sequential(
-        simplified_filepath=simplified_filepath,
         output_excel_name=part_excel_name,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
-        task_only=tasks_subset,
-        max_samples_per_order=max_samples_per_order,
-        time_limit_subgraph_generation=time_limit_subgraph_generation,
+        generate_full_paragraphs=generate_paragraphs,
+        tasks_only=tasks_subset,
         is_parallel=True,
     )
     return f"Tarea del trabajador {worker_id} terminada."

@@ -1,6 +1,7 @@
 from processing.sequential.augment_data_sequential_new import (
     augment_data_sequential,
 )
+from processing.parallel.augment_data_parallel import augment_data_parallel
 from paths import simplified_filepath, raw_export_filepath
 
 from labelstudio.simplify_export import simplify_export
@@ -22,8 +23,19 @@ LSinterface.save_simplified_export()
 augment_data_sequential(
     simplified_filepath,
     orders_to_consider=[1],
-    tasks_only=[5, 6, 7],
+    tasks_only=[30],
 )
 
 
-# TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
+# def main():
+#     # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
+#     augment_data_parallel(
+#         orders_to_consider=[1],
+#         generate_full_pages=True,
+#         generate_paragraphs=True,
+#         tasks_only=[5, 6, 7],
+#     )
+#
+#
+# if __name__ == "__main__":
+#     main()
