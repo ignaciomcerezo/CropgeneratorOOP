@@ -113,7 +113,7 @@ class LabelStudioInterface:
         return self.usernames
 
     @property
-    def annotations(self):
+    def annotations(self) -> list[dict]:
         return [
             r["annotations"][i]
             for r in self.simplified_tasks
