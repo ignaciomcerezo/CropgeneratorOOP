@@ -23,3 +23,7 @@ def test_paragraph():
                 assert n_par == (
                     n_minus_one + 1
                 ), f"Se esperaban {n_minus_one +1} párrafos en la anotación {element}, pero tiene {n_par}."
+
+    ann30 = load_particular_annotation(30)
+
+    assert len(ann30.paragraphs) == 2

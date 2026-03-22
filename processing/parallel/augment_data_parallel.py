@@ -1,7 +1,6 @@
 from multiprocessing import Pool, cpu_count
 from processing.parallel.helpers import run_chunk, merge_excel_files
 import numpy as np
-from parameters import time_limit_subgraph_generation
 from labelstudio.LabelStudioInterface import LabelStudioInterface
 from functools import partial
 
@@ -9,13 +8,13 @@ from functools import partial
 def augment_data_parallel(
     orders_to_consider: list[int],
     generate_full_pages: bool,
-    max_samples_per_order: int,
+    generate_paragraphs: bool,
     tasks_only: list[int] | None,
 ):
     # TODO: adapt to augment_data_sequential_new
-    LSinterface = LabelStudioInterface()
+    lsi = LabelStudioInterface()
 
-    simplified_tasks = LSinterface.simplified_tasks
+    simplified_tasks = lsi.simplified_tasks
 
     if tasks_only:
         tasks_only = [str(i) for i in tasks_only]
@@ -34,8 +33,7 @@ def augment_data_parallel(
         run_chunk,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
-        max_samples_per_order=max_samples_per_order,
-        time_limit_subgraph_generation=time_limit_subgraph_generation,
+        generate_paragraphs=generate_paragraphs,
     )
 
     num_processes = min(len(all_task_ids), max(1, int(cpu_count() * 0.8)))
