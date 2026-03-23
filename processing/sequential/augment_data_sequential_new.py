@@ -6,10 +6,10 @@ from processing.sequential.helpers import generate_connected_subgraphs
 from processing.helpers.helper_to_classes import (
     get_deterministic_id,
 )
-from parameters import (
+from shared.default_parameters import (
     output_excel_name as default_output_excel_name,
 )
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 import pandas as pd
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
 

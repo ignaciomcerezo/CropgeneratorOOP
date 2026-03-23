@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 import os
 
 

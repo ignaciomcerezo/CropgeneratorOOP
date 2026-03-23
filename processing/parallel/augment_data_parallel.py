@@ -3,7 +3,7 @@ from processing.parallel.helpers import run_chunk, merge_excel_files
 import numpy as np
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from functools import partial
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 
 
 def augment_data_parallel(

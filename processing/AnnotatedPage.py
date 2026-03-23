@@ -22,9 +22,9 @@ from processing.helpers.text_replacements import (
     replacements_envs,
     regex_replacements,
 )
-from parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
+from shared.default_parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
 from shapely import Polygon, box as boxshape
-from display import display
+from shared.display import display
 import re
 from PIL import Image
 import numpy as np

@@ -2,7 +2,7 @@ from processing.sequential.augment_data_sequential_new import (
     augment_data_sequential,
 )
 from processing.parallel.augment_data_parallel import augment_data_parallel
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
 
 # from downloaders.download_from_bucket import download_all_images
