@@ -32,6 +32,7 @@ def augment_data_parallel(
     # porque luego multiprocessing no puede mandar esa información (cosas de implementación)
     run_chunk_configured = partial(
         run_chunk,
+        paths=paths,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_paragraphs=generate_paragraphs,
