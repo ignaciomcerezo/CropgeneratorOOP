@@ -1,5 +1,4 @@
 from label_studio_sdk import Client
-from shared.LS_token import ls_token
 from shared.PathBundle import PathBundle
 from shared.default_parameters import LS_url
 import json
@@ -67,6 +66,7 @@ class LabelStudioInterface:
         project_id: int = 4,
         ls_url: str = LS_url,
         forced: bool = False,
+        ls_token: str | None = None,
     ) -> bool:
         token = token or ls_token
         ls_client = Client(url=ls_url, api_key=token)

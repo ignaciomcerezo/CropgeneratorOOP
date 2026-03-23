@@ -16,3 +16,7 @@ def prepare_data():
         download_all(paths)
 
     LabelStudioInterface.update_conditional(paths)
+
+    yield
+
+    paths.remove_all_files()
