@@ -1,18 +1,13 @@
 import re
 import requests
 import os
-from pathlib import Path
-from paths import (
-    images_path,
-    transcriptions_path,
-)
 from parameters import images_url_path, transcripciones_url_path
-
+from kaggle_integration.PathBundle import PathBundle
 from concurrent.futures import ThreadPoolExecutor
 from tqdm.auto import tqdm
 
 
-def process_single_file(image_string, session):
+def download_single_img_txt_pair(paths: PathBundle, image_string, session):
     """
     Función para descargar una sola imagen y su transcripción - la usaremos en paralelo.
     El argumento "session" se emplea para reducir la latencia. En lugar de abrir y cerrar
@@ -27,9 +22,9 @@ def process_single_file(image_string, session):
 
         transcription_url = transcripciones_url_path + transcription_name + ".txt"
 
-        image_save_path = os.path.join(images_path, image_string + ".png")
+        image_save_path = os.path.join(paths.images_path, image_string + ".png")
         transcription_save_path = os.path.join(
-            transcriptions_path, image_string + ".txt"
+            paths.transcriptions_path, image_string + ".txt"
         )
 
         # primero buscamos las transcripciones y luego las imágenes: puesto que
@@ -63,7 +58,7 @@ def process_single_file(image_string, session):
         return (2, image_string)  # error 2: no se ha podido procesar la imagen
 
 
-def download_all_images(force_download: bool = False):
+def download_all(paths: PathBundle, force_download: bool = False):
     # buscamos los objetos que hay en nuestro bucket (las fotos únicamente)
     data_response = requests.get(images_url_path, params={"format": "json"}).json()
     bucket_file_names = [obj["name"] for obj in data_response["objects"]]
@@ -90,7 +85,7 @@ def download_all_images(force_download: bool = False):
     images_to_download = [
         img_str
         for img_str in image_strings
-        if (force_download or not (images_path / f"{img_str}.png").exists())
+        if (force_download or not (paths.images_path / f"{img_str}.png").exists())
     ]
     with requests.Session() as session:
         # max_workers es el número máximo de archivos que descargamos a la vez
@@ -98,7 +93,7 @@ def download_all_images(force_download: bool = False):
             # añadimos todas las tareas (todas las descargas) al pool,
             # con la misma session
             futures = [
-                executor.submit(process_single_file, img_str, session)
+                executor.submit(download_single_img_txt_pair, paths, img_str, session)
                 for img_str in images_to_download
             ]
 
