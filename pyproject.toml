@@ -1,0 +1,11 @@
+[project]
+name = "cropgeneratoroop"
+version = "0.1.0"
+description = "First stem in the generation of the dataset for fine-tuning an LLM in vision tasks."
+requires-python = ">=3.13"
+dependencies = [
+    "label-studio-sdk>=2.0.19",
+    "requests>=2.32.5",
+    "shapely>=2.1.2",
+    "tqdm>=4.67.3",
+]

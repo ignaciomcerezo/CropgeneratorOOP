@@ -4,7 +4,7 @@
     <option name="enabledOnReformat" value="true" />
     <option name="enabledOnSave" value="true" />
     <option name="pathToExecutable" value="C:\Users\pambi\anaconda3\Scripts\black.exe" />
-    <option name="sdkName" value="Python 3.12 (CropgeneratorOOP) (3)" />
+    <option name="sdkName" value="uv (CropgeneratorOOP)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="uv (CropgeneratorOOP) (2)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="uv (CropgeneratorOOP)" project-jdk-type="Python SDK" />
 </project>
