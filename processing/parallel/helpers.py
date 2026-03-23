@@ -10,6 +10,7 @@ import re
 
 def run_chunk(
     chunk_args,
+    paths: PathBundle,
     orders_to_consider=default_orders_to_consider,
     generate_full_pages=True,
     generate_paragraphs=True,
@@ -23,6 +24,7 @@ def run_chunk(
     part_excel_name = f"pairs_part_{worker_id}.xlsx"
 
     augment_data_sequential(
+        paths=paths,
         output_excel_name=part_excel_name,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,

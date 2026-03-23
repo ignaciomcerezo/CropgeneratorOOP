@@ -27,7 +27,7 @@ def augment_data_sequential(
     lsi: LabelStudioInterface | None = None,
 ):
     """Función principal para procesar las tareas y generar los recortes aumentados."""
-    lsi = lsi if lsi else LabelStudioInterface()
+    lsi = lsi if lsi else LabelStudioInterface(paths)
     paths.output_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
 
