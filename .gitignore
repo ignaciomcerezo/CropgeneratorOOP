@@ -3,4 +3,4 @@ data_out/
 data_in/
 .idea/
 __pycache__/
-LS_token.py
+shared/LS_token.py

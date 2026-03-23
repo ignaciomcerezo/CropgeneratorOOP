@@ -1,6 +1,6 @@
 from tests.tests_helper import load_particular_annotation
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 
 
 def test_paragraph():

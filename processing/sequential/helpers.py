@@ -1,5 +1,5 @@
 from time import time
-from parameters import max_samples_per_order, time_limit_subgraph_generation
+from shared.default_parameters import max_samples_per_order, time_limit_subgraph_generation
 
 
 def generate_connected_subgraphs(nodes, adj, k):

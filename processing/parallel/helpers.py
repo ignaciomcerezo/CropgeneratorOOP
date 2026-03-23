@@ -1,8 +1,8 @@
 from processing.sequential.augment_data_sequential_new import (
     augment_data_sequential,
 )
-from kaggle_integration.PathBundle import PathBundle
-from parameters import orders_to_consider as default_orders_to_consider
+from shared.PathBundle import PathBundle
+from shared.default_parameters import orders_to_consider as default_orders_to_consider
 import pandas as pd
 import os
 import re

@@ -1,5 +1,5 @@
 from tests.tests_helper import load_particular_annotation
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 
 
 def test_intersections_and_geometries():

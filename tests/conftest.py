@@ -3,7 +3,7 @@ from external_interfaces.LabelStudioInterface import LabelStudioInterface
 import os
 import pytest
 from external_interfaces.download_from_bucket import download_all
-from kaggle_integration.PathBundle import PathBundle
+from shared.PathBundle import PathBundle
 
 
 @pytest.fixture(scope="session", autouse=True)

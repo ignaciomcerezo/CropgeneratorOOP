@@ -1,8 +1,8 @@
 import re
 import requests
 import os
-from parameters import images_url_path, transcripciones_url_path
-from kaggle_integration.PathBundle import PathBundle
+from shared.default_parameters import images_url_path, transcripciones_url_path
+from shared.PathBundle import PathBundle
 from concurrent.futures import ThreadPoolExecutor
 from tqdm.auto import tqdm
 
