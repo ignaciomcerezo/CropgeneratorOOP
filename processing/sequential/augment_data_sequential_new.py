@@ -4,22 +4,18 @@ from preprocessing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
 from processing.sequential.helpers import generate_connected_subgraphs
 from preprocessing.helpers.helper_to_classes import (
-    get_image_path_from_task,
     get_deterministic_id,
 )
 from parameters import (
     output_excel_name as default_output_excel_name,
-    time_limit_subgraph_generation as default_time_limit_subgraph_generation,
 )
-from paths import (
-    crops_path as default_crops_path,
-    output_path as default_output_path,
-)
+from kaggle_integration.PathBundle import PathBundle
 import pandas as pd
 from labelstudio.LabelStudioInterface import LabelStudioInterface
 
 
 def augment_data_sequential(
+    paths: PathBundle,
     generate_full_pages: bool = True,
     generate_full_paragraphs: bool = True,
     pages_only: list[int] | None = None,
@@ -28,16 +24,12 @@ def augment_data_sequential(
     output_excel_name: str = default_output_excel_name,
     additive_excel: bool = False,
     orders_to_consider: list[int] | str = "all",
-    output_path: Path = default_output_path,
-    crops_path: Path = default_crops_path,
-    LSI: LabelStudioInterface | None = None,
+    lsi: LabelStudioInterface | None = None,
 ):
     """Función principal para procesar las tareas y generar los recortes aumentados."""
-    LSI = LSI if LSI else LabelStudioInterface()
-    assert isinstance(output_path, Path)
-    assert isinstance(crops_path, Path)
-    output_path.mkdir(parents=True, exist_ok=True)
-    crops_path.mkdir(parents=True, exist_ok=True)
+    lsi = lsi if lsi else LabelStudioInterface()
+    paths.output_path.mkdir(parents=True, exist_ok=True)
+    paths.crops_path.mkdir(parents=True, exist_ok=True)
 
     page_only = (
         [str(x).rjust(3, "0") for x in pages_only]
@@ -48,9 +40,9 @@ def augment_data_sequential(
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else None
     )
 
-    excel_filepath = Path(output_path) / output_excel_name
+    excel_filepath = Path(paths.output_path) / output_excel_name
 
-    tasks = LSI.simplified_tasks
+    tasks = lsi.simplified_tasks
 
     new_rows_data = []
 
@@ -62,10 +54,10 @@ def augment_data_sequential(
         print(f"Creando archivo excel: {excel_filepath}")
 
     if generate_full_pages:
-        full_dir = crops_path / "full"
+        full_dir = paths.crops_path / "full"
         full_dir.mkdir(parents=True, exist_ok=True)
     if generate_full_paragraphs:
-        paragraphs_dir = crops_path / "paragraphs"
+        paragraphs_dir = paths.crops_path / "paragraphs"
         paragraphs_dir.mkdir(parents=True, exist_ok=True)
 
     total_saved = 0
@@ -103,7 +95,7 @@ def augment_data_sequential(
             if task_id not in task_only_set:
                 continue
 
-        img_path = get_image_path_from_task(
+        img_path = paths.get_image_path_from_task(
             task
         )  # cogemos la imagen que le corresponde
 
@@ -135,7 +127,10 @@ def augment_data_sequential(
             print(f"Error cargando {img_path}: {e}")
             continue
 
-        for Ann in (AnnotatedPage(ann, img, unrotate=False) for ann in LSI[task_id]):
+        for Ann in (
+            AnnotatedPage(ann, img, unrotate=False, usernames_LS=lsi.usernames)
+            for ann in lsi[task_id]
+        ):
             if generate_full_pages:
                 image, transcription, sindex = Ann.cluster_reading_order(
                     list(Ann.graph.keys())
@@ -204,7 +199,7 @@ def augment_data_sequential(
                     if order not in orders_to_consider:
                         continue
 
-                    order_dir = crops_path / str(order)
+                    order_dir = paths.crops_path / str(order)
 
                     if not order_dir.exists():
                         order_dir.mkdir()
