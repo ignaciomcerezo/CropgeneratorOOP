@@ -14,7 +14,6 @@ is_parallel = (False,)
 additive_excel = (False,)
 
 # URLS
-LS_url = "[REDACTED_WEBSITE_URL]"
-bucket_url = "[REDACTED_STORAGE_URL]"
+
 images_url_path = bucket_url
 transcripciones_url_path = bucket_url + "transcripciones%2F"

@@ -1,11 +1,10 @@
 from processing.parallel.augment_data_parallel import augment_data_parallel
 from shared.PathBundle import PathBundle
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
-from external_interfaces.download_from_bucket import download_all
+from external_interfaces.OracleBucketInterface import OracleBucketInterface
 
 paths = PathBundle()
-
-download_all(paths)
+OracleBucketInterface.from_env(paths).update()
 LSinterface = LabelStudioInterface(paths)
 LSinterface.save_simplified_export()
 
