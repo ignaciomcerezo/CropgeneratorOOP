@@ -3,17 +3,6 @@ from pathlib import Path
 
 root = Path(os.path.dirname(os.path.abspath(__file__)))
 
-
-LS_url = "[REDACTED_WEBSITE_URL]"
-bucket_url = "[REDACTED_STORAGE_URL]"
-
-# Las imágenes están directamente en bucket/(...)
-images_url_path = bucket_url
-
-# pero para las transcripciones hay una carpeta específica: bucket/transcripciones/(...)
-transcripciones_url_path = bucket_url + "transcripciones%2F"
-
-
 # Carpetas locales donde vamos a guardar nuestros datos
 data_path = root / "data/"
 data_input_path = data_path / "input/"

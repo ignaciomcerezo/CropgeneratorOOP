@@ -3,12 +3,10 @@ import requests
 import os
 from pathlib import Path
 from paths import (
-    images_url_path,
-    transcripciones_url_path,
     images_path,
     transcriptions_path,
 )
-
+from parameters import images_url_path, transcripciones_url_path
 
 from concurrent.futures import ThreadPoolExecutor
 from tqdm.auto import tqdm
@@ -65,7 +63,6 @@ def process_single_file(image_string, session):
         return (2, image_string)  # error 2: no se ha podido procesar la imagen
 
 
-
 def download_all_images(force_download: bool = False):
     # buscamos los objetos que hay en nuestro bucket (las fotos únicamente)
     data_response = requests.get(images_url_path, params={"format": "json"}).json()
@@ -84,10 +81,17 @@ def download_all_images(force_download: bool = False):
     # conexiones para cada archivo, lo que reduce la latencia, ya que estamos
     # descargando todos los archivos del mismo sitio (nuestro bucket de oracle)
 
-    errors = [[], []] #manejamos errores de tipo 1 -índice 0- (sin transcripción); el resto van al tipo 2 -índice 1-
+    errors = [
+        [],
+        [],
+    ]  # manejamos errores de tipo 1 -índice 0- (sin transcripción); el resto van al tipo 2 -índice 1-
 
-    #descargamos solamente las imágenes que no tengamos (o todas, si nos falta alguna).
-    images_to_download = [img_str for img_str in image_strings if (force_download or not (images_path/f"{img_str}.png").exists())]
+    # descargamos solamente las imágenes que no tengamos (o todas, si nos falta alguna).
+    images_to_download = [
+        img_str
+        for img_str in image_strings
+        if (force_download or not (images_path / f"{img_str}.png").exists())
+    ]
     with requests.Session() as session:
         # max_workers es el número máximo de archivos que descargamos a la vez
         with ThreadPoolExecutor(max_workers=10) as executor:
