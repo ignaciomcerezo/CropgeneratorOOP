@@ -1,5 +1,5 @@
-from labelstudio.LabelStudioInterface import LabelStudioInterface
-from preprocessing.AnnotatedPage import AnnotatedPage
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
+from processing.AnnotatedPage import AnnotatedPage
 from PIL import Image
 from kaggle_integration.PathBundle import PathBundle
 from tqdm.auto import tqdm

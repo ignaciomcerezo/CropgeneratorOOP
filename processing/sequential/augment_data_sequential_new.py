@@ -1,9 +1,9 @@
 from pathlib import Path
 from PIL import Image, ImageOps
-from preprocessing.AnnotatedPage import AnnotatedPage
+from processing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
 from processing.sequential.helpers import generate_connected_subgraphs
-from preprocessing.helpers.helper_to_classes import (
+from processing.helpers.helper_to_classes import (
     get_deterministic_id,
 )
 from parameters import (
@@ -11,7 +11,7 @@ from parameters import (
 )
 from kaggle_integration.PathBundle import PathBundle
 import pandas as pd
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
 
 
 def augment_data_sequential(

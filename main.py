@@ -3,14 +3,14 @@ from processing.sequential.augment_data_sequential_new import (
 )
 from processing.parallel.augment_data_parallel import augment_data_parallel
 from kaggle_integration.PathBundle import PathBundle
-
-
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
 
 # from downloaders.download_from_bucket import download_all_images
 # download_all_images()
 
-LSinterface = LabelStudioInterface(raw_export_filepath=raw_export_filepath)
+paths = PathBundle()
+
+LSinterface = LabelStudioInterface(paths)
 LSinterface.save_simplified_export()
 
 

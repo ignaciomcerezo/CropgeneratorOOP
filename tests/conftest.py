@@ -1,8 +1,8 @@
 # tests/conftest.py
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
 import os
 import pytest
-from downloaders.download_from_bucket import download_all
+from external_interfaces.download_from_bucket import download_all
 from kaggle_integration.PathBundle import PathBundle
 
 

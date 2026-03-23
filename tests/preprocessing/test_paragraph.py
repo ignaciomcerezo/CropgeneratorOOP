@@ -1,5 +1,5 @@
 from tests.tests_helper import load_particular_annotation
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from kaggle_integration.PathBundle import PathBundle
 
 

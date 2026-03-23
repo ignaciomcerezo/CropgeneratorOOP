@@ -3,11 +3,10 @@ from LS_token import ls_token
 from kaggle_integration.PathBundle import PathBundle
 from parameters import LS_url
 import json
-from labelstudio.simplify_export import (
+from external_interfaces.simplify_export import (
     simplify_export,
     load_simplified_export,
 )
-from PIL import Image
 
 
 class LabelStudioInterface:

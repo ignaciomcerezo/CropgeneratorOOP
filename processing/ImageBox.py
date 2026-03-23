@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from PIL import Image
 from shapely import Polygon
-from preprocessing.helpers.PairingErrors import (
+from processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
     MultipleAssociationError,
     NoAssociationError,
@@ -39,7 +39,7 @@ class ImageBox:
     def __hash__(self):
         return (
             self.id.__hash__()
-        )  # podemos devolver el id sabiendo que, en caso de colisión, no es culpa nuestra sino de labelstudio
+        )  # podemos devolver el id sabiendo que, en caso de colisión, no es culpa nuestra sino de external_interfaces
 
     def __repr__(self):
         return (

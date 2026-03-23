@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 import re
 from typing import Optional
-from preprocessing.ImageBox import (
+from processing.ImageBox import (
     ImageBox,
 )
-from preprocessing.helpers.PairingErrors import (
+from processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
     MultipleAssociationError,
     NoAssociationError,
@@ -63,9 +63,7 @@ class TextFragment:
         else:
             return self.associated_boxes[0]
 
-    def _is_open(
-        self, thigs_to_close=_things_to_close
-    ) -> bool:  # TODO: import this kind of checks
+    def _is_open(self, thigs_to_close=_things_to_close) -> bool:
 
         for opener, closer in _things_to_close:
             if opener != closer and (
