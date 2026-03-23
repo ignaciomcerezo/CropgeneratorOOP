@@ -1,29 +1,34 @@
 from tests.tests_helper import load_particular_annotation
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
+from shared.PathBundle import PathBundle
 
 
 def test_paragraph():
-    n_paragraph_tasks: list[list[int | tuple]] = []
-    n_paragraph_tasks.append(
-        [1, 2, 3, 4, 5, 6, 7, 8, (11, 0), 13, 14, 16, 17, 18, (11, 1)]
-    )
-    n_paragraph_tasks.append([9, 10, 12, 15])
+    paths = PathBundle()
+    n_paragraph_tasks: list[list[int | tuple]] = [
+        [1, 2, 3, 4, 5, 6, 7, 8, (11, 0), 13, 14, 16, 17, 18, (11, 1)],
+        [9, 10, 12, 15],
+    ]
 
-    lsi = LabelStudioInterface()
+    lsi = LabelStudioInterface(paths)
 
-    for n_minus_one, task_group in enumerate(n_paragraph_tasks):
+    for n, task_group in enumerate(n_paragraph_tasks, start=1):
         for i, element in enumerate(task_group):
             if isinstance(element, int):
-                n_par = load_particular_annotation(element, 0, lsi=lsi).n_paragraphs
-                assert n_par == (
-                    n_minus_one + 1
-                ), f"Se esperaban {n_minus_one +1} párrafos en la anotación {(element, 0)}, pero tiene {n_par}."
+                n_par = load_particular_annotation(
+                    paths, element, 0, lsi=lsi
+                ).n_paragraphs
+                assert (
+                    n_par == n
+                ), f"Se esperaban {n} párrafos en la anotación {(element, 0)}, pero tiene {n_par}."
             else:
-                n_par = load_particular_annotation(*element, lsi=lsi).n_paragraphs
+                n_par = load_particular_annotation(
+                    paths, *element, lsi=lsi
+                ).n_paragraphs
                 assert n_par == (
-                    n_minus_one + 1
-                ), f"Se esperaban {n_minus_one +1} párrafos en la anotación {element}, pero tiene {n_par}."
+                    n
+                ), f"Se esperaban {n} párrafos en la anotación {element}, pero tiene {n_par}."
 
-    ann30 = load_particular_annotation(30)
+    ann30 = load_particular_annotation(paths, 30)
 
     assert len(ann30.paragraphs) == 2

@@ -1,15 +1,18 @@
 # tests/conftest.py
-from pathlib import Path
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
 import os
 import pytest
-from downloaders.download_from_bucket import download_all_images
+from external_interfaces.download_from_bucket import download_all
+from shared.PathBundle import PathBundle
 
 
 @pytest.fixture(scope="session", autouse=True)
 def prepare_data():
-    base = Path(os.getcwd()) / "data" / "input"
-    imagenes = base / "images"
-    transcripciones = base / "transcripciones"
+    paths = PathBundle()
+    if (
+        len(os.listdir(paths.images_path)) < 612
+        or len(os.listdir(paths.transcriptions_path)) < 612
+    ):
+        download_all(paths)
 
-    if len(os.listdir(imagenes)) < 612 or len(os.listdir(transcripciones)) < 612:
-        download_all_images()
+    LabelStudioInterface.update_conditional(paths)

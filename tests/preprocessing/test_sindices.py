@@ -1,18 +1,22 @@
-from labelstudio.LabelStudioInterface import LabelStudioInterface
-from preprocessing.AnnotatedPage import AnnotatedPage
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
+from processing.AnnotatedPage import AnnotatedPage
 from PIL import Image
-from preprocessing.helpers.helper_to_classes import get_image_path_from_task
+from shared.PathBundle import PathBundle
 from tqdm.auto import tqdm
 
 
 def test_sindices():
-    lsi = LabelStudioInterface()
+    paths = PathBundle()
+    lsi = LabelStudioInterface(paths)
 
     for task in tqdm(lsi.simplified_tasks):
-        img = Image.open(get_image_path_from_task(task))
+        img = Image.open(paths.get_image_path_from_task(task))
 
         for k, Ann in enumerate(
-            (AnnotatedPage(ann, img) for ann in task["annotations"])
+            (
+                AnnotatedPage(ann, img, usernames_LS=lsi.usernames)
+                for ann in task["annotations"]
+            )
         ):
 
             sindices = [x.fragment.starting_index for x in Ann.image_boxes.values()]

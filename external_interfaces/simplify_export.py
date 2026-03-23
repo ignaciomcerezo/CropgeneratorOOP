@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from paths import simplified_filepath
+from shared.PathBundle import PathBundle
 import os
 
 
@@ -179,11 +179,11 @@ def simplify_export(raw_export_filepath: Path, simplified_filepath: Path):
     print(f"Se han guardado en {simplified_filepath}")
 
 
-def load_simplified_export(path=simplified_filepath):
+def load_simplified_export(paths: PathBundle):
     """
     Carga el archivo export.json y devuelve la lista de tareas.
     """
-    path = Path(path)
+    path = paths.simplified_filepath
 
     if not path.exists():
         return []

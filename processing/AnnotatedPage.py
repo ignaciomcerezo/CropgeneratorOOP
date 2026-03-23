@@ -1,14 +1,14 @@
-from preprocessing.ImageBox import ImageBox
-from preprocessing.TextFragment import TextFragment
+from processing.ImageBox import ImageBox
+from processing.TextFragment import TextFragment
 from collections.abc import Iterable
-from preprocessing.helpers.PairingErrors import (
+from processing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
     RepeatedSameAssociationError,
     SameToSameAssociation,
 )
-from preprocessing.Paragraph import Paragraph
-from preprocessing.helpers.helper_to_classes import (
+from processing.Paragraph import Paragraph
+from processing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
     get_rotated_region,
@@ -17,26 +17,17 @@ from preprocessing.helpers.helper_to_classes import (
     compose_collage,
     subdictionary,
 )
-from preprocessing.helpers.text_replacements import (
+from processing.helpers.text_replacements import (
     replacements,
     replacements_envs,
     regex_replacements,
 )
-from parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
+from shared.default_parameters import BIG_BOX_THRESHOLD, min_nodes_for_big_box_removal
 from shapely import Polygon, box as boxshape
-from labelstudio.LabelStudioInterface import LabelStudioInterface
-from display import display
+from shared.display import display
 import re
 from PIL import Image
-from paths import usernames_filepath
-import json
 import numpy as np
-
-if usernames_filepath.exists():
-    # si podemos evitar instanciar LSI, mejor
-    ordered_usernames_LS = json.loads(usernames_filepath.read_text())
-else:
-    ordered_usernames_LS = LabelStudioInterface().usernames
 
 
 class AnnotatedPage:
@@ -66,6 +57,7 @@ class AnnotatedPage:
         ann,
         img: Image.Image = None,
         unrotate: bool = False,
+        usernames_LS: list[str] = None,
     ):
 
         if unrotate and AnnotatedPage.warn_unrotate:
@@ -78,6 +70,9 @@ class AnnotatedPage:
             print(
                 "También invalida la forma en la que se generan los párrafos, la transcripción y los starting_indices."
             )
+        assert (
+            usernames_LS is not None
+        ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
         results = self.correct_results(
@@ -129,7 +124,7 @@ class AnnotatedPage:
 
         self._setup_mappings(
             results
-        )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de labelstudio
+        )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de external_interfaces
 
         self.assert_pairing()  # nos aseguramos de que todas las imágenes tengan fragmento, y viceversa
 
@@ -179,10 +174,10 @@ class AnnotatedPage:
             ann["updated_at"].replace("Z", "").split("T")
         )  # última actualización de la tarea
 
-        self.completer = ordered_usernames_LS[
+        self.completer = usernames_LS[
             ann["completed_by"]
         ]  # persona que completó la tarea
-        self.updater = ordered_usernames_LS[
+        self.updater = usernames_LS[
             ann["updated_by"]
         ]  # útlima persona en actualizar la tarea
 
@@ -534,7 +529,7 @@ class AnnotatedPage:
         if box_id_sequence is None:
             box_id_sequence = list(self.image_boxes.keys())
             return 0
-        fragments = [self.image_boxes.fragment for box_id in box_id_sequence]
+        fragments = [self.image_boxes[box_id].fragment for box_id in box_id_sequence]
 
         return np.sum([fragment.math_percentage * len() for fragment in fragments])
 

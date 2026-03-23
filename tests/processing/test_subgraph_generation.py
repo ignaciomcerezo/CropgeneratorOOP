@@ -1,16 +1,13 @@
 from processing.sequential.helpers import generate_connected_subgraphs
 from tests.tests_helper import load_particular_annotation
+from shared.PathBundle import PathBundle
 
 
-def test_subgraph_generatioon():
-    ann5 = load_particular_annotation(5)
+def test_subgraph_generation():
+    paths = PathBundle()
+    ann5 = load_particular_annotation(paths, 5)
 
     graph = ann5.graph
-
-    for subgraph in generate_connected_subgraphs(ann5.graph.keys(), ann5.graph, 1):
-        pass
-
-    # TODO add proper preprocessing to this all
 
     subgraphs_generated = lambda k: set(
         [x for x in generate_connected_subgraphs(graph.keys(), graph, 1)]
