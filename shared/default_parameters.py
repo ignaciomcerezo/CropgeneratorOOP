@@ -10,10 +10,5 @@ output_excel_name = "pairs.xlsx"
 page_only: list[int] = None
 task_only: list[int] = None
 time_limit = (10,)
-is_parallel = (False,)
-additive_excel = (False,)
-
-# URLS
-
-images_url_path = bucket_url
-transcripciones_url_path = bucket_url + "transcripciones%2F"
+is_parallel = False
+additive_excel = False

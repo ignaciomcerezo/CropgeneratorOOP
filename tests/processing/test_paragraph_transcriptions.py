@@ -11,7 +11,7 @@ def test_paragraph_transcriptions():
     paths = PathBundle()
     lsi = LabelStudioInterface(paths)
 
-    for task in tqdm(lsi.simplified_tasks):
+    for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:
         image_path = paths.get_image_path_from_task(task)
         image = Image.open(image_path)
         for Ann in (

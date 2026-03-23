@@ -3,6 +3,5 @@ data_out/
 data_in/
 .idea/
 __pycache__/
-shared/LS_token.py
 .env
 uv.lock

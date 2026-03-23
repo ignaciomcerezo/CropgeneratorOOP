@@ -20,7 +20,9 @@ def load_particular_annotation(
         LabelStudioInterface.update_conditional(paths)
         lsi = LabelStudioInterface(paths)
     else:
+
         lsi = lsi if lsi else LabelStudioInterface(paths)
+
     tsk = lsi[task_id][annotation_number_in_task]
 
     task = [task for task in lsi.raw_tasks if task.get("id") == int(task_id)][0]

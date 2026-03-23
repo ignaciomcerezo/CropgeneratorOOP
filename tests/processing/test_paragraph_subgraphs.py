@@ -1,7 +1,6 @@
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from processing.AnnotatedPage import AnnotatedPage
 from shared.PathBundle import PathBundle
-from tqdm.auto import tqdm
 from PIL import Image
 
 
@@ -9,7 +8,7 @@ def test_paragraph_subgraphs():
     paths = PathBundle()
     lsi = LabelStudioInterface(paths)
 
-    for task in tqdm(lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]):
+    for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:
         img_path = paths.get_image_path_from_task(task)
         img = Image.open(img_path)
         for Ann in (

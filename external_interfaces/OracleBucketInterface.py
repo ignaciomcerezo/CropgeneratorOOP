@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from tqdm.auto import tqdm
 from dataclasses import dataclass
 from pathlib import Path
 import os
@@ -176,7 +176,7 @@ class OracleBucketInterface:
 
         downloaded: list[str] = []
         with requests.Session() as session:
-            for pair in pending:
+            for pair in tqdm(pending, desc="OracleBucketInterface downloading..."):
                 txt_url = self._object_url(pair.transcription_object)
                 img_url = self._object_url(pair.image_object)
 

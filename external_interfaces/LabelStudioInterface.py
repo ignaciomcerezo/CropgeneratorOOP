@@ -1,11 +1,11 @@
 from label_studio_sdk import Client
 from shared.PathBundle import PathBundle
-from shared.default_parameters import LS_url
 import json
 from external_interfaces.simplify_export import (
     simplify_export,
     load_simplified_export,
 )
+import os
 
 
 class LabelStudioInterface:
@@ -62,13 +62,28 @@ class LabelStudioInterface:
     @staticmethod
     def update_conditional(
         paths: PathBundle,
+        ls_url: str = None,
         token: str | None = None,
         project_id: int = 4,
-        ls_url: str = LS_url,
         forced: bool = False,
-        ls_token: str | None = None,
     ) -> bool:
-        token = token or ls_token
+
+        if not token:
+            if "LS_TOKEN" in os.environ:
+                token = os.getenv("LS_TOKEN")
+            else:
+                raise ValueError(
+                    "O bien se pasa un token o bien se añade como variable de entorno."
+                )
+
+        if not ls_url:
+            if "LS_URL" in os.environ:
+                ls_url = os.getenv("LS_URL")
+            else:
+                raise ValueError(
+                    "O bien se pasa un ls_url o bien se añade como variable de entorno."
+                )
+
         ls_client = Client(url=ls_url, api_key=token)
         project = ls_client.get_project(id=project_id)
 

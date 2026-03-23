@@ -2,14 +2,13 @@ from processing.AnnotatedPage import AnnotatedPage
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from shared.PathBundle import PathBundle
 from PIL import Image
-from tqdm.auto import tqdm
 
 
-def test_audit_annotations():
+def test_audit_annotations(ls_url, ls_token):
     paths = PathBundle()
     lsi = LabelStudioInterface(paths)
 
-    for task in tqdm(lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]):
+    for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:
         image_path = paths.get_image_path_from_task(task)
         image = Image.open(image_path)
         for ann in task["annotations"]:

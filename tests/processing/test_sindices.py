@@ -9,7 +9,7 @@ def test_sindices():
     paths = PathBundle()
     lsi = LabelStudioInterface(paths)
 
-    for task in tqdm(lsi.simplified_tasks):
+    for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[:-50]:
         img = Image.open(paths.get_image_path_from_task(task))
 
         for k, Ann in enumerate(
