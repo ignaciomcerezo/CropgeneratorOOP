@@ -4,3 +4,5 @@ data_in/
 .idea/
 __pycache__/
 shared/LS_token.py
+pyproject.toml
+uv.lock
