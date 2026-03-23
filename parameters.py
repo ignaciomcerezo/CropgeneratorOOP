@@ -12,3 +12,9 @@ task_only: list[int] = None
 time_limit = (10,)
 is_parallel = (False,)
 additive_excel = (False,)
+
+# URLS
+LS_url = "https://grothendieck.online"
+bucket_url = "https://objectstorage.eu-madrid-3.oraclecloud.com/n/axfzuuzt6hgr/b/bucket-20251109-1118/o/"
+images_url_path = bucket_url
+transcripciones_url_path = bucket_url + "transcripciones%2F"

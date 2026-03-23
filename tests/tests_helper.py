@@ -1,6 +1,7 @@
 from labelstudio.LabelStudioInterface import LabelStudioInterface
 from preprocessing.AnnotatedPage import AnnotatedPage
 from preprocessing.helpers.helper_to_classes import get_image_path_from_task
+from labelstudio.LabelStudioInterface import LabelStudioInterface as LSI
 from PIL import Image
 
 

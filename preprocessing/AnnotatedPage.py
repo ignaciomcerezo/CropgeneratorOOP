@@ -28,7 +28,6 @@ from labelstudio.LabelStudioInterface import LabelStudioInterface
 from display import display
 import re
 from PIL import Image
-from paths import usernames_filepath
 import json
 import numpy as np
 
