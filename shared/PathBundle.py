@@ -1,7 +1,7 @@
 import urllib.parse
 from pathlib import Path
-from dataclasses import dataclass
 from os import getcwd
+import shutil
 
 
 class PathBundle:
@@ -69,3 +69,20 @@ class PathBundle:
 
         print("No se encontró la imagen para la tarea:", task.get("id"))
         return None
+
+    def remove_all_files(self):
+        for path in [
+            self.data_in_path,
+            self.images_path,
+            self.transcriptions_path,
+            self.exports_path,
+            self.output_path,
+            self.crops_path,
+        ]:
+            if path.exists() and path.is_dir():
+                print(f"Removing folder {path}")
+                shutil.rmtree(path)
+            elif path.exists():
+                raise ValueError(
+                    f"Se esperaba una carpeta pero se encontró un archivo en la ruta: {path}"
+                )
