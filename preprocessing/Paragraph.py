@@ -30,7 +30,7 @@ class Paragraph:
         text_fragments: list[TextFragment] | None = None,
         task_id: int | None = None,
         index: int | None = None,
-        subgraph: dict[str, list[str]] = None,
+        subgraph: dict[str, set[str]] = None,
     ):
         assert (
             image_boxes or text_fragments

@@ -1,19 +1,23 @@
 from preprocessing.AnnotatedPage import AnnotatedPage
 from labelstudio.LabelStudioInterface import LabelStudioInterface
 
-from preprocessing.helpers.helper_to_classes import get_image_path_from_task
+from kaggle_integration.PathBundle import PathBundle
 from PIL import Image
 from tqdm.auto import tqdm
 
 
 def test_paragraph_transcriptions():
 
-    lsi = LabelStudioInterface()
+    paths = PathBundle()
+    lsi = LabelStudioInterface(paths)
 
     for task in tqdm(lsi.simplified_tasks):
-        image_path = get_image_path_from_task(task)
+        image_path = paths.get_image_path_from_task(task)
         image = Image.open(image_path)
-        for Ann in (AnnotatedPage(ann, image) for ann in task["annotations"]):
+        for Ann in (
+            AnnotatedPage(ann, image, usernames_LS=lsi.usernames)
+            for ann in task["annotations"]
+        ):
             for i, paragraph in enumerate(Ann.paragraphs):
                 _, transcription_1, sindex_1 = Ann.cluster_reading_order(
                     paragraph.image_boxes_ids

@@ -8,7 +8,6 @@ from labelstudio.simplify_export import (
     load_simplified_export,
 )
 from PIL import Image
-from preprocessing.helpers.helper_to_classes import get_image_path_from_task
 
 
 class LabelStudioInterface:
@@ -46,7 +45,7 @@ class LabelStudioInterface:
         else:
             self.local_last_update = None
 
-        self.__simplified_tasks = load_simplified_export(self.simplified_filepath)
+        self.__simplified_tasks = load_simplified_export(paths)
 
         if paths.usernames_filepath.exists():
             self.usernames = json.loads(
@@ -116,7 +115,7 @@ class LabelStudioInterface:
 
         # regeneramos el simplified_tasks
         simplify_export(paths.raw_export_filepath, paths.simplified_filepath)
-        simplified_tasks = load_simplified_export(paths.simplified_filepath)
+        simplified_tasks = load_simplified_export(paths)
         paths.simplified_filepath.write_text(
             json.dumps(simplified_tasks), encoding="utf-8"
         )
@@ -163,7 +162,3 @@ class LabelStudioInterface:
             elif tsk["id"] == index:
                 items.extend(tsk["annotations"])
         return items
-
-    def get_image(self, task_id):
-        task = [task for task in self.simplified_tasks if task["id"] == int(task_id)][0]
-        return Image.open(get_image_path_from_task(task))

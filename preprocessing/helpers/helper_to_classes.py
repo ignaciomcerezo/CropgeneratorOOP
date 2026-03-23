@@ -1,10 +1,7 @@
-import urllib.parse
 from PIL import Image, ImageDraw
 import math
 import hashlib  # para los identificadores únicos de subgrafos
 from shapely import Polygon, box as boxshape
-from paths import images_path
-from pathlib import Path
 import numpy as np
 
 
@@ -105,34 +102,6 @@ def unrotate_image(img, rotation_degrees):
         return unrotated.crop(bbox)
 
     return unrotated
-
-
-def get_image_path_from_task(task):
-    """
-    Dada una tarea, devuelve la ruta LOCAL de la imagen correspondiente.
-    Si no se encuentra, devuelve None.
-    """
-    data = task.get("data", {})
-    image_url = data.get("image_url") or data.get("image") or ""
-
-    if not image_url:
-        return None
-
-    clean_url = urllib.parse.unquote(image_url)
-    filename = clean_url.split("?")[0].split("/")[-1]
-
-    exact_path = images_path / filename
-    if exact_path.exists():
-        return exact_path
-
-    stem = Path(filename).stem
-    for p in images_path.iterdir():
-        if p.is_file() and (p.suffix.lower() == ".png"):
-            if p.stem == stem:
-                return p
-
-    print("No se encontró la imagen para la tarea:", task.get("id"))
-    return None
 
 
 def get_dominant_color(pil_img):
