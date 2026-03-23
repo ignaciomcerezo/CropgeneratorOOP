@@ -1,7 +1,7 @@
 from typing import Optional
-from preprocessing.TextFragment import TextFragment
-from preprocessing.ImageBox import ImageBox
-from preprocessing.helpers.helper_to_classes import compose_collage, unrotate_image
+from processing.TextFragment import TextFragment
+from processing.ImageBox import ImageBox
+from processing.helpers.helper_to_classes import compose_collage, unrotate_image
 from shapely import coverage_union_all
 from shapely.affinity import affine_transform
 import numpy as np
@@ -50,9 +50,7 @@ class Paragraph:
         self.text_fragments: list[TextFragment] = text_fragments
         self.task_id: int = task_id
         self.index: int = index
-        self.subgraph: Optional[dict[str, set[str]]] = (
-            subgraph  # TODO: check the subgraph setting and subgraph generation
-        )
+        self.subgraph: Optional[dict[str, set[str]]] = subgraph
 
         self.centroid: np.ndarray = np.zeros((2,))
         self.total_words: int = 0
@@ -151,7 +149,6 @@ class Paragraph:
         return coverage_union_all([box.polygon for box in self.image_boxes])
 
     def corrected_polygon(self, box: ImageBox):
-        # TODO: check this works as expected
         t = np.radians(self.avg_rotation)
         a = np.cos(t)
         b = -np.sin(t)

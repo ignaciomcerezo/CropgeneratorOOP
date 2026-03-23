@@ -1,18 +1,19 @@
 from multiprocessing import Pool, cpu_count
 from processing.parallel.helpers import run_chunk, merge_excel_files
 import numpy as np
-from labelstudio.LabelStudioInterface import LabelStudioInterface
+from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from functools import partial
+from kaggle_integration.PathBundle import PathBundle
 
 
 def augment_data_parallel(
+    paths: PathBundle,
     orders_to_consider: list[int],
     generate_full_pages: bool,
     generate_paragraphs: bool,
     tasks_only: list[int] | None,
 ):
-    # TODO: adapt to augment_data_sequential_new
-    lsi = LabelStudioInterface()
+    lsi = LabelStudioInterface(paths)
 
     simplified_tasks = lsi.simplified_tasks
 
@@ -60,4 +61,6 @@ def augment_data_parallel(
 
     # 6. Combine Results
     output_excel_name = "pairs.xlsx"
-    merge_excel_files(base_name="pairs_part", output_name=output_excel_name)
+    merge_excel_files(
+        base_name="pairs_part", output_name=output_excel_name, paths=paths
+    )

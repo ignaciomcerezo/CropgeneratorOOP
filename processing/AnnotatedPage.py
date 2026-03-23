@@ -1,14 +1,14 @@
-from preprocessing.ImageBox import ImageBox
-from preprocessing.TextFragment import TextFragment
+from processing.ImageBox import ImageBox
+from processing.TextFragment import TextFragment
 from collections.abc import Iterable
-from preprocessing.helpers.PairingErrors import (
+from processing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
     RepeatedSameAssociationError,
     SameToSameAssociation,
 )
-from preprocessing.Paragraph import Paragraph
-from preprocessing.helpers.helper_to_classes import (
+from processing.Paragraph import Paragraph
+from processing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
     get_rotated_region,
@@ -17,7 +17,7 @@ from preprocessing.helpers.helper_to_classes import (
     compose_collage,
     subdictionary,
 )
-from preprocessing.helpers.text_replacements import (
+from processing.helpers.text_replacements import (
     replacements,
     replacements_envs,
     regex_replacements,
@@ -124,7 +124,7 @@ class AnnotatedPage:
 
         self._setup_mappings(
             results
-        )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de labelstudio
+        )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de external_interfaces
 
         self.assert_pairing()  # nos aseguramos de que todas las imágenes tengan fragmento, y viceversa
 
