@@ -6,9 +6,8 @@ from PIL import Image
 from tqdm.auto import tqdm
 
 
-def test_paragraph_transcriptions():
+def test_paragraph_transcriptions(paths):
 
-    paths = PathBundle()
     lsi = LabelStudioInterface(paths)
 
     for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:

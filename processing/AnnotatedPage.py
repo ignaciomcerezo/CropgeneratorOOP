@@ -528,10 +528,12 @@ class AnnotatedPage:
     def math_percentage(self, box_id_sequence: list[str] = None):
         if box_id_sequence is None:
             box_id_sequence = list(self.image_boxes.keys())
-            return 0
+
         fragments = [self.image_boxes[box_id].fragment for box_id in box_id_sequence]
 
-        return np.sum([fragment.math_percentage * len() for fragment in fragments])
+        return np.sum(
+            [fragment.math_percentage * len(fragment) for fragment in fragments]
+        ) / np.sum(len(fragment) for fragment in fragments)
 
     @staticmethod
     def register_error():

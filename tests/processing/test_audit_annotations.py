@@ -4,9 +4,7 @@ from shared.PathBundle import PathBundle
 from PIL import Image
 
 
-def test_audit_annotations(ls_url, ls_token):
-    paths = PathBundle()
-    lsi = LabelStudioInterface(paths)
+def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
     for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:
         image_path = paths.get_image_path_from_task(task)

@@ -1,13 +1,9 @@
 from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from processing.AnnotatedPage import AnnotatedPage
 from PIL import Image
-from shared.PathBundle import PathBundle
-from tqdm.auto import tqdm
 
 
-def test_sindices():
-    paths = PathBundle()
-    lsi = LabelStudioInterface(paths)
+def test_sindices(paths, lsi):
 
     for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[:-50]:
         img = Image.open(paths.get_image_path_from_task(task))

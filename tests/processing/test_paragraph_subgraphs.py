@@ -4,9 +4,7 @@ from shared.PathBundle import PathBundle
 from PIL import Image
 
 
-def test_paragraph_subgraphs():
-    paths = PathBundle()
-    lsi = LabelStudioInterface(paths)
+def test_paragraph_subgraphs(paths, lsi):
 
     for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:
         img_path = paths.get_image_path_from_task(task)

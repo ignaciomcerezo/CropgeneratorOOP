@@ -2,8 +2,8 @@ from tests.tests_helper import load_particular_annotation
 from shared.PathBundle import PathBundle
 
 
-def test_intersections_and_geometries():
-    paths = PathBundle()
+def test_intersections_and_geometries(paths):
+
     ann5 = load_particular_annotation(paths, 5, 0)
     box_a = ann5.image_boxes["5LKgXZs7ij"]
     box_b = ann5.image_boxes["cf7ItU794h"]

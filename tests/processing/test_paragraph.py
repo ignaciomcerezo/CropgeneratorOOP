@@ -3,8 +3,7 @@ from external_interfaces.LabelStudioInterface import LabelStudioInterface
 from shared.PathBundle import PathBundle
 
 
-def test_paragraph():
-    paths = PathBundle()
+def test_paragraph(paths):
     n_paragraph_tasks: list[list[int | tuple]] = [
         [1, 2, 3, 4, 5, 6, 7, 8, (11, 0), 13, 14, 16, 17, 18, (11, 1)],
         [9, 10, 12, 15],
