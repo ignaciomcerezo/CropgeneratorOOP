@@ -14,7 +14,7 @@ def paths():
 
 @pytest.fixture(scope="session")
 def ls_token():
-    return os.getenv("ls_token")
+    return os.getenv("LS_TOKEN")
 
 
 @pytest.fixture(scope="session")
@@ -23,7 +23,7 @@ def ls_url():
 
 
 @pytest.fixture(scope="session")
-def lsi(paths):
+def lsi(paths, ls_token, ls_url):
     return LabelStudioInterface(paths)
 
 
