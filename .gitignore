@@ -3,5 +3,7 @@ data_out/
 data_in/
 .idea/
 __pycache__/
+cropgen.egg-info/
+build/
 .env
 uv.lock
