@@ -3,9 +3,8 @@ from tests.tests_helper import load_particular_annotation
 from shared.PathBundle import PathBundle
 
 
-def test_subgraph_generation():
-    paths = PathBundle()
-    ann5 = load_particular_annotation(paths, 5)
+def test_subgraph_generation(paths, lsi):
+    ann5 = load_particular_annotation(paths, 5, lsi=lsi)
 
     graph = ann5.graph
 
