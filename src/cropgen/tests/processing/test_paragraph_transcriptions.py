@@ -1,0 +1,26 @@
+from src.cropgen.processing.AnnotatedPage import AnnotatedPage
+from src.cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+
+from PIL import Image
+
+
+def test_paragraph_transcriptions(paths):
+
+    lsi = LabelStudioInterface(paths)
+
+    for task in lsi.simplified_tasks[:50] + lsi.simplified_tasks[-50:]:
+        image_path = paths.get_image_path_from_task(task)
+        image = Image.open(image_path)
+        for Ann in (
+            AnnotatedPage(ann, image, usernames_LS=lsi.usernames)
+            for ann in task["annotations"]
+        ):
+            for i, paragraph in enumerate(Ann.paragraphs):
+                _, transcription_1, sindex_1 = Ann.cluster_reading_order(
+                    paragraph.image_boxes_ids
+                )
+                transcription_2 = paragraph.transcription()
+
+                assert (
+                    transcription_1 == transcription_2
+                ), f"Las dos transcripciones del párrafo {i} de la tarea {Ann.task_id} {Ann.completer} no coinciden."

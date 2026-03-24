@@ -3,10 +3,10 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cropgen"  # Matching this to your folder name is best practice!
+name = "cropgen"
 version = "0.1.0"
 description = "First step in the generation of the dataset for fine-tuning an LLM in vision tasks."
-requires-python = ">=3.10"  # Lowered for Kaggle compatibility
+requires-python = ">=3.10"
 dependencies = [
     "ipykernel>=7.2.0",
     "label-studio-sdk>=2.0.19",
@@ -19,4 +19,4 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]  # Tells setuptools to look in the current directory for your package
+where = ["src"]
