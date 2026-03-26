@@ -13,6 +13,7 @@ def augment_data_parallel(
     generate_paragraphs: bool,
     tasks_only: list[int] | None,
     lsi: LabelStudioInterface | None = None,
+    num_processes: int = None,
 ):
     lsi = lsi if (lsi is not None) else LabelStudioInterface(paths)
 
@@ -39,7 +40,11 @@ def augment_data_parallel(
         generate_paragraphs=generate_paragraphs,
     )
 
-    num_processes = min(len(all_task_ids), max(1, int(cpu_count() * 0.8)))
+    num_processes = (
+        min(max(num_processes, 0), cpu_count())
+        if num_processes is not None
+        else min(len(all_task_ids), max(1, int(cpu_count() * 0.8)))
+    )
 
     # Calculamos el tamaño de cada tanda
     chunk_size = int(np.ceil(len(all_task_ids) / num_processes))
