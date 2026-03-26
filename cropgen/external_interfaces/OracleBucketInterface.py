@@ -170,10 +170,13 @@ class OracleBucketInterface:
         return [pair.image_stem for pair in self._compute_updates()]
 
     def update(self) -> list[str]:
+
         pending = self._compute_updates()
         if not pending:
             return []
-
+        print(
+            f"OracleBucketInterface - Descargando imágenes y transcripciones en la carpeta {self.paths.data_in_path}"
+        )
         downloaded: list[str] = []
         with requests.Session() as session:
             for pair in tqdm(pending, desc="OracleBucketInterface downloading..."):

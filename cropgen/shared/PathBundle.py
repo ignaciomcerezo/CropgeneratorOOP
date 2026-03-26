@@ -31,6 +31,9 @@ class PathBundle:
         except Exception as e:
             raise Exception(f"Error al crear las carpetas necesarias: {e}")
 
+    def __repr__(self):
+        return str(self.root)
+
     def assert_paths(self):
         for path in [
             self.images_path,

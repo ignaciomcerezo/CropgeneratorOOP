@@ -57,7 +57,7 @@ def augment_data_sequential(
         full_dir = paths.crops_path / "full"
         full_dir.mkdir(parents=True, exist_ok=True)
     if generate_full_paragraphs:
-        paragraphs_dir = paths.crops_path / "paragraphs"
+        paragraphs_dir = paths.crops_path / "paragraph"
         paragraphs_dir.mkdir(parents=True, exist_ok=True)
 
     total_saved = 0
