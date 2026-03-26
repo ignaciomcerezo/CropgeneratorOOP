@@ -6,4 +6,3 @@ __pycache__/
 cropgen.egg-info/
 build/
 .env
-uv.lock
