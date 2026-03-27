@@ -1,10 +1,3 @@
-from time import time
-from cropgen.shared.default_parameters import (
-    max_samples_per_order,
-    time_limit_subgraph_generation,
-)
-
-
 def generate_connected_subgraphs(nodes, adj, k):
     """
     Genera todos los subgrafos conexos de orden k a partir del conjunto de
@@ -50,44 +43,3 @@ def generate_connected_subgraphs(nodes, adj, k):
     for start_node in sorted_nodes:
         valid_neighbors = {n for n in adj[start_node] if n > start_node}
         yield from backtrack({start_node}, valid_neighbors)
-
-
-def create_reservoir(subgraph_gen, time_limit, max_samples):
-    """
-    Genera el reservorio de subgrafos a generar, aceptando o rechazando de manera
-    probabilística cada posible subgrafo, hasta alcanzar el límite.
-    """
-    # si hemos escogido un max_samples_per_order, limitamos el generador
-    # haciendo reservoir sampling
-    reservoir = set()
-    start_time = time.time()
-    i = 0
-
-    for seq_ids in subgraph_gen:
-
-        if (time.time() - start_time) > time_limit_subgraph_generation:
-            break
-
-        # recordemos que hay repeticiones en la generación de subgrafos,
-        # (A-B-C  y C-B-A se generan por separado, pero soon el
-        # mismo grafo), de ahí el chequeo constante
-        #      seq_ids not in reservoir
-        # que hacemos a continuación, pues ni siquiera al principio
-        # queremos llenar el reservorio con repeticiones. En caso
-        # de hacerlo, podríamos terminar con repeticiones, pues
-        # el reservorio original puede ser también con el que acabamos.
-
-        if (i < max_samples_per_order) and (seq_ids not in reservoir):
-            # al principio llenamos toda la reserva
-            reservoir.add(seq_ids)
-            i += 1
-
-        elif seq_ids not in reservoir:
-
-            # Reemplazamos aleatoriamente elementos en la reserva con probabilidad k/i
-            j = np.random.randint(0, i)
-
-            if j < max_samples_per_order:
-                reservoir[j] = seq_ids
-
-    return reservoir

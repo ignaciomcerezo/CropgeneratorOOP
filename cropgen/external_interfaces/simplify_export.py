@@ -201,5 +201,5 @@ def load_simplified_export(paths: PathBundle):
                 return data[k]
 
     raise ValueError(
-        f"El tipo de archivo que se ha especificado no tiene la estructura esperada."
+        "El tipo de archivo que se ha especificado no tiene la estructura esperada."
     )

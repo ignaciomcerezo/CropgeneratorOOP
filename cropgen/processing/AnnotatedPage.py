@@ -65,7 +65,7 @@ class AnnotatedPage:
 
         if unrotate and AnnotatedPage.warn_unrotate:
             print(
-                f"[!!!] Usar unrotate = True destruye la información sobre la posición del crop en la instancia de AnnotatedPage. "
+                "[!!!] Usar unrotate = True destruye la información sobre la posición del crop en la instancia de AnnotatedPage. "
                 "Además, reduce la calidad de las imágenes por usar interpolación bicúbica, y esta misma interpolación introduce "
                 "artefactos visuales en los bordes de la imagen. Úsese solamente en caso de revisión manual de las imágenes, y "
                 "NO para el código de generación del dataset."

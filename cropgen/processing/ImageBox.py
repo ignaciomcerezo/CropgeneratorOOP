@@ -43,7 +43,7 @@ class ImageBox:
 
     def __repr__(self):
         return (
-            f"<ImageBox "
+            "<ImageBox "
             + ("rectangular" if self.true_rectangle else "poligonal")
             + f" {self.id} de la tarea ({self.task_id})."
             + self.unrotated * "¡Rotación cancelada!"

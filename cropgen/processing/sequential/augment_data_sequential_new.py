@@ -67,7 +67,7 @@ def augment_data_sequential(
     else:
         assert isinstance(
             orders_to_consider, list
-        ), f'orders_to_consider debe ser una lista, NoneType, tupla o "all"'
+        ), 'orders_to_consider debe ser una lista, NoneType, tupla o "all"'
         assert all(
             [isinstance(x, int) for x in orders_to_consider]
         ), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
