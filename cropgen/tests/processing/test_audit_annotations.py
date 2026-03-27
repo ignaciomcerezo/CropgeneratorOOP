@@ -66,6 +66,13 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
                 assert seen_boxes_par == set(paragraph.image_boxes_ids)
                 assert seen_fragments_par == set(paragraph.text_fragments_ids)
 
+                set_keys = set(paragraph.image_boxes_ids)
+
+                assert set_keys == seen_boxes_par
+
+                for key in paragraph.subgraph:
+                    assert paragraph.subgraph[key].issubset(set_keys)
+
                 seen_boxes = seen_boxes.union(seen_boxes_par)
                 seen_fragments = seen_fragments.union(seen_fragments_par)
 
