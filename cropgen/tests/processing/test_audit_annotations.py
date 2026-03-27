@@ -68,6 +68,13 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
             seen_boxes = set()
             seen_fragments = set()
 
+            # del antiguo test_sindex
+            first_sindices_of_paragraphs = []
+            sindices = [x.fragment.starting_index for x in ann.image_boxes.values()]
+            if not all(isinstance(x, int) for x in sindices):
+                raise AssertionError(_compose_error_msg_sindices(ann))
+            # hasta aquí (por ahora)
+
             for paragraph in ann.paragraphs:
                 seen_boxes_par = set()
                 seen_fragments_par = set()
@@ -101,32 +108,10 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
                 seen_boxes = seen_boxes.union(seen_boxes_par)
                 seen_fragments = seen_fragments.union(seen_fragments_par)
 
-            for text_fragment in ann.fragments_without_paragraph():
-
-                assert text_fragment.id not in seen_fragments
-                seen_fragments.add(text_fragment.id)
-                _fragment_checks(text_fragment, -1, ann)
-
-                image_box = text_fragment.box
-                assert image_box.id not in seen_boxes
-                seen_boxes.add(image_box.id)
-                _box_checks(image_box, -1, ann)
-
-            assert seen_boxes == set(ann.image_boxes.keys())
-            assert seen_fragments == set(ann.text_fragments.keys())
-
-            # desde aquí lo que era el test_sindices
-            sindices = [x.fragment.starting_index for x in ann.image_boxes.values()]
-
-            if not all(isinstance(x, int) for x in sindices):
-                raise AssertionError(_compose_error_msg_sindices(ann))
-
-            first_of_paragraph = []
-
-            # ahora comprobamos que vengan en orden ascendente
-            for paragraph in ann.paragraphs:
-
-                first_of_paragraph.append(paragraph.text_fragments[0].starting_index)
+                # antiguo test_sindices
+                first_sindices_of_paragraphs.append(
+                    paragraph.text_fragments[0].starting_index
+                )
                 sindices_par_fragments = [
                     f.starting_index for f in paragraph.text_fragments
                 ]
@@ -144,12 +129,28 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
                     sorted(indices_par_boxes) == indices_par_boxes
                 )  # llevan el mismo orden que los fragmentos
 
-            for i, paragraph in enumerate(ann.paragraphs):
+                # antiguo test_paragraph_transcriptions
                 _, transcription_1, sindex_1 = ann.cluster_reading_order(
                     paragraph.image_boxes_ids
                 )
                 transcription_2 = paragraph.transcription()
 
                 assert transcription_1 == transcription_2
+
+            # vuelta al audit_annotations inicial
+
+            for text_fragment in ann.fragments_without_paragraph():
+
+                assert text_fragment.id not in seen_fragments
+                seen_fragments.add(text_fragment.id)
+                _fragment_checks(text_fragment, -1, ann)
+
+                image_box = text_fragment.box
+                assert image_box.id not in seen_boxes
+                seen_boxes.add(image_box.id)
+                _box_checks(image_box, -1, ann)
+
+            assert seen_boxes == set(ann.image_boxes.keys())
+            assert seen_fragments == set(ann.text_fragments.keys())
 
     assert AnnotatedPage.n_annotation_errors == 0
