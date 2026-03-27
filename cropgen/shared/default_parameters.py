@@ -1,4 +1,4 @@
-BIG_BOX_THRESHOLD = 0.4
+big_box_threshold = 0.4
 min_nodes_for_big_box_removal = 5  # mínimo de nodos para considerar que el que existan grafos estrellados es un problema (si so menos, no se hace el big box check de grafos estrellados)
 
 # parámetros para la generación

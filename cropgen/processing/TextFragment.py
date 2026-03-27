@@ -91,10 +91,10 @@ class TextFragment:
         return in_math_length / (out_math_length + in_math_length)
 
 
-def extract_math_from_dollars(text):
+def extract_math_from_dollars(text, separator=" "):
     pattern = r"(?<!\\)(\$\$?)(.*?)(?<!\\)\1"
 
     matches = re.findall(pattern, text, flags=re.DOTALL)
     extracted_text = [match[1].strip() for match in matches]
 
-    return extracted_text
+    return separator.join(extracted_text)

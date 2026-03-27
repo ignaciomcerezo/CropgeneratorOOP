@@ -23,7 +23,7 @@ from cropgen.processing.helpers.text_replacements import (
     regex_replacements,
 )
 from cropgen.shared.default_parameters import (
-    BIG_BOX_THRESHOLD,
+    big_box_threshold,
     min_nodes_for_big_box_removal,
 )
 from shapely import Polygon, box as boxshape
@@ -461,7 +461,7 @@ class AnnotatedPage:
 
     def trim_star_nodes(
         self,
-        relative_threshold: float = BIG_BOX_THRESHOLD,
+        relative_threshold: float = big_box_threshold,
     ) -> None:
 
         adj_graph = self.__graph.copy()
