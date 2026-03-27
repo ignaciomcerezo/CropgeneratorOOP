@@ -31,12 +31,22 @@ def _fragment_checks(
         assert fragment.box.id in paragraph.image_boxes_ids
 
 
+def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
+    msg = f"No todos framgentos tienen asociado un int como starting_index: {[x.fragment.starting_index for x in ann.image_boxes.values()]}. Son los siguientes:"
+
+    for fragment in ann.text_fragments.values():
+        if fragment.starting_index is None:
+            msg += "\n\t > " + fragment.text
+
+    return msg
+
+
 def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
     for task in tqdm(lsi.simplified_tasks):
-        image_path = paths.get_image_path_from_task(task)
-        image = Image.open(image_path)
-        for ann in task["annotations"]:
+        image = Image.open(paths.get_image_path_from_task(task))
+
+        for k_ann, ann in enumerate(task["annotations"]):
             ann = AnnotatedPage(ann, image, usernames_LS=lsi.usernames)
             ann.assert_pairing()  # esto ya se llama dentro del AnnotatedPage.__init__(), pero por asegurar
 
@@ -44,7 +54,7 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
             seen_fragments = set()
 
             for paragraph in ann.paragraphs:
-                seen_boxes_par = set()  # TODO check equals
+                seen_boxes_par = set()
                 seen_fragments_par = set()
 
                 assert isinstance(paragraph, Paragraph)
@@ -89,5 +99,27 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
             assert seen_boxes == set(ann.image_boxes.keys())
             assert seen_fragments == set(ann.text_fragments.keys())
+
+            # desde aquí lo que era el test_sindices
+            sindices = [x.fragment.starting_index for x in ann.image_boxes.values()]
+
+            if not all(isinstance(x, int) for x in sindices):
+                raise AssertionError(_compose_error_msg_sindices(ann))
+
+            first_of_paragraph = []
+
+            # ahora comprobamos que vengan en orden ascendente
+            for paragraph in ann.paragraphs:
+
+                first_of_paragraph.append(paragraph.text_fragments[0].starting_index)
+                sindices_par = [f.starting_index for f in paragraph.text_fragments]
+
+                assert (
+                    -1 not in sindices_par
+                )  # solamente puede haber un -1 si no está conectado a nada
+
+                assert (
+                    sorted(sindices_par) == sindices_par
+                )  # a lo largo del código se asume que vienen así ordenados.
 
     assert AnnotatedPage.n_annotation_errors == 0
