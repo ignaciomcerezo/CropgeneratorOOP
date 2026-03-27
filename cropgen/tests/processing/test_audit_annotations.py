@@ -4,13 +4,24 @@ from cropgen.processing.TextFragment import TextFragment
 from tqdm.auto import tqdm
 from cropgen.processing.Paragraph import Paragraph
 from PIL import Image
+from shapely import Polygon, MultiPolygon
 
 
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
     assert isinstance(box, ImageBox)
     assert isinstance(box.fragment, TextFragment)
     assert isinstance(box.crop, Image.Image)
+    assert isinstance(box.task_id, int)
+    assert isinstance(
+        box.polygon, (Polygon, MultiPolygon)
+    )  # que pueda ser un multipolygon es una consecuencia de usar el módulo
+    assert isinstance(box.index, int)
+
     assert box.task_id == ann.task_id
+
+    assert len(box.associated_fragments) == 1
+    if box.true_rectangle:
+        assert len(set(box.polygon.exterior.coords)) == 4
 
     if paragraph != -1:
         assert box.fragment.id in paragraph.text_fragments_ids
@@ -26,6 +37,10 @@ def _fragment_checks(
     assert isinstance(fragment.text_outside_math(), str)
     assert isinstance(fragment.text_inside_math(), str)
     assert fragment.task_id == ann.task_id
+    assert len(fragment.associated_boxes) == 1
+    assert isinstance(fragment.starting_index, int)
+    assert isinstance(fragment.word_count, int)
+    assert isinstance(fragment.char_count, int)
 
     if paragraph != -1:
         assert fragment.box.id in paragraph.image_boxes_ids
@@ -112,14 +127,29 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
             for paragraph in ann.paragraphs:
 
                 first_of_paragraph.append(paragraph.text_fragments[0].starting_index)
-                sindices_par = [f.starting_index for f in paragraph.text_fragments]
+                sindices_par_fragments = [
+                    f.starting_index for f in paragraph.text_fragments
+                ]
+                indices_par_boxes = [b.index for b in paragraph.image_boxes]
 
                 assert (
-                    -1 not in sindices_par
+                    -1 not in sindices_par_fragments
                 )  # solamente puede haber un -1 si no está conectado a nada
 
                 assert (
-                    sorted(sindices_par) == sindices_par
+                    sorted(sindices_par_fragments) == sindices_par_fragments
                 )  # a lo largo del código se asume que vienen así ordenados.
+
+                assert (
+                    sorted(indices_par_boxes) == indices_par_boxes
+                )  # llevan el mismo orden que los fragmentos
+
+            for i, paragraph in enumerate(ann.paragraphs):
+                _, transcription_1, sindex_1 = ann.cluster_reading_order(
+                    paragraph.image_boxes_ids
+                )
+                transcription_2 = paragraph.transcription()
+
+                assert transcription_1 == transcription_2
 
     assert AnnotatedPage.n_annotation_errors == 0
