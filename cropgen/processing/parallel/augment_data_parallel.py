@@ -67,5 +67,7 @@ def augment_data_parallel(
         # le adjudicamos a nuestros procesos las tareas (correr run_chunk en cada elemento de chunk)
         results = pool.map(run_chunk_configured, chunks)
 
-    print("Procesado terminado, combinando JSONL de partes...")
+    print(
+        f"Procesado terminado, combinando {paths.json_filepath.suffix.upper()} de partes..."
+    )
     merge_jsonl_files(paths=paths)

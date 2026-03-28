@@ -8,6 +8,6 @@ max_samples_per_order = 0  # dejar a 0 para que sean todas
 time_limit_subgraph_generation = 1
 page_only: list[int] = None
 task_only: list[int] = None
-time_limit = (10,)
+time_limit = 10
 is_parallel = False
 additive_json = False

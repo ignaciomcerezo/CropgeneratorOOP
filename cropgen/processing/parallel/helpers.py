@@ -58,7 +58,7 @@ def merge_jsonl_files(paths: PathBundle, delete_parts=True):
             "No hay archivos JSON para mezclar de la forma especificada."
         )
 
-    print(f"Combinando {len(files_to_merge)} archivos JSONL...")
+    print(f"Combinando {len(files_to_merge)} archivos {extension.upper()}...")
 
     dfs = []
     for filepath in files_to_merge:
@@ -75,7 +75,9 @@ def merge_jsonl_files(paths: PathBundle, delete_parts=True):
             lines=True,
             force_ascii=False,
         )
-        print(f"Archivo JSONL combinado guardado en {paths.output_path / output_name}")
+        print(
+            f"Archivo {output_name.suffix.upper()} combinado guardado en {paths.output_path / output_name}"
+        )
     except Exception as e:
         print(f"Error guardando el archivo combinado: {e}")
 
