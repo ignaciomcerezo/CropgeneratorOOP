@@ -1,6 +1,7 @@
 import urllib.parse
 from pathlib import Path
 from os import getcwd
+from cropgen.shared.default_parameters import output_json_name
 import shutil
 
 
@@ -21,12 +22,14 @@ class PathBundle:
         # carpetas donde se van a colocar los datos generados.
         self.output_path: Path = self.root / "data_out"
         self.crops_path: Path = self.output_path / "crops"
+        self.json_filepath: Path = self.output_path / output_json_name
 
         try:
             self.assert_paths()
         except PermissionError:
             raise PermissionError(
-                "Error al crear las carpetas necesarias. Revisa que el path raíz es correcto y que tienes permisos de escritura en esa ubicación."
+                "Error al crear las carpetas necesarias. Revisa que el path raíz es correcto y que tienes permisos de "
+                "escritura en esa ubicación."
             )
         except Exception as e:
             raise Exception(f"Error al crear las carpetas necesarias: {e}")
@@ -95,3 +98,11 @@ class PathBundle:
                 raise ValueError(
                     f"Se esperaba una carpeta pero se encontró un archivo en la ruta: {path}"
                 )
+
+    def get_worker_json_filepath(self, worker_id: int | None):
+        name = self.json_filepath.stem
+        extension = self.json_filepath.suffix
+        if worker_id is None:
+            worker_id = ""
+        worker_filename = f"{name}_{worker_id}{extension}"
+        return Path(self.json_filepath.parent / worker_filename)

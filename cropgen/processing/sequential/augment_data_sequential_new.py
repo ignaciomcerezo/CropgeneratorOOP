@@ -18,7 +18,6 @@ def augment_data_sequential(
     paths: PathBundle,
     generate_full_pages: bool = True,
     generate_full_paragraphs: bool = True,
-    pages_only: list[int] | None = None,
     tasks_only: list[int] | None = None,
     is_parallel: bool = False,
     output_json_name: str = default_json_name,
@@ -31,11 +30,6 @@ def augment_data_sequential(
     paths.output_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
 
-    page_only = (
-        [str(x).rjust(3, "0") for x in pages_only]
-        if isinstance(pages_only, (list, tuple))
-        else None
-    )
     task_only = (
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else None
     )
@@ -55,17 +49,15 @@ def augment_data_sequential(
 
     total_saved = 0
 
-    task_only_set, page_only_set, filtering_active, progressbar = (
-        _process_orders_to_consider(
-            orders_to_consider, task_only, page_only, len(tasks)
-        )
+    task_only_set, filtering_active, progressbar = _process_orders_to_consider(
+        orders_to_consider, task_only, len(tasks)
     )
 
     for task_idx, task in enumerate(tasks, start=1):
         task_id = str(task.get("id"))
         if is_parallel:
             # cuando paralelizamos, los splits se hacen por tareas.
-            if task_id not in task_only_set:
+            if filtering_active and (task_id not in task_only_set):
                 continue
 
         img_path = paths.get_image_path_from_task(
@@ -78,17 +70,9 @@ def augment_data_sequential(
 
         page_number = img_path.stem if img_path else "N/A"
 
-        if filtering_active:  # si no es paralelo y hay filtros (page_only o task_only)
-            pageok = False  # pg. marcada para procesar
-            taskok = False  # tarea marcada para procesar
-
-            if page_only_set is not None:
-                pageok = str(page_number) in page_only_set
-
-            if task_only_set is not None:
-                taskok = task_id in task_only_set
-
-            if not (pageok or taskok):  # si no está en ningún filtro, no la procesamos
+        if (not is_parallel) and filtering_active:
+            # Solo filtrar por task_only_set
+            if task_id not in task_only_set:
                 continue
 
         progressbar.update(1)
@@ -262,7 +246,6 @@ def augment_data_sequential(
 def _process_orders_to_consider(
     orders_to_consider: list[int] | str,
     task_only: list[str] | None,
-    page_only: list[str] | None,
     len_tasks: int,
 ):
     if (orders_to_consider == "all") or (orders_to_consider is None):
@@ -275,19 +258,17 @@ def _process_orders_to_consider(
             [isinstance(x, int) for x in orders_to_consider]
         ), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
 
-    # no se procesan todas las tareas?
+    # Filtrado solo por tasks
     task_only_set = set(str(x) for x in task_only) if task_only else None
-    page_only_set = set(str(x).rjust(3, "0") for x in page_only) if page_only else None
-    filtering_active = (task_only_set is not None) or (page_only_set is not None)
+    filtering_active = task_only_set is not None
 
     # total de tareas a procesar
-    total_tqdm = (
-        min(len_tasks, len(task_only)) if (task_only is not None) else len_tasks
-    )
-    total_tqdm = (
-        min(total_tqdm, len(page_only)) if (page_only is not None) else total_tqdm
-    )
-
+    total_tqdm = len(task_only) if filtering_active else len_tasks
     progressbar = tqdm(total=total_tqdm)
 
-    return task_only_set, page_only_set, filtering_active, progressbar
+    if not filtering_active:
+        print(f"Procesando todas las tareas (sin filtro de tasks_only)")
+    else:
+        print(f"Filtrando solo las tareas con ids: {task_only}")
+
+    return task_only_set, filtering_active, progressbar

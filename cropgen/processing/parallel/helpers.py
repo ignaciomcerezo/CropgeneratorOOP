@@ -23,7 +23,7 @@ def run_chunk(
     tasks_subset, worker_id = chunk_args
 
     # Cada proceso guarda los resultados a un fichero JSONL diferente.
-    part_json_name = f"pairs_part_{worker_id}.jsonl"
+    part_json_name = paths.get_worker_json_filepath(worker_id)
 
     augment_data_sequential(
         paths=paths,
@@ -37,22 +37,26 @@ def run_chunk(
     return f"Tarea del trabajador {worker_id} terminada."
 
 
-def merge_jsonl_files(base_name, output_name, paths: PathBundle, delete_parts=True):
+def merge_jsonl_files(paths: PathBundle, delete_parts=True):
     """
     Combina los archivos json individuales en uno solo. Busca todos los ficheros que encajan con {base_name}_*.jsonl,
     los concatena y genera el archivo completo.
     """
+    base_name = paths.json_filepath.stem
+    extension = paths.json_filepath.suffix
+    output_name = paths.json_filepath
 
     files_to_merge = []
 
     # buscamos los archivos tipo jsonl que coincidan con la estructura que buscamos
     for filename in os.listdir(paths.output_path):
-        if re.match(rf"^{re.escape(base_name)}_(\d+)\.jsonl$", filename):
+        if re.match(rf"^{re.escape(base_name)}_(\d+){re.escape(extension)}$", filename):
             files_to_merge.append(paths.output_path / filename)
 
     if not files_to_merge:
-        print("No hay archivos de la forma especificada.")
-        return
+        raise FileNotFoundError(
+            "No hay archivos JSON para mezclar de la forma especificada."
+        )
 
     print(f"Combinando {len(files_to_merge)} archivos JSONL...")
 

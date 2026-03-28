@@ -24,10 +24,15 @@ class OracleBucketInterface:
     def __init__(
         self,
         paths: PathBundle,
-        bucket_url: str,
+        bucket_url: str = None,
     ) -> None:
         if not bucket_url or not isinstance(bucket_url, str):
-            raise ValueError("bucket_url debe ser un str no vacio")
+            if "BUCKET_URL" in os.environ:
+                bucket_url = os.getenv("BUCKET_URL")
+            else:
+                raise ValueError(
+                    "O bien se pasa un bucket_url (str no vacio) o bien se tiene en las variables de entorno BUCKET_URL."
+                )
 
         self.paths = paths
         self.bucket_url = self._normalize_bucket_url(bucket_url)
