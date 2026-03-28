@@ -1,8 +1,12 @@
 import urllib.parse
 from pathlib import Path
 from os import getcwd
-from cropgen.shared.default_parameters import output_json_name
 import shutil
+
+_raw_export_json_filename = "raw_export.json"
+_simplified_export_json_filename = "simplified_export.json"
+_output_json_filename = "pairs.jsonl"
+_usernames_filename = "usernames.txt"
 
 
 class PathBundle:
@@ -15,14 +19,16 @@ class PathBundle:
 
         # carpetas de los exports
         self.exports_path: Path = self.data_in_path / "exports"
-        self.raw_export_filepath: Path = self.exports_path / "raw_export.json"
-        self.simplified_filepath: Path = self.exports_path / "simplified_export.json"
-        self.usernames_filepath: Path = self.exports_path / "usernames.txt"
+        self.raw_export_filepath: Path = self.exports_path / _raw_export_json_filename
+        self.simplified_filepath: Path = (
+            self.exports_path / _simplified_export_json_filename
+        )
+        self.usernames_filepath: Path = self.exports_path / _usernames_filename
 
         # carpetas donde se van a colocar los datos generados.
         self.output_path: Path = self.root / "data_out"
         self.crops_path: Path = self.output_path / "crops"
-        self.json_filepath: Path = self.output_path / output_json_name
+        self.json_filepath: Path = self.output_path / _output_json_filename
 
         try:
             self.assert_paths()

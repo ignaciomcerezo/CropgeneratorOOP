@@ -1,9 +1,9 @@
 from multiprocessing import Pool, cpu_count
 import numpy as np
 from functools import partial
-from cropgen.shared.PathBundle import PathBundle
-from cropgen.shared.default_parameters import (
-    output_json_name as default_output_json_name,
+from cropgen.shared.PathBundle import (
+    PathBundle,
+    _output_json_filename as default_output_json_name,
 )
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.processing.parallel.helpers import run_chunk, merge_jsonl_files

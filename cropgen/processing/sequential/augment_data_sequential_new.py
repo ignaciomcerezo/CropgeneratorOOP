@@ -6,10 +6,10 @@ from cropgen.processing.sequential.helpers import generate_connected_subgraphs
 from cropgen.processing.helpers.helper_to_classes import (
     get_deterministic_id,
 )
-from cropgen.shared.default_parameters import (
-    output_json_name as default_json_name,
+from cropgen.shared.PathBundle import (
+    PathBundle,
+    _output_json_filename as default_json_name,
 )
-from cropgen.shared.PathBundle import PathBundle
 import pandas as pd
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 

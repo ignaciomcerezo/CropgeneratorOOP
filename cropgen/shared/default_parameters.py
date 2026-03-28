@@ -6,7 +6,6 @@ orders_to_consider = [1]
 generate_full_pages = True
 max_samples_per_order = 0  # dejar a 0 para que sean todas
 time_limit_subgraph_generation = 1
-output_json_name = "pairs.json"
 page_only: list[int] = None
 task_only: list[int] = None
 time_limit = (10,)
