@@ -142,7 +142,9 @@ def augment_data_sequential(
 
                 filename = f"pg_{page_number}_t{task_id}_h{get_deterministic_id(transcription)}.png"
 
-                image.save(full_dir / filename)
+                filepath = full_dir / filename
+                print(f"Saving file to {filepath}")
+                image.save(filepath)
 
                 new_rows_data.append(
                     {  # nueva fila para el dataframe
@@ -172,7 +174,11 @@ def augment_data_sequential(
                     )
 
                     filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
-                    image.save(paragraphs_dir / filename)
+
+                    filepath = paragraphs_dir / filename
+                    print(f"Saving file to {filepath}")
+                    image.save(filepath)
+
                     new_rows_data.append(
                         {  # nueva fila para el dataframe
                             "task": task_id,
@@ -222,7 +228,10 @@ def augment_data_sequential(
                         collage, transcripcion, sindex = Ann.cluster_reading_order(
                             box_id_sequence
                         )
-                        collage.save(order_dir / filename)
+
+                        filepath = order_dir / filename
+                        print(f"Saving file to {filepath}")
+                        collage.save(filepath)
 
                         new_rows_data.append(
                             {  # nueva fila para el dataframe
