@@ -7,7 +7,7 @@ from cropgen.processing.helpers.helper_to_classes import (
     get_deterministic_id,
 )
 from cropgen.shared.default_parameters import (
-    output_excel_name as default_output_excel_name,
+    output_json_name as default_json_name,
 )
 from cropgen.shared.PathBundle import PathBundle
 import pandas as pd
@@ -21,8 +21,8 @@ def augment_data_sequential(
     pages_only: list[int] | None = None,
     tasks_only: list[int] | None = None,
     is_parallel: bool = False,
-    output_excel_name: str = default_output_excel_name,
-    additive_excel: bool = False,
+    output_json_name: str = default_json_name,
+    additive_json: bool = False,
     orders_to_consider: list[int] | str = "all",
     lsi: LabelStudioInterface | None = None,
 ):
@@ -40,24 +40,26 @@ def augment_data_sequential(
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else None
     )
 
-    excel_filepath = Path(paths.output_path) / output_excel_name
+    jsonl_filepath = Path(paths.output_path) / output_json_name
 
     tasks = lsi.simplified_tasks
 
     new_rows_data = []
 
-    if excel_filepath.exists() and additive_excel:
+    if jsonl_filepath.exists() and additive_json:
         print(
-            f"Archivo Excel existente detectado: {excel_filepath} (se añadirán los datos)"
+            f"Archivo JSONL existente detectado: {jsonl_filepath} (se añadirán los datos)"
         )
     else:
-        print(f"Creando archivo excel: {excel_filepath}")
+        print(f"Creando archivo jsonl: {jsonl_filepath}")
+
+    # inicializamos las rutas para evitar advertencias de análisis estático
+    full_dir = paths.crops_path / "full"
+    paragraphs_dir = paths.crops_path / "paragraph"
 
     if generate_full_pages:
-        full_dir = paths.crops_path / "full"
         full_dir.mkdir(parents=True, exist_ok=True)
     if generate_full_paragraphs:
-        paragraphs_dir = paths.crops_path / "paragraph"
         paragraphs_dir.mkdir(parents=True, exist_ok=True)
 
     total_saved = 0
@@ -241,17 +243,17 @@ def augment_data_sequential(
                         total_saved += 1
                         saved_subgraphs_ids.add(seq_hash)
 
-    # guardamos el excel con la correspondencia
+    # guardamos en JSONL con la correspondencia
     new_df = pd.DataFrame(new_rows_data)
 
-    # comprobamos si hay que unirlo con un dataset anterior
-    if excel_filepath.exists() and additive_excel:
+    # comprobamos si hay que unirlo con un dataset anterior (JSONL)
+    if jsonl_filepath.exists() and additive_json:
         try:
-            existing_df = pd.read_excel(excel_filepath)
+            existing_df = pd.read_json(jsonl_filepath, lines=True)
             # concatenamos los dataframes
             final_df = pd.concat([existing_df, new_df], ignore_index=True)
         except Exception as e:
-            print(f"Error leyendo el archivo excel existente, lo sobreescribimos: {e}")
+            print(f"Error leyendo el archivo jsonl existente, lo sobreescribimos: {e}")
             final_df = new_df
     else:
         if new_df.empty:
@@ -271,11 +273,13 @@ def augment_data_sequential(
         else:
             final_df = new_df
 
-    # lo guardamos a un excel
+    # lo guardamos a un JSONL (one-record-per-line)
     try:
-        final_df.to_excel(excel_filepath, index=False)
+        final_df.to_json(
+            jsonl_filepath, orient="records", lines=True, force_ascii=False
+        )
         print(
-            f"\nGenerados {total_saved} recortes aumentados y guardados en {output_excel_name}."
+            f"\nGenerados {total_saved} recortes aumentados y guardados en {output_json_name}."
         )
     except Exception as e:
-        print(f"Error guardando el archivo excel: {e}")
+        print(f"Error guardando el archivo jsonl: {e}")

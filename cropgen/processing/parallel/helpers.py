@@ -22,12 +22,12 @@ def run_chunk(
     """
     tasks_subset, worker_id = chunk_args
 
-    # Cada proceso guarda los resultados a un excel diferente.
-    part_excel_name = f"pairs_part_{worker_id}.xlsx"
+    # Cada proceso guarda los resultados a un fichero JSONL diferente.
+    part_json_name = f"pairs_part_{worker_id}.jsonl"
 
     augment_data_sequential(
         paths=paths,
-        output_excel_name=part_excel_name,
+        output_json_name=part_json_name,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_full_paragraphs=generate_paragraphs,
@@ -37,38 +37,48 @@ def run_chunk(
     return f"Tarea del trabajador {worker_id} terminada."
 
 
-def merge_excel_files(base_name, output_name, paths: PathBundle, delete_parts=True):
+def merge_jsonl_files(base_name, output_name, paths: PathBundle, delete_parts=True):
     """
-    Combina los archivos excel individuales en uno solo.
-    Finds all files matching base_name_*.xlsx, combines them,
-    and saves to output_name.
+    Combina los archivos json individuales en uno solo. Busca todos los ficheros que encajan con {base_name}_*.jsonl,
+    los concatena y genera el archivo completo.
     """
 
     files_to_merge = []
 
-    # buscamos los archivos tipo xlsx que coincidan con la estructrua que buscamos
+    # buscamos los archivos tipo jsonl que coincidan con la estructura que buscamos
     for filename in os.listdir(paths.output_path):
-        if re.match(rf"^{re.escape(base_name)}_(\d+)\.xlsx$", filename):
+        if re.match(rf"^{re.escape(base_name)}_(\d+)\.jsonl$", filename):
             files_to_merge.append(paths.output_path / filename)
 
     if not files_to_merge:
         print("No hay archivos de la forma especificada.")
         return
 
-    print(f"Combinando {len(files_to_merge)} archivos...")
+    print(f"Combinando {len(files_to_merge)} archivos JSONL...")
 
     dfs = []
     for filepath in files_to_merge:
         try:
-            dfs.append(pd.read_excel(filepath))
+            dfs.append(pd.read_json(filepath, lines=True))
         except Exception as e:
             print(f"Error leyendo {filepath}: {e}")
 
     combined_df = pd.concat(dfs, ignore_index=True)
-    combined_df.to_excel(paths.output_path / output_name, index=False)
-    print(f"Archivo excel combinado guardado en {paths.output_path / output_name}")
+    try:
+        combined_df.to_json(
+            paths.output_path / output_name,
+            orient="records",
+            lines=True,
+            force_ascii=False,
+        )
+        print(f"Archivo JSONL combinado guardado en {paths.output_path / output_name}")
+    except Exception as e:
+        print(f"Error guardando el archivo combinado: {e}")
 
     # eliminamos los archivos originales
     if delete_parts:
         for f in files_to_merge:
-            os.remove(f)
+            try:
+                os.remove(f)
+            except Exception as e:
+                print(f"No se pudo eliminar {f}: {e}")

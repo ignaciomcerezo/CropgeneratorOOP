@@ -33,7 +33,7 @@ def _fragment_checks(
     assert isinstance(fragment, TextFragment)
     assert isinstance(fragment.box, ImageBox)
     assert isinstance(fragment.text, str)
-    assert fragment.text  # no vacío
+    assert fragment.text.strip()  # no vacío
     assert isinstance(fragment.text_outside_math(), str)
     assert isinstance(fragment.text_inside_math(), str)
     assert fragment.task_id == ann.task_id

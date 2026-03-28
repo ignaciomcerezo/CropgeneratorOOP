@@ -2,8 +2,9 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 from functools import partial
 from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.default_parameters import output_json_name as default_output_json_name
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
-from cropgen.processing.parallel.helpers import run_chunk, merge_excel_files
+from cropgen.processing.parallel.helpers import run_chunk, merge_jsonl_files
 
 
 def augment_data_parallel(
@@ -64,10 +65,10 @@ def augment_data_parallel(
         # le adjudicamos a nuestros procesos las tareas (correr run_chunk en cada elemento de chunk)
         results = pool.map(run_chunk_configured, chunks)
 
-    print("Procesado terminado, combinando excels...")
+    print("Procesado terminado, combinando JSONL de partes...")
 
     # 6. Combine Results
-    output_excel_name = "pairs.xlsx"
-    merge_excel_files(
-        base_name="pairs_part", output_name=output_excel_name, paths=paths
+    output_jsonl_name = default_output_json_name
+    merge_jsonl_files(
+        base_name="pairs_part", output_name=output_jsonl_name, paths=paths
     )
