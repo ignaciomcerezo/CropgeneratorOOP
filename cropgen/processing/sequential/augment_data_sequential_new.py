@@ -100,7 +100,6 @@ def augment_data_sequential(
                 filename = f"pg_{page_number}_t{task_id}_h{get_deterministic_id(transcription)}.png"
 
                 filepath = full_dir / filename
-                print(f"Saving file to {filepath}")
                 image.save(filepath)
 
                 new_rows_data.append(
@@ -131,7 +130,6 @@ def augment_data_sequential(
                     filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
 
                     filepath = paragraph_dir / filename
-                    print(f"Saving file to {filepath}")
                     image.save(filepath)
 
                     new_rows_data.append(

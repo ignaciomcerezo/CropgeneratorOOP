@@ -5,6 +5,7 @@ from tqdm.auto import tqdm
 from cropgen.processing.Paragraph import Paragraph
 from PIL import Image
 from shapely import Polygon, MultiPolygon
+import pytest
 
 
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
