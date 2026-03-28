@@ -32,7 +32,7 @@ class PathBundle:
             raise Exception(f"Error al crear las carpetas necesarias: {e}")
 
     def __repr__(self):
-        return str(self.root)
+        return str(f"<PathBundle con raíz {self.root}>")
 
     def assert_paths(self):
         for path in [
