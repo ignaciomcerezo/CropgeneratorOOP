@@ -73,6 +73,12 @@ class PathBundle:
         print("No se encontró la imagen para la tarea:", task.get("id"))
         return None
 
+    def get_order_folder(self, order: str | int) -> Path:
+        folder = self.crops_path / str(order)
+        if not folder.exists():
+            folder.mkdir()
+        return folder
+
     def remove_all_files(self):
         for path in [
             self.data_in_path,

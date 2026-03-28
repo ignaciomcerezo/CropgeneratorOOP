@@ -53,42 +53,13 @@ def augment_data_sequential(
     else:
         print(f"Creando archivo jsonl: {jsonl_filepath}")
 
-    # inicializamos las rutas para evitar advertencias de análisis estático
-    full_dir = paths.crops_path / "full"
-    paragraphs_dir = paths.crops_path / "paragraph"
-
-    if generate_full_pages:
-        full_dir.mkdir(parents=True, exist_ok=True)
-    if generate_full_paragraphs:
-        paragraphs_dir.mkdir(parents=True, exist_ok=True)
-
     total_saved = 0
 
-    if (orders_to_consider == "all") or (orders_to_consider is None):
-        orders_to_consider = None
-    else:
-        assert isinstance(
-            orders_to_consider, list
-        ), 'orders_to_consider debe ser una lista, NoneType, tupla o "all"'
-        assert all(
-            [isinstance(x, int) for x in orders_to_consider]
-        ), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
-
-    # no se procesan todas las tareas?
-    task_only_set = set(str(x) for x in task_only) if task_only else None
-    page_only_set = set(str(x).rjust(3, "0") for x in page_only) if page_only else None
-    filtering_active = (task_only_set is not None) or (page_only_set is not None)
-
-    # total de tareas a procesar
-    total_tqdm = len(tasks)
-    total_tqdm = (
-        min(total_tqdm, len(task_only)) if (task_only is not None) else total_tqdm
+    task_only_set, page_only_set, filtering_active, progressbar = (
+        _process_orders_to_consider(
+            orders_to_consider, task_only, page_only, len(tasks)
+        )
     )
-    total_tqdm = (
-        min(total_tqdm, len(page_only)) if (page_only is not None) else total_tqdm
-    )
-
-    progressbar = tqdm(total=total_tqdm)
 
     for task_idx, task in enumerate(tasks, start=1):
         task_id = str(task.get("id"))
@@ -134,6 +105,8 @@ def augment_data_sequential(
             for ann in lsi[task_id]
         ):
             if generate_full_pages:
+                full_dir = paths.get_order_folder("full")
+
                 image, transcription, sindex = Ann.cluster_reading_order(
                     list(Ann.graph.keys())
                 )
@@ -165,9 +138,7 @@ def augment_data_sequential(
                 if generate_full_paragraphs and not (
                     Ann.is_single_paragraph and generate_full_pages
                 ):
-
-                    if not paragraphs_dir.exists():
-                        paragraphs_dir.mkdir()
+                    paragraph_dir = paths.get_order_folder("paragraph")
 
                     image, transcription, sindex = Ann.cluster_reading_order(
                         paragraph.image_boxes_ids
@@ -175,7 +146,7 @@ def augment_data_sequential(
 
                     filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
 
-                    filepath = paragraphs_dir / filename
+                    filepath = paragraph_dir / filename
                     print(f"Saving file to {filepath}")
                     image.save(filepath)
 
@@ -207,11 +178,6 @@ def augment_data_sequential(
                     if order not in orders_to_consider:
                         continue
 
-                    order_dir = paths.crops_path / str(order)
-
-                    if not order_dir.exists():
-                        order_dir.mkdir()
-
                     for box_id_sequence in generate_connected_subgraphs(
                         paragraph.image_boxes_ids, paragraph.subgraph, order
                     ):
@@ -229,8 +195,7 @@ def augment_data_sequential(
                             box_id_sequence
                         )
 
-                        filepath = order_dir / filename
-                        print(f"Saving file to {filepath}")
+                        filepath = paths.get_order_folder(order) / filename
                         collage.save(filepath)
 
                         new_rows_data.append(
@@ -292,3 +257,37 @@ def augment_data_sequential(
         )
     except Exception as e:
         print(f"Error guardando el archivo jsonl: {e}")
+
+
+def _process_orders_to_consider(
+    orders_to_consider: list[int] | str,
+    task_only: list[str] | None,
+    page_only: list[str] | None,
+    len_tasks: int,
+):
+    if (orders_to_consider == "all") or (orders_to_consider is None):
+        orders_to_consider = None
+    else:
+        assert isinstance(
+            orders_to_consider, list
+        ), 'orders_to_consider debe ser una lista, NoneType, tupla o "all"'
+        assert all(
+            [isinstance(x, int) for x in orders_to_consider]
+        ), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
+
+    # no se procesan todas las tareas?
+    task_only_set = set(str(x) for x in task_only) if task_only else None
+    page_only_set = set(str(x).rjust(3, "0") for x in page_only) if page_only else None
+    filtering_active = (task_only_set is not None) or (page_only_set is not None)
+
+    # total de tareas a procesar
+    total_tqdm = (
+        min(len_tasks, len(task_only)) if (task_only is not None) else len_tasks
+    )
+    total_tqdm = (
+        min(total_tqdm, len(page_only)) if (page_only is not None) else total_tqdm
+    )
+
+    progressbar = tqdm(total=total_tqdm)
+
+    return task_only_set, page_only_set, filtering_active, progressbar
