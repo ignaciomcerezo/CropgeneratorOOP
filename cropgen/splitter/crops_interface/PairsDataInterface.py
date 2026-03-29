@@ -3,9 +3,13 @@ from cropgen.splitter.crops_interface.helpers import (
     get_split_separate_laloma_and_letters,
 )
 import re
-from cropgen.shared.default_parameters import max_context_chars
+from cropgen.shared.default_parameters import (
+    context_chars as default_context_chars,
+    context_words as default_context_words,
+    min_context_chars as default_min_context_chars,
+    min_context_words as default_min_context_words,
+)
 import pandas as pd
-from tqdm.auto import tqdm
 
 
 def _is_letter(x):
@@ -30,10 +34,30 @@ class PairsDataInterface:
     el dataset "real" (instancia de datasets.Dataset) en splitter.generation.
     """
 
-    __slots__ = ("df", "page2fulltext", "ids", "_pages")
+    __slots__ = (
+        "df",
+        "page2fulltext",
+        "ids",
+        "_pages",
+        "context_words",
+        "min_context_words",
+        "context_chars",
+        "min_context_chars",
+    )
 
-    def __init__(self, paths: PathBundle):
+    def __init__(
+        self,
+        paths: PathBundle,
+        context_words: int = default_context_words,
+        min_context_words: int = default_min_context_words,
+        context_chars: int = default_context_chars,
+        min_context_chars: int = default_min_context_chars,
+    ):
         self.df = pd.read_json(paths.json_filepath, lines=True)
+        self.context_words = context_words
+        self.min_context_words = min_context_words
+        self.context_chars = context_chars
+        self.min_context_chars = min_context_chars
 
         clean_pages = self.clean_pages
         self._pages = pd.unique(clean_pages.page)
@@ -45,7 +69,7 @@ class PairsDataInterface:
             )
 
         self.df["has_enough_context"] = self.df.apply(
-            lambda x: self._has_enough_context(x),
+            lambda x: self._has_enough_context_words(x),
             axis=1,
         )
         # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
@@ -124,15 +148,23 @@ class PairsDataInterface:
         en ese respecto."""
         return get_split_separate_laloma_and_letters(self.df, p, order_to_consider)
 
-    def _has_enough_context(self, row: pd.Series):
+    def _has_enough_context_words(self, row: pd.Series, n_words: int | None = None):
         # aquí implementamos que aquello que los trocitos desconectados (star nodes) no tienen contexto posible (sindex = -1)
+        n_words = n_words or self.context_words
         return not (
-            (row.sindex <= max_context_chars) and (self.prev_page(row.page) == False)
+            (row.sindex <= n_words) and (self.prev_page(row.page) == False)
         ) and (row.sindex != -1)
 
     def contextualize_by_words(
-        self, row: pd.Series, n_words: int = None, n_words_min: int = None
+        self,
+        row: pd.Series,
+        n_words: int | None = None,
+        n_words_min: int | None = None,
     ):
+
+        n_words = n_words or self.context_words
+        n_words_min = n_words_min or self.min_context_words
+
         curr_page_n = row.page
         prev_page_n = self.prev_page(curr_page_n)
 
