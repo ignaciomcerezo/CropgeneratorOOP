@@ -73,28 +73,3 @@ class TextFragment:
             elif opener == closer and (self.text.count(opener) % 2):
                 return True
         return False
-
-    def text_inside_math(self):
-        return extract_math_from_dollars(self.text)
-
-    def text_outside_math(self):
-        return extract_math_from_dollars("$" + self.text + "$")
-
-    def _math_percentage(self):
-        if self._is_open():
-            return -1
-
-        in_math_length = sum([len(block) for block in self.text_inside_math()])
-        out_math_length = sum([len(block) for block in self.text_outside_math()])
-        if not in_math_length and not out_math_length:
-            return 0
-        return in_math_length / (out_math_length + in_math_length)
-
-
-def extract_math_from_dollars(text, separator=" "):
-    pattern = r"(?<!\\)(\$\$?)(.*?)(?<!\\)\1"
-
-    matches = re.findall(pattern, text, flags=re.DOTALL)
-    extracted_text = [match[1].strip() for match in matches]
-
-    return separator.join(extracted_text)
