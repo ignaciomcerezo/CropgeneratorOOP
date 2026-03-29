@@ -36,7 +36,8 @@ class PairsDataInterface:
 
     __slots__ = (
         "df",
-        "page2fulltext",
+        "_page2somefulltext",
+        "annid2fulltext",
         "ids",
         "_pages",
         "context_words",
@@ -73,7 +74,7 @@ class PairsDataInterface:
             axis=1,
         )
         # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
-        self.page2fulltext: dict[int | str, str] = dict()
+        self._page2somefulltext: dict[int | str, str] = dict()
 
         full = self.df[self.df.order == "full"]
 
@@ -81,9 +82,13 @@ class PairsDataInterface:
             # en caso de que haya varias transcripciones anteriores, escogemos la más larga.
             fulls_this_page = full[full.page == page]
 
-            self.page2fulltext[page] = self._choose_longest_prev_transcription(
+            self._page2somefulltext[page] = self._choose_longest_prev_transcription(
                 page, fulls_this_page
             )
+
+        self.annid2fulltext: dict[int, str] = dict()
+        for row_id in pd.unique(self.df.id):
+            self.annid2fulltext[row_id] = full[full.id == row_id].iloc[0].text
 
     @property
     def clean_pages(self) -> pd.DataFrame:
@@ -170,8 +175,10 @@ class PairsDataInterface:
 
         if n_words < n_words_min:
             raise ValueError(f"{n_words=} < {n_words_min=}")
-        text_curr_page = self.page2fulltext[curr_page_n][: row.sindex]
 
+        text_curr_page = self.annid2fulltext[row.id][: row.sindex]
+
+        # raise ValueError()
         words_curr_page = text_curr_page.split()
 
         if (len(words_curr_page) >= n_words) or not prev_page_n:
@@ -179,7 +186,7 @@ class PairsDataInterface:
 
         n_needed_words_prev = n_words - len(words_curr_page)
 
-        text_prev_page = self.page2fulltext[prev_page_n]
+        text_prev_page = self._page2somefulltext[prev_page_n]
         words_prev_page = text_prev_page.split()
 
         return " ".join(words_prev_page[-n_needed_words_prev:] + words_curr_page)

@@ -9,6 +9,7 @@ description = "First step in the generation of the dataset for fine-tuning an LL
 requires-python = ">=3.10"
 dependencies = [
     "datasets>=4.8.4",
+    "fuzzywuzzy>=0.18.0",
     "ipykernel>=7.2.0",
     "label-studio-sdk>=2.0.19",
     "openpyxl>=3.1.5",
