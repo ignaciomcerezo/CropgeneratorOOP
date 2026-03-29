@@ -1,5 +1,5 @@
 from cropgen.shared.PathBundle import PathBundle
-from cropgen.splitter.dataset_interface.DatasetInterface import DatasetInterface
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 from pytest import skip
 import pandas as pd
 
@@ -18,5 +18,5 @@ def test_audit_splitter_loader(paths: PathBundle):
         assert len(df_notvalid) == 0
 
         # si lo anterior ha pasado, lo siguiente debería también:
-        dsi = DatasetInterface(paths)
+        dsi = PairsDataInterface(paths)
         assert dsi.is_clean

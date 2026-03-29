@@ -1,5 +1,5 @@
 from cropgen.shared.PathBundle import PathBundle
-from cropgen.splitter.dataset_interface.DatasetInterface import DatasetInterface
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 from pytest import skip
 import pandas as pd
 
@@ -17,7 +17,7 @@ _expected_columns = [
 
 
 def test_df_column_types(paths: PathBundle):
-    dsi = DatasetInterface(paths)
+    dsi = PairsDataInterface(paths)
     assert set(dsi.df.columns) == set(_expected_columns)
 
     assert dsi.df["task"].apply(lambda x: isinstance(x, int)).all()

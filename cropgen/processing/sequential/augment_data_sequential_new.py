@@ -34,6 +34,8 @@ def augment_data_sequential(
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else None
     )
 
+    print(f"Running {len(tasks_only)}")
+
     jsonl_filepath = Path(paths.output_path) / output_json_name
 
     tasks = lsi.simplified_tasks
@@ -55,6 +57,7 @@ def augment_data_sequential(
 
     for task_idx, task in enumerate(tasks, start=1):
         task_id = str(task.get("id"))
+
         if is_parallel:
             # cuando paralelizamos, los splits se hacen por tareas.
             if filtering_active and (task_id not in task_only_set):

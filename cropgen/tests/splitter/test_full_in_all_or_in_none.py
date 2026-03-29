@@ -1,9 +1,9 @@
-from cropgen.splitter.dataset_interface.DatasetInterface import DatasetInterface
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 import pandas as pd
 
 
 def test_full_in_all_or_in_none(paths):
-    dsi = DatasetInterface(paths)
+    dsi = PairsDataInterface(paths)
 
     if "full" in dsi.df.order:
 

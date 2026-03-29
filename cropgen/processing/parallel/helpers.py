@@ -24,7 +24,6 @@ def run_chunk(
 
     # Cada proceso guarda los resultados a un fichero JSONL diferente.
     part_json_name = paths.get_worker_json_filepath(worker_id)
-
     augment_data_sequential(
         paths=paths,
         output_json_name=part_json_name,

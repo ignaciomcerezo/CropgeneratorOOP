@@ -1,9 +1,9 @@
-from cropgen.splitter.dataset_interface.DatasetInterface import DatasetInterface
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 from cropgen.shared.default_parameters import max_context_chars
 
 
 def test_max_context_chars_is_low_enough(paths):
-    dsi = DatasetInterface(paths)
+    dsi = PairsDataInterface(paths)
 
     df_full = dsi.df[dsi.df.order == "full"]
     lower_bound = min(df_full.text.apply(len))
