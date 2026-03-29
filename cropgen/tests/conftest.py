@@ -1,5 +1,6 @@
 # tests/conftest.py
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 import pytest
 import os
 from cropgen.shared.PathBundle import PathBundle
@@ -9,22 +10,22 @@ import multiprocessing
 
 
 @pytest.fixture(scope="session")
-def paths():
+def paths() -> PathBundle:
     return PathBundle()
 
 
 @pytest.fixture(scope="session")
-def ls_token():
+def ls_token() -> str:
     return os.getenv("LS_TOKEN")
 
 
 @pytest.fixture(scope="session")
-def ls_url():
+def ls_url() -> str:
     return os.getenv("LS_URL")
 
 
 @pytest.fixture(scope="session")
-def lsi(paths, ls_token, ls_url):
+def lsi(paths, ls_token, ls_url) -> LabelStudioInterface:
     return LabelStudioInterface(paths)
 
 
@@ -44,27 +45,27 @@ def prepare_data(paths, ls_url, ls_token):
 
 
 @pytest.fixture
-def five_letter_task_numbers():
+def five_letter_task_numbers() -> list[int]:
     return [280, 293, 298, 305]
 
 
 @pytest.fixture
-def five_laloma_task_numbers():
+def five_laloma_task_numbers() -> list[int]:
     return [1, 101, 143, 465, 526]
 
 
 @pytest.fixture
-def two_paragraph_laloma():
+def two_paragraph_laloma() -> list[int]:
     return [364, 365, 390, 460]
 
 
 @pytest.fixture
-def three_paragraph_laloma():
+def three_paragraph_laloma() -> list[int]:
     return [355, 366, 463]
 
 
 @pytest.fixture
-def tasks_with_margin_separate_annotation():
+def tasks_with_margin_separate_annotation() -> list[int]:
     return [358, 363, 367, 408, 456, 457, 362]
 
 
@@ -75,7 +76,7 @@ def task_macedonia(
     two_paragraph_laloma,
     three_paragraph_laloma,
     tasks_with_margin_separate_annotation,
-):
+) -> list[int]:
     return (
         five_laloma_task_numbers
         + five_letter_task_numbers
@@ -88,3 +89,8 @@ def task_macedonia(
 @pytest.fixture(autouse=True, scope="session")
 def set_multiprocessing_start_method():
     multiprocessing.set_start_method("spawn", force=True)
+
+
+@pytest.fixture
+def pdi(paths) -> PairsDataInterface:
+    return PairsDataInterface(paths)

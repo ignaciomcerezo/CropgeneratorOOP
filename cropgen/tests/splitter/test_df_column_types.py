@@ -5,6 +5,7 @@ import pandas as pd
 
 _expected_columns = [
     "task",
+    "id",
     "paragraph",
     "order",
     "sindex",
@@ -13,29 +14,34 @@ _expected_columns = [
     "crop_file",
     "background_color",
     "average_rotation",
+    "has_enough_context",
+    "is_letter",
 ]
 
 
 def test_df_column_types(paths: PathBundle):
-    dsi = PairsDataInterface(paths)
-    assert set(dsi.df.columns) == set(_expected_columns)
+    pdi = PairsDataInterface(paths)
+    assert set(pdi.df.columns) == set(_expected_columns)
 
-    assert dsi.df["task"].apply(lambda x: isinstance(x, int)).all()
+    assert pdi.df["id"].apply(lambda x: isinstance(x, str)).all()
+    assert pdi.df["task"].apply(lambda x: isinstance(x, int)).all()
     assert (
-        dsi.df["paragraph"].apply(lambda x: isinstance(x, int) or (x == "full")).all()
+        pdi.df["paragraph"].apply(lambda x: isinstance(x, int) or (x == "full")).all()
     )
     assert (
-        dsi.df["order"]
+        pdi.df["order"]
         .apply(lambda x: isinstance(x, int) or (x == "full") or (x == "paragraph"))
         .all()
     )
-    assert dsi.df["sindex"].apply(lambda x: isinstance(x, int)).all()
-    assert dsi.df["text"].apply(lambda x: isinstance(x, str)).all()
-    assert dsi.df["crop_file"].apply(lambda x: isinstance(x, str)).all()
-    assert dsi.df["page"].apply(lambda x: isinstance(x, int)).all()
+    assert pdi.df["sindex"].apply(lambda x: isinstance(x, int)).all()
+    assert pdi.df["text"].apply(lambda x: isinstance(x, str)).all()
+    assert pdi.df["crop_file"].apply(lambda x: isinstance(x, str)).all()
+    assert pdi.df["page"].apply(lambda x: isinstance(x, str)).all()
     assert (
-        dsi.df["background_color"]
+        pdi.df["background_color"]
         .apply(lambda x: isinstance(x, list) and all([isinstance(xi, int) for xi in x]))
         .all()
     )
-    assert dsi.df["average_rotation"].apply(lambda x: isinstance(x, float)).all
+    assert pdi.df["average_rotation"].apply(lambda x: isinstance(x, float)).all
+    assert pdi.df["has_enough_context"].apply(lambda x: isinstance(x, bool)).all
+    assert pdi.df["is_letter"].apply(lambda x: isinstance(x, bool)).all

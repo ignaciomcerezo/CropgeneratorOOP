@@ -16,6 +16,7 @@ from cropgen.processing.helpers.helper_to_classes import (
     reemplazar_latex_espaciado,
     compose_collage,
     subdictionary,
+    get_deterministic_id,
 )
 from cropgen.processing.helpers.text_replacements import (
     replacements,
@@ -53,11 +54,12 @@ class AnnotatedPage:
         "completer",
         "updater",
         "paragraphs",
+        "annotation_unique_id",
     )
 
     def __init__(
         self,
-        ann,
+        ann: dict[str, dict | str | int],
         img: Image.Image = None,
         unrotate: bool = False,
         usernames_LS: list[str] = None,
@@ -138,8 +140,6 @@ class AnnotatedPage:
         if self.order > AnnotatedPage.min_nodes_for_big_box_removal:
             self.trim_star_nodes()
 
-        # TODO: does this always produce good results? (the projection ordering, that is)
-
         # colocamos las componentes conexas siguiendo el orden de lectura.
 
         connected_components = get_connected_components(self.__graph)
@@ -183,6 +183,8 @@ class AnnotatedPage:
         self.updater = usernames_LS[
             ann["updated_by"]
         ]  # útlima persona en actualizar la tarea
+
+        self.annotation_unique_id = ann["id"]
 
     @property
     def order(self) -> int:

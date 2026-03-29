@@ -3,9 +3,9 @@ from cropgen.shared.default_parameters import max_context_chars
 
 
 def test_max_context_chars_is_low_enough(paths):
-    dsi = PairsDataInterface(paths)
+    pdi = PairsDataInterface(paths)
 
-    df_full = dsi.df[dsi.df.order == "full"]
+    df_full = pdi.df[pdi.df.order == "full"]
     lower_bound = min(df_full.text.apply(len))
     print("Longitud mínima: ", lower_bound)
     assert (

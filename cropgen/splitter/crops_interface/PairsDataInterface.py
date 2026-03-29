@@ -30,11 +30,14 @@ class PairsDataInterface:
     el dataset "real" (instancia de datasets.Dataset) en splitter.generation.
     """
 
-    __slots__ = ("df", "page2fulltext", "pages")
+    __slots__ = ("df", "page2fulltext", "ids", "_pages")
 
     def __init__(self, paths: PathBundle):
         self.df = pd.read_json(paths.json_filepath, lines=True)
-        self.pages = pd.unique(self.clean_pages.page)
+
+        clean_pages = self.clean_pages
+        self._pages = pd.unique(clean_pages.page)
+        self.ids = pd.unique(clean_pages.id)
 
         if "is_letter" not in self.df.columns:
             self.df["is_letter"] = self.df.page.apply(
@@ -48,10 +51,15 @@ class PairsDataInterface:
         # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
         self.page2fulltext: dict[int | str, str] = dict()
 
-        full = self.df[self.df.page == "full"]
+        full = self.df[self.df.order == "full"]
 
-        for page in tqdm(self.pages):
-            self.page2fulltext[page] = full[full.page == page].text
+        for page in self._pages:
+            # en caso de que haya varias transcripciones anteriores, escogemos la más larga.
+            fulls_this_page = full[full.page == page]
+
+            self.page2fulltext[page] = self._choose_longest_prev_transcription(
+                page, fulls_this_page
+            )
 
     @property
     def clean_pages(self) -> pd.DataFrame:
@@ -67,13 +75,22 @@ class PairsDataInterface:
             self.df["text"].apply(lambda x: not isinstance(x, str) or (x.strip() == ""))
         )
 
-    def prev_page(self, page: str | int):
+    @staticmethod
+    def _choose_longest_prev_transcription(
+        page: str, fulls_this_page: pd.DataFrame
+    ) -> str:
+        texts: list[str] = sorted(list(fulls_this_page.text), key=len)
+        if len(texts) == 0:
+            raise ValueError(f"No hay transcripciones completas para la página {page}")
+        return texts[0]
+
+    def prev_page(self, page: str | int) -> str | bool:
 
         if page.isdigit():  # si es una página de LaLoMa
 
             prev = str(int(page) - 1).rjust(3, "0")
 
-            if prev in self.pages:
+            if prev in self._pages:
                 return prev
             else:
                 return False
@@ -92,7 +109,7 @@ class PairsDataInterface:
             if subpage > 1:
                 w = page.replace(f"_p{subpage}", f"_p{subpage-1}")
 
-                if w in self.pages:
+                if w in self._pages:
                     return w
                 else:
                     return False

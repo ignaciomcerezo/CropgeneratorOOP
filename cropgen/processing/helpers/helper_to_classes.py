@@ -81,13 +81,13 @@ def reemplazar_latex_espaciado(texto, apertura, cierre="}"):
     return texto
 
 
-def get_deterministic_id(text):
+def get_deterministic_id(text, length: int = 8):
     """
     Genera un identificador 'único' (módulo colisión de hash) y determinista
     a partir de un texto dado usando SHA-256.
     """
     hash_object = hashlib.sha256(text.encode("utf-8"))
-    return hash_object.hexdigest()[:8]
+    return hash_object.hexdigest()[:length]
 
 
 def unrotate_image(img, rotation_degrees):

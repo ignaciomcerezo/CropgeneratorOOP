@@ -18,5 +18,5 @@ def test_audit_splitter_loader(paths: PathBundle):
         assert len(df_notvalid) == 0
 
         # si lo anterior ha pasado, lo siguiente debería también:
-        dsi = PairsDataInterface(paths)
-        assert dsi.is_clean
+        pdi = PairsDataInterface(paths)
+        assert pdi.is_clean

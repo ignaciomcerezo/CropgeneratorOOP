@@ -22,7 +22,7 @@ raw_features = Features(
 # un generador (debemos pasárselo usando este sistema a Dataset.from_generator).
 # que, a partir de un dataframe, nos da el generador de las muestras
 def generate_generator(
-    paths: PathBundle, dsi: PairsDataInterface, augment=True, resize_scale=0.5
+    paths: PathBundle, pdi: PairsDataInterface, augment=True, resize_scale=0.5
 ):
     """
     Genera solamente las RUTAS y metadatos. NO abre las imágenes aquí para salvar RAM.
@@ -31,16 +31,16 @@ def generate_generator(
 
     page2fulltext = dict()
 
-    pages = pd.unique(dsi.pages)
+    pages = pd.unique(pdi.pages)
 
-    full = dsi.df[dsi.df.page == "full"]
+    full = pdi.df[pdi.df.page == "full"]
 
     for page in pages:
         page2fulltext[page] = full[full.page == page].text
 
     def raw_data_generator():
         # iteramos el dataframe (es rápido porque son solo textos)
-        for index, row in dsi.df.iterrows():
+        for index, row in pdi.df.iterrows():
 
             img_name = row.crop_file
             text = row.text

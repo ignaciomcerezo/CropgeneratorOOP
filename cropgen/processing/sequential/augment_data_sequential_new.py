@@ -108,6 +108,7 @@ def augment_data_sequential(
                 new_rows_data.append(
                     {  # nueva fila para el dataframe
                         "task": task_id,
+                        "id": Ann.annotation_unique_id,
                         "paragraph": "full",
                         "order": "full",
                         "sindex": 0,
@@ -138,6 +139,7 @@ def augment_data_sequential(
                     new_rows_data.append(
                         {  # nueva fila para el dataframe
                             "task": task_id,
+                            "id": Ann.annotation_unique_id,
                             "order": "paragraph",
                             "paragraph": paragraph.index,
                             "sindex": sindex,
@@ -186,6 +188,7 @@ def augment_data_sequential(
                         new_rows_data.append(
                             {  # nueva fila para el dataframe
                                 "task": task_id,
+                                "id": Ann.annotation_unique_id,
                                 "order": order,
                                 "paragraph": paragraph.index,
                                 "sindex": sindex,
@@ -220,6 +223,7 @@ def augment_data_sequential(
                 columns=[
                     "task",
                     "page",
+                    "id",
                     "order",
                     "paragraph",
                     "sindex",
