@@ -35,13 +35,9 @@ def _fragment_checks(
     assert isinstance(fragment.box, ImageBox)
     assert isinstance(fragment.text, str)
     assert fragment.text.strip()  # no vacío
-    assert isinstance(fragment.text_outside_math(), str)
-    assert isinstance(fragment.text_inside_math(), str)
     assert fragment.task_id == ann.task_id
     assert len(fragment.associated_boxes) == 1
     assert isinstance(fragment.starting_index, int)
-    assert isinstance(fragment.word_count, int)
-    assert isinstance(fragment.char_count, int)
 
     if paragraph != -1:
         assert fragment.box.id in paragraph.image_boxes_ids

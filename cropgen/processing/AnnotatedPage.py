@@ -530,16 +530,6 @@ class AnnotatedPage:
     def is_single_paragraph(self):
         return self.n_paragraphs == 1
 
-    def math_percentage(self, box_id_sequence: list[str] = None):
-        if box_id_sequence is None:
-            box_id_sequence = list(self.image_boxes.keys())
-
-        fragments = [self.image_boxes[box_id].fragment for box_id in box_id_sequence]
-
-        return np.sum(
-            [fragment.math_percentage * len(fragment) for fragment in fragments]
-        ) / np.sum(len(fragment) for fragment in fragments)
-
     @staticmethod
     def register_error():
         AnnotatedPage.n_annotation_errors += 1

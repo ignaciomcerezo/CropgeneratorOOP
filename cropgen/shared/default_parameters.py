@@ -15,5 +15,5 @@ additive_json = False
 # parámetros para la generación del dataset
 min_context_chars = 50
 context_chars = 100  # todo: implement this one now...
-min_context_words = 8
+min_context_words = 10
 context_words = 15

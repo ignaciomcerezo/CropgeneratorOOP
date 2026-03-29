@@ -24,17 +24,6 @@ class TextFragment:
     associated_boxes: list[ImageBox] = field(default_factory=list)
     starting_index: Optional[int] = None
 
-    math_percentage: float = field(init=False)
-    is_open: bool = field(init=False)
-    word_count: int = field(init=False)
-    char_count: int = field(init=False)
-
-    def __post_init__(self):
-        self.math_percentage = self._math_percentage()
-        self.is_open = self._is_open()
-        self.word_count = len(self.text.split())
-        self.char_count = len(self.text)
-
     def associate_box(self, box: ImageBox, warn: bool = False):
 
         if warn and (
