@@ -26,7 +26,6 @@ def run_chunk(
     part_json_name = paths.get_worker_json_filepath(worker_id)
     augment_data_sequential(
         paths=paths,
-        output_json_name=part_json_name,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_full_paragraphs=generate_paragraphs,

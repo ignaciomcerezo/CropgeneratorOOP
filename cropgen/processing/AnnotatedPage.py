@@ -16,7 +16,6 @@ from cropgen.processing.helpers.helper_to_classes import (
     reemplazar_latex_espaciado,
     compose_collage,
     subdictionary,
-    get_deterministic_id,
 )
 from cropgen.processing.helpers.text_replacements import (
     replacements,
@@ -62,7 +61,7 @@ class AnnotatedPage:
         ann: dict[str, dict | str | int],
         img: Image.Image = None,
         unrotate: bool = False,
-        usernames_LS: list[str] = None,
+        usernames_labelstudio: list[str] = None,
     ):
 
         if unrotate and AnnotatedPage.warn_unrotate:
@@ -76,7 +75,7 @@ class AnnotatedPage:
                 "También invalida la forma en la que se generan los párrafos, la transcripción y los starting_indices."
             )
         assert (
-            usernames_LS is not None
+            usernames_labelstudio is not None
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
@@ -177,10 +176,10 @@ class AnnotatedPage:
             ann["updated_at"].replace("Z", "").split("T")
         )  # última actualización de la tarea
 
-        self.completer = usernames_LS[
+        self.completer = usernames_labelstudio[
             ann["completed_by"]
         ]  # persona que completó la tarea
-        self.updater = usernames_LS[
+        self.updater = usernames_labelstudio[
             ann["updated_by"]
         ]  # útlima persona en actualizar la tarea
 
@@ -304,13 +303,13 @@ class AnnotatedPage:
         De cualquier forma, el enderezamiento solamente es para el proceso de revisión,
         no para la generación del dataset.
         """
-        H = img_boxes_json[key]["original_height"]
-        W = img_boxes_json[key]["original_width"]
+        height = img_boxes_json[key]["original_height"]
+        width = img_boxes_json[key]["original_width"]
         val = img_boxes_json[key]["value"]
 
         # Obtenemos el recorte y el polígono original (en coordenadas globales)
         crop, original_poly, rotation, polygonic = get_rotated_region(
-            val, W, H, img, self.background_color
+            val, width, height, img
         )
 
         if not unrotate or not rotation:
@@ -545,7 +544,7 @@ class AnnotatedPage:
         for f in self.text_fragments.values():
             if f.id not in in_paragraph:
                 out_paragraph.append(f.id)
-        return [self.text_fragments[id] for id in out_paragraph]
+        return [self.text_fragments[fragment_id] for fragment_id in out_paragraph]
 
     def get_average_rotation(self, img_box_ids: Iterable[str]):
         image_boxes = [self.image_boxes[box_id] for box_id in img_box_ids]

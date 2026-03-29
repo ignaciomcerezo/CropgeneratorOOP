@@ -2,6 +2,7 @@ from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 import pandas as pd
+from pathlib import Path
 
 raw_features = Features(
     {
@@ -31,6 +32,8 @@ def generate_generator(
 
     page2fulltext = dict()
 
+    context_chars = pdi.context_chars
+
     pages = pd.unique(pdi.pages)
 
     full = pdi.df[pdi.df.page == "full"]
@@ -44,7 +47,7 @@ def generate_generator(
 
             img_name = row.crop_file
             text = row.text
-            page = row.page
+            row_page = row.page
             is_letter = row.is_letter
             s_index = row.sindex
             avg_color = tuple([int(x) for x in row.background_color[1:-1].split(",")])
@@ -55,17 +58,20 @@ def generate_generator(
 
             image_path = Path(paths.dataset_path) / dataset_subfolder / img_name
 
-            full_text = page2fulltext[page]
+            full_text = page2fulltext[row_page]
 
+            # todo: implement pdi.contextualize_by_words here
             if row.has_enough_context:
-                if s_index >= max_context_chars:
+                if s_index >= context_chars:
                     # si hay suficiente contexto en la página, usamos solamente esa
-                    context = full_text[s_index - max_context_chars : s_index].strip()
+                    context = full_text[s_index - context_chars : s_index].strip()
                 else:
                     # si no, hay que tirar de la anterior (sabemos que esto no da problemas en general)
-                    prev_full_text = page2fulltext[prev_page(page)]
+                    prev_full_text = page2fulltext[
+                        context_chars(row_page)  # ¿¿¿ eng ???
+                    ]
                     context = (
-                        prev_full_text[-(max_context_chars - s_index) :].strip()
+                        prev_full_text[-(context_chars - s_index) :].strip()
                         + " "
                         + full_text[:s_index].strip()
                     )
@@ -80,7 +86,7 @@ def generate_generator(
                 # de aquí en adelante son valor que realmente no pasamos al modelo, pero son
                 # necesarios para el fit_transform o para poder ubicar qué archivo es
                 # durante el análisis de los resultados.
-                "page": page,
+                "page": row_page,
                 "order": order,
                 "is_letter": is_letter,
                 "augment": augment,  # pasamos el flag para usarlo luego

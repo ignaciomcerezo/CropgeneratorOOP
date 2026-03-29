@@ -16,7 +16,7 @@ def reemplazar_latex_espaciado(texto, apertura, cierre="}"):
     start_search_pos = 0
 
     # calculamos el balance inicial
-    balance_inicial = apertura.count("{") - apertura.count("}")
+    balance_inicial = texto.count(apertura) - texto.count(cierre)
 
     while True:
         # buscamos un momento con balance 0.
@@ -39,9 +39,9 @@ def reemplazar_latex_espaciado(texto, apertura, cierre="}"):
             if char == "\\":
                 i += 2
                 continue
-            if char == "{":
+            if char == apertura:
                 balance += 1
-            elif char == "}":
+            elif char == cierre:
                 balance -= 1
                 if balance == 0:
                     idx_fin = i
@@ -121,7 +121,7 @@ def get_dominant_color(pil_img):
 
         if not colors:
             print("Error postcuantización de la imagen")
-            return (255, 255, 255)
+            return 255, 255, 255
 
         dominant_count, dominant_index = max(colors, key=lambda x: x[0])
 
@@ -131,7 +131,7 @@ def get_dominant_color(pil_img):
 
     except Exception as E:
         print(f"Error durante la cuantización de la imagen - {E}")
-        return (255, 255, 255)
+        return 255, 255, 255
 
 
 def calculate_polygon(x, y, w, h, rotation):
@@ -210,7 +210,7 @@ def calculate_polygon_angle(poly):
     return angle
 
 
-def get_rotated_region(val, W, H, img, bg_color):
+def get_rotated_region(val, width, height, img):
     """
     Extrae una imagen (sea rectángulo rotado o polígono arbitrario). Devuelve:
     - crop: el recorte de imagen correspondiente.
@@ -224,7 +224,7 @@ def get_rotated_region(val, W, H, img, bg_color):
     if points:  # es un polígono (hecho con la herramienta polígono específicamente)
         # convertimos puntos relativos (0-100) a absolutos (píxeles)
         # Label Studio devuelve [[x1, y1], [x2, y2], ...] si se hizo con un polígono
-        abs_points = [(p[0] * W / 100.0, p[1] * H / 100.0) for p in points]
+        abs_points = [(p[0] * width / 100.0, p[1] * height / 100.0) for p in points]
 
         # 2. Crear objeto Polygon de Shapely (para calcular intersecciones en el grafo después)
         poly = Polygon(abs_points)
@@ -280,10 +280,10 @@ def get_rotated_region(val, W, H, img, bg_color):
         return None
 
     # conversión a píxeles
-    x = x_pct * W / 100.0
-    y = y_pct * H / 100.0
-    w = w_pct * W / 100.0
-    h = h_pct * H / 100.0
+    x = x_pct * width / 100.0
+    y = y_pct * height / 100.0
+    w = w_pct * width / 100.0
+    h = h_pct * height / 100.0
 
     # calculamos la forma geométrica usando la función auxiliar
     poly, corners = calculate_polygon(x, y, w, h, rotation)
@@ -294,7 +294,7 @@ def get_rotated_region(val, W, H, img, bg_color):
         x2, y2 = int(round(x + w)), int(round(y + h))
 
         x1, y1 = max(0, x1), max(0, y1)
-        x2, y2 = min(W, x2), min(H, y2)
+        x2, y2 = min(width, x2), min(height, y2)
 
         return img.crop((x1, y1, x2, y2)), poly, 0, False
 
@@ -311,8 +311,8 @@ def get_rotated_region(val, W, H, img, bg_color):
     # Validaciones de límites
     crop_x1 = max(0, crop_x1)
     crop_y1 = max(0, crop_y1)
-    crop_x2 = min(W, crop_x2)
-    crop_y2 = min(H, crop_y2)
+    crop_x2 = min(width, crop_x2)
+    crop_y2 = min(height, crop_y2)
 
     if crop_x2 <= crop_x1 or crop_y2 <= crop_y1:
         return None
@@ -378,7 +378,7 @@ def get_union_rect(polys):
     y1 = min(p.bounds[1] for p in polys)
     x2 = max(p.bounds[2] for p in polys)
     y2 = max(p.bounds[3] for p in polys)
-    return (x1, y1, x2, y2)
+    return x1, y1, x2, y2
 
 
 def get_connected_components(adj):
@@ -412,13 +412,13 @@ def get_connected_components(adj):
 
 def compose_collage(image_boxes, fill_color):
     # calculamos la región mínima de la imagen que contiene todas las cajas
-    X1, Y1, X2, Y2 = get_union_rect([box.polygon for box in image_boxes])
+    x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
 
     # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
-    X1, Y1 = int(X1), int(Y1)
-    X2, Y2 = int(X2) + 1, int(Y2) + 1
+    x1, y1 = int(x1), int(y1)
+    x2, y2 = int(x2) + 1, int(y2) + 1
 
-    crop_width, crop_height = X2 - X1, Y2 - Y1
+    crop_width, crop_height = x2 - x1, y2 - y1
 
     # creamos el collage
     mode = (
@@ -430,7 +430,7 @@ def compose_collage(image_boxes, fill_color):
         box_x0, box_y0, _, _ = box.polygon.bounds
 
         # calculamos la posición relativa al nuevo lienzo
-        paste_x, paste_y = int(box_x0 - X1), int(box_y0 - Y1)
+        paste_x, paste_y = int(box_x0 - x1), int(box_y0 - y1)
 
         if box.crop.mode == "RGBA":
             # usamos la propia imagen como máscara de transparencia

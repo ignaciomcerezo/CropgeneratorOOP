@@ -8,7 +8,6 @@ from cropgen.processing.helpers.helper_to_classes import (
 )
 from cropgen.shared.PathBundle import (
     PathBundle,
-    _output_json_filename as default_json_name,
 )
 import pandas as pd
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
@@ -20,7 +19,6 @@ def augment_data_sequential(
     generate_full_paragraphs: bool = True,
     tasks_only: list[int] | None = None,
     is_parallel: bool = False,
-    output_json_name: str = default_json_name,
     additive_json: bool = False,
     orders_to_consider: list[int] | str = "all",
     lsi: LabelStudioInterface | None = None,
@@ -36,7 +34,7 @@ def augment_data_sequential(
 
     print(f"Running {len(tasks_only)}")
 
-    jsonl_filepath = Path(paths.output_path) / output_json_name
+    jsonl_filepath = Path(paths.output_path) / paths.json_filepath.stem
 
     tasks = lsi.simplified_tasks
 
@@ -88,7 +86,7 @@ def augment_data_sequential(
             continue
 
         for Ann in (
-            AnnotatedPage(ann, img, unrotate=False, usernames_LS=lsi.usernames)
+            AnnotatedPage(ann, img, unrotate=False, usernames_labelstudio=lsi.usernames)
             for ann in lsi[task_id]
         ):
             if generate_full_pages:
@@ -242,7 +240,7 @@ def augment_data_sequential(
             jsonl_filepath, orient="records", lines=True, force_ascii=False
         )
         print(
-            f"\nGenerados {total_saved} recortes aumentados y guardados en {output_json_name}."
+            f"\nGenerados {total_saved} recortes aumentados y guardados en {paths.json_filepath.stem}."
         )
     except Exception as e:
         print(f"Error guardando el archivo jsonl: {e}")

@@ -88,7 +88,7 @@ class PairsDataInterface:
 
         self.annid2fulltext: dict[int, str] = dict()
         for row_id in pd.unique(self.df.id):
-            self.annid2fulltext[row_id] = full[full.id == row_id].iloc[0].text
+            self.annid2fulltext[row_id] = full[full.row_id == row_id].iloc[0].text
 
     @property
     def clean_pages(self) -> pd.DataFrame:
@@ -108,6 +108,7 @@ class PairsDataInterface:
     def _choose_longest_prev_transcription(
         page: str, fulls_this_page: pd.DataFrame
     ) -> str:
+        # noinspection PyTypeChecker
         texts: list[str] = sorted(list(fulls_this_page.text), key=len)
         if len(texts) == 0:
             raise ValueError(f"No hay transcripciones completas para la página {page}")

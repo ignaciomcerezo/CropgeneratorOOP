@@ -26,7 +26,7 @@ class ImageBox:
         if (
             len(self.associated_fragments) != 0
         ):  # si ya tenemos un fragmento de texto asociado
-            if warn and (fragment.id in self.associated_fragments):
+            if warn and (fragment.row_id in self.associated_fragments):
                 raise RepeatedSameAssociationError(self)
             elif warn:
                 raise MultipleAssociationError(self)

@@ -1,4 +1,3 @@
-from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 from cropgen.shared.default_parameters import min_context_chars, min_context_words
 
 

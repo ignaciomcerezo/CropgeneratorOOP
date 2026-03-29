@@ -32,6 +32,6 @@ def load_particular_annotation(
         tsk,
         Image.open(img_path),
         False,
-        usernames_LS=lsi.usernames,
+        usernames_labelstudio=lsi.usernames,
     )
     return ann

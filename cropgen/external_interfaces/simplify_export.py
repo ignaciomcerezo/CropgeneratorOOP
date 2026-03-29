@@ -46,8 +46,10 @@ def resolve_text_for_group(group, full_text):
             try:
                 return [full_text[int(val["start"]) : int(val["end"])]]
             except:
+                print(
+                    "Error durante la formación de lo grupos: rango start-end inválido (no son ints)"
+                )
                 pass
-
     return []
 
 

@@ -1,6 +1,4 @@
-from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.tests.tests_helper import load_particular_annotation
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 
 
 def test_paragraph_v1(paths, lsi):

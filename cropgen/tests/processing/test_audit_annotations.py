@@ -5,7 +5,6 @@ from tqdm.auto import tqdm
 from cropgen.processing.Paragraph import Paragraph
 from PIL import Image
 from shapely import Polygon, MultiPolygon
-import pytest
 
 
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
@@ -25,7 +24,7 @@ def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
         assert len(set(box.polygon.exterior.coords)) == 4
 
     if paragraph != -1:
-        assert box.fragment.id in paragraph.text_fragments_ids
+        assert box.fragment.row_id in paragraph.text_fragments_ids
 
 
 def _fragment_checks(
@@ -40,7 +39,7 @@ def _fragment_checks(
     assert isinstance(fragment.starting_index, int)
 
     if paragraph != -1:
-        assert fragment.box.id in paragraph.image_boxes_ids
+        assert fragment.box.row_id in paragraph.image_boxes_ids
 
 
 def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
@@ -59,7 +58,7 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
         image = Image.open(paths.get_image_path_from_task(task))
 
         for k_ann, ann in enumerate(task["annotations"]):
-            ann = AnnotatedPage(ann, image, usernames_LS=lsi.usernames)
+            ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
             ann.assert_pairing()  # esto ya se llama dentro del AnnotatedPage.__init__(), pero por asegurar
 
             seen_boxes = set()
@@ -143,8 +142,8 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
                 _fragment_checks(text_fragment, -1, ann)
 
                 image_box = text_fragment.box
-                assert image_box.id not in seen_boxes
-                seen_boxes.add(image_box.id)
+                assert image_box.row_id not in seen_boxes
+                seen_boxes.add(image_box.row_id)
                 _box_checks(image_box, -1, ann)
 
             assert seen_boxes == set(ann.image_boxes.keys())

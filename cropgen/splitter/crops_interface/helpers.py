@@ -1,7 +1,7 @@
 def greedy_page_split_df(df, p=0.8, lengths: tuple[int] = (1,)):
     """
     Divide las páginas en dos grupos (que serán train y test), de forma que la relación
-    #f(A)/(#f(A) + #f(B)) sea aproximadamente p, donde f(A) es el conjunto de archivos (muestras) en
+    #f(a)/(#f(a) + #f(b)) sea aproximadamente p, donde f(a) es el conjunto de archivos (muestras) en
     el grupo de páginas train.
     Emplea un algoritmo greedy, que no es óptimo, pero es suficientemente bueno (al fin y al cabo
     las particiones en 80-20 o cualquier otra cantidad son esencialmente arbitrarias). Emplea para la
@@ -12,12 +12,12 @@ def greedy_page_split_df(df, p=0.8, lengths: tuple[int] = (1,)):
 
     total = df_p.count().iloc[0]
 
-    target_fA_count = int(total * p)  # número de archivos buscado
+    target_cardfa = int(total * p)  # número de archivos buscado
 
-    A = []
-    B = []
+    a = []
+    b = []
 
-    fA_count = 0
+    fa_card = 0
 
     count_boxes = lambda page: len(df_p[df_p["page"] == page])
 
@@ -27,18 +27,18 @@ def greedy_page_split_df(df, p=0.8, lengths: tuple[int] = (1,)):
 
         # comprueba si añadir la página nos acerca o nos aleja del objetivo
 
-        diff_if_add = abs((fA_count + file_count) - target_fA_count)
-        diff_if_skip = abs(fA_count - target_fA_count)
+        diff_if_add = abs((fa_card + file_count) - target_cardfa)
+        diff_if_skip = abs(fa_card - target_cardfa)
 
         if diff_if_add < diff_if_skip:
             # si nos acerca, la metemos en A
-            A.append(page)
-            fA_count += file_count
+            a.append(page)
+            fa_card += file_count
         else:
             # si nos aleja, la metemos en B
-            B.append(page)
+            b.append(page)
 
-    return set(A), set(B)
+    return set(a), set(b)
 
 
 def get_split_separate_laloma_and_letters(
@@ -59,11 +59,11 @@ def get_split_separate_laloma_and_letters(
 
     # dividimos de forma homogénea el train y el test
 
-    A = train_pages_laloma.union(train_pages_letters)
-    B = test_pages_laloma.union(test_pages_laloma)
+    a = train_pages_laloma.union(train_pages_letters)
+    b = test_pages_laloma.union(test_pages_laloma)
 
-    train = df[df["page"].isin(A)]
-    test = df[df["page"].isin(B)]
+    train = df[df["page"].isin(a)]
+    test = df[df["page"].isin(b)]
 
     print(f"Split total de {len(train)/(len(train)+len(test))}")
 

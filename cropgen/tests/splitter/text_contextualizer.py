@@ -12,7 +12,7 @@ def test_contextualize_by_words(task_macedonia, pdi):
                 continue
 
             context = pdi.contextualize_by_words(row, 20, 3)
-            curr_trans_text = pdi.annid2fulltext[row.id]
+            curr_trans_text = pdi.annid2fulltext[row.row_id]
             prev_trans_text = (
                 pdi._page2somefulltext[pdi.prev_page(row.page)]
                 if pdi.prev_page(row.page)
@@ -23,7 +23,7 @@ def test_contextualize_by_words(task_macedonia, pdi):
 
             score = fuzz.partial_ratio(contextualized, reference)
             assert score >= 95, (
-                f"Detectado bajo {score=}:\n\t {row.task=}, {row.id=}, {row.sindex}"
+                f"Detectado bajo {score=}:\n\t {row.task=}, {row.row_id=}, {row.sindex}"
                 f"contextualized =\n{contextualized}\n\n"
                 f"reference=\n{reference}\n\n"
             )

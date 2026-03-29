@@ -8,7 +8,7 @@ def test_subgraph_generation(paths, lsi):
     graph = ann5.graph
 
     subgraphs_generated = lambda k: set(
-        [x for x in generate_connected_subgraphs(graph.keys(), graph, 1)]
+        [subgraph for subgraph in generate_connected_subgraphs(graph.keys(), graph, 1)]
     )
 
     sko1 = subgraphs_generated(1)

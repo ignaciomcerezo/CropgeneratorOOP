@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-import re
 from typing import Optional
 from cropgen.processing.ImageBox import (
     ImageBox,
@@ -51,14 +50,3 @@ class TextFragment:
             raise NoAssociationError(self)
         else:
             return self.associated_boxes[0]
-
-    def _is_open(self, thigs_to_close=_things_to_close) -> bool:
-
-        for opener, closer in _things_to_close:
-            if opener != closer and (
-                self.text.count(opener) != self.text.count(closer)
-            ):
-                return True
-            elif opener == closer and (self.text.count(opener) % 2):
-                return True
-        return False

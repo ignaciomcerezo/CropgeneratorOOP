@@ -88,13 +88,13 @@ class LabelStudioInterface:
         project = ls_client.get_project(id=project_id)
 
         users = ls_client.get_users()
-        user_ids = [user.id for user in users]
+        user_ids = [user.row_id for user in users]
         ordered_usernames = []
         if user_ids:
             for x in range(max(user_ids) + 1):
                 if x in user_ids:
                     ordered_usernames.append(
-                        [u.username for u in users if u.id == x][0]
+                        [u.username for u in users if u.row_id == x][0]
                     )
                 else:
                     ordered_usernames.append(0)

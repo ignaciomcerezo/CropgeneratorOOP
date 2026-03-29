@@ -1,7 +1,5 @@
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
-from pytest import skip
-import pandas as pd
 
 _expected_columns = [
     "task",

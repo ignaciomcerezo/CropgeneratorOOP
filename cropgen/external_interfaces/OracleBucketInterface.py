@@ -55,6 +55,7 @@ class OracleBucketInterface:
 
             load_dotenv()
         except Exception:
+            print("No se ha podido cargar el dotenv.")
             pass
 
         bucket_url = os.getenv(env_var)
