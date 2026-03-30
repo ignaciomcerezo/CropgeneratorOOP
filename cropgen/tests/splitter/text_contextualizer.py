@@ -11,7 +11,7 @@ def test_contextualize_by_words(task_macedonia, pdi):
             if row.sindex == -1:
                 continue
 
-            context = pdi.contextualize_by_words(row, 20, 3)
+            context = pdi.get_row_context_by_words(row, 20, 3)
             curr_trans_text = pdi.annid2fulltext[row.row_id]
             prev_trans_text = (
                 pdi.page2somefulltext[pdi.prev_page(row.page)]

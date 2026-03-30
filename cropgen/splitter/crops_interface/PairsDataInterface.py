@@ -92,6 +92,9 @@ class PairsDataInterface:
 
     @property
     def clean_pages(self) -> pd.DataFrame:
+        """
+        Devuelve un DataFrame cuyas páginas son aquellas cuyo texto está limpio.
+        """
         return self.df[
             ~self.df["text"].apply(
                 lambda x: not isinstance(x, str) or (x.strip() == "")
@@ -108,6 +111,10 @@ class PairsDataInterface:
     def _choose_longest_prev_transcription(
         page: str, fulls_this_page: pd.DataFrame
     ) -> str:
+        """
+        Busca la página anterior. Si la encuentra (i.e. si existe), devuelve el texto completo. Si hay más de una anotación
+        de la página previa, devuelve la que tenga la transcripción más larga.
+        """
         # noinspection PyTypeChecker
         texts: list[str] = sorted(list(fulls_this_page.text), key=len)
         if len(texts) == 0:
@@ -115,6 +122,10 @@ class PairsDataInterface:
         return texts[0]
 
     def prev_page(self, page: str) -> str | bool:
+        """
+        Devuelve el nombre de la página anterior (ya sea si está en LaLoMa o en las cartas). Si no la encuentra, devuelve
+        False.
+        """
 
         if page.isdigit():  # si es una página de LaLoMa
 
@@ -157,16 +168,30 @@ class PairsDataInterface:
     def _has_enough_context_words(self, row: pd.Series, n_words: int | None = None):
         # aquí implementamos que aquello que los trocitos desconectados (star nodes) no tienen contexto posible (sindex = -1)
         n_words = n_words or self.context_words
-        return not ((row.sindex <= n_words) and not self.prev_page(row.page)) and (
-            row.sindex != -1
+        prev_text = self.page2somefulltext[self.prev_page(row.page)]
+        max_text = prev_text + self.annid2fulltext[row.id][: row.sindex]
+        return len(max_text.split()) - 1
+
+    def get_contextualized_text(
+        self, row: pd.Series, n_words: int | None = None, n_words_min: int | None = None
+    ):
+        return " ".join(
+            [self.get_row_context_by_words(row, n_words, n_words_min), row.text]
         )
 
-    def contextualize_by_words(
+    def get_row_context_by_words(
         self,
         row: pd.Series,
         n_words: int | None = None,
         n_words_min: int | None = None,
     ):
+        """
+        Devuelve el texto anterior al presente en una fila del DataFrame. Se devuelven n_words como máximo y si es posible,
+        si no, se devuelven las palabras que haya hasta un mínimo de n_words_min. Si no hay suficientes, lanza un error.
+        """
+
+        if not self._has_enough_context_words(row, n_words_min):
+            return ""
 
         n_words = n_words or self.context_words
         n_words_min = n_words_min or self.min_context_words
@@ -186,6 +211,7 @@ class PairsDataInterface:
             return " ".join(words_curr_page[-n_words:])
 
         n_needed_words_prev = n_words - len(words_curr_page)
+        n_needed_min = n_words_min - len(words_curr_page)
 
         text_prev_page = self.page2somefulltext[prev_page_n]
         words_prev_page = text_prev_page.split()
@@ -196,5 +222,9 @@ class PairsDataInterface:
             return " ".join(
                 words_prev_page[-n_needed_words_prev + 1 :] + words_curr_page
             )
-        else:
+        elif len(words_prev_page) >= n_needed_min:
             return " ".join(words_prev_page[-n_needed_words_prev:] + words_curr_page)
+        else:
+            raise ValueError(
+                f"No hay suficientes palabras para contextualizar con {n_words=}, {n_words_min=}"
+            )
