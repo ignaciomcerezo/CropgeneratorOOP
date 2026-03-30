@@ -36,7 +36,7 @@ class PairsDataInterface:
 
     __slots__ = (
         "df",
-        "_page2somefulltext",
+        "page2somefulltext",
         "annid2fulltext",
         "ids",
         "_pages",
@@ -74,7 +74,7 @@ class PairsDataInterface:
             axis=1,
         )
         # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
-        self._page2somefulltext: dict[int | str, str] = dict()
+        self.page2somefulltext: dict[int | str, str] = dict()
 
         full = self.df[self.df.order == "full"]
 
@@ -82,7 +82,7 @@ class PairsDataInterface:
             # en caso de que haya varias transcripciones anteriores, escogemos la más larga.
             fulls_this_page = full[full.page == page]
 
-            self._page2somefulltext[page] = self._choose_longest_prev_transcription(
+            self.page2somefulltext[page] = self._choose_longest_prev_transcription(
                 page, fulls_this_page
             )
 
@@ -114,7 +114,7 @@ class PairsDataInterface:
             raise ValueError(f"No hay transcripciones completas para la página {page}")
         return texts[0]
 
-    def prev_page(self, page: str | int) -> str | bool:
+    def prev_page(self, page: str) -> str | bool:
 
         if page.isdigit():  # si es una página de LaLoMa
 
@@ -157,9 +157,9 @@ class PairsDataInterface:
     def _has_enough_context_words(self, row: pd.Series, n_words: int | None = None):
         # aquí implementamos que aquello que los trocitos desconectados (star nodes) no tienen contexto posible (sindex = -1)
         n_words = n_words or self.context_words
-        return not (
-            (row.sindex <= n_words) and (self.prev_page(row.page) == False)
-        ) and (row.sindex != -1)
+        return not ((row.sindex <= n_words) and not self.prev_page(row.page)) and (
+            row.sindex != -1
+        )
 
     def contextualize_by_words(
         self,
@@ -187,7 +187,14 @@ class PairsDataInterface:
 
         n_needed_words_prev = n_words - len(words_curr_page)
 
-        text_prev_page = self._page2somefulltext[prev_page_n]
+        text_prev_page = self.page2somefulltext[prev_page_n]
         words_prev_page = text_prev_page.split()
 
-        return " ".join(words_prev_page[-n_needed_words_prev:] + words_curr_page)
+        if len(words_prev_page) == n_needed_words_prev:
+            # en el caso en el que las plabras vayan justas, como no hay una forma fácil de diferenciar si vienen
+            # completas o cortadas, directamente deshechamos la primera.
+            return " ".join(
+                words_prev_page[-n_needed_words_prev + 1 :] + words_curr_page
+            )
+        else:
+            return " ".join(words_prev_page[-n_needed_words_prev:] + words_curr_page)

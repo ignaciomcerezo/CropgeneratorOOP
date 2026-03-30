@@ -72,4 +72,5 @@ regex_replacements = [
     # reemplazar nuevas líneas
     (r"\\U\b", r"\\mathcal U"),
     (r"\\E\b", r"\\mathcal E"),
+    (r"\s{2,}", " "),
 ]

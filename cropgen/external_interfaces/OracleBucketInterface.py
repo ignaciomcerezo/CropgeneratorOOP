@@ -2,6 +2,7 @@ from __future__ import annotations
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from pathlib import Path
+from dotenv import load_dotenv  # type: ignore
 import os
 import urllib.parse
 
@@ -51,7 +52,6 @@ class OracleBucketInterface:
     ) -> "OracleBucketInterface":
         # cargamos nuestro .env si python-dotenv esta disponible; si no, usa os.getenv
         try:
-            from dotenv import load_dotenv  # type: ignore
 
             load_dotenv()
         except Exception:

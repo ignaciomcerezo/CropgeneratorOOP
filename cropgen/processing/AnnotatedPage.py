@@ -287,8 +287,9 @@ class AnnotatedPage:
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
 
+    @staticmethod
     def _rotatedregion(
-        self, key: str, img: Image.Image, img_boxes_json, unrotate=False
+        key: str, img: Image.Image, img_boxes_json, unrotate=False
     ) -> dict[str, Image.Image | Polygon | bool]:
         """
         Calcula la región recortada y el polígono asociado para cada fragmento.

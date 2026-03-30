@@ -18,7 +18,6 @@ _columns_to_use_categorical = [
 
 _columns_to_use_numerical = [
     "sindex",
-    "text",
     "average_rotation",
     "text_length",
     "math_percentage",
@@ -34,6 +33,8 @@ class PairsStatisticalData:
         df = pdi.df.copy()
         df["text_length"] = df.text.apply(len)
         df["math_percentage"] = df.text.apply(math_percentage)
+
+        self.df = df
 
         self.paragraph = self._describe_categorical(df.paragraph)
         self.is_letter = self._describe_categorical(df.is_letter)
@@ -67,12 +68,13 @@ class PairsStatisticalData:
 
     @staticmethod
     def _describe_categorical(column: pd.Series):
-        return column.describe()
+        return pd.DataFrame(column.describe())
 
     @staticmethod
     def stratify_one_by_other(
         df: pd.DataFrame, col_one: str, col_other: str
     ) -> pd.DataFrame:
+        # todo: WIP
         assert col_other in _columns_to_stratify_with
         assert col_one in _columns_to_use
 
@@ -82,14 +84,16 @@ class PairsStatisticalData:
             else PairsStatisticalData._describe_numerical
         )
 
-        values_strata = sorted(pd.unique(df[col_other]))
+        values_strata = sorted([str(x) for x in pd.unique(df[col_other])])
 
-        df_stratified_desc = des_func(df[df[col_other] == values_strata[0]][col_one])
+        dfs = []
+        for value in values_strata:
+            desc = des_func(df[df[col_other] == value][col_one])
+            desc["values_strata"] = value
+            dfs.append(desc)
+        df_stratified_desc = pd.concat(dfs)
+        df_stratified_desc = df_stratified_desc.set_index("values_strata")
 
-        for value in values_strata[1:]:
-            df_stratified_desc = pd.concat(
-                [df_stratified_desc, des_func(df[df[col_other] == value][col_one])]
-            )
         return df_stratified_desc
 
 

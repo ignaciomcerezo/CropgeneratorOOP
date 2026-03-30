@@ -14,7 +14,7 @@ def test_contextualize_by_words(task_macedonia, pdi):
             context = pdi.contextualize_by_words(row, 20, 3)
             curr_trans_text = pdi.annid2fulltext[row.row_id]
             prev_trans_text = (
-                pdi._page2somefulltext[pdi.prev_page(row.page)]
+                pdi.page2somefulltext[pdi.prev_page(row.page)]
                 if pdi.prev_page(row.page)
                 else ""
             )

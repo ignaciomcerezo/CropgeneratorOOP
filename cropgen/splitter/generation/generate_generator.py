@@ -30,16 +30,9 @@ def generate_generator(
     HuggingFace abrirá la imagen automáticamente cuando sea necesario gracias a ImageFeature().
     """
 
-    page2fulltext = dict()
-
     context_chars = pdi.context_chars
 
-    pages = pd.unique(pdi.pages)
-
-    full = pdi.df[pdi.df.page == "full"]
-
-    for page in pages:
-        page2fulltext[page] = full[full.page == page].text
+    pages = pd.unique(pdi.ids)
 
     def raw_data_generator():
         # iteramos el dataframe (es rápido porque son solo textos)
@@ -48,6 +41,7 @@ def generate_generator(
             img_name = row.crop_file
             text = row.text
             row_page = row.page
+            row_ann_id = row.id
             is_letter = row.is_letter
             s_index = row.sindex
             avg_color = tuple([int(x) for x in row.background_color[1:-1].split(",")])
@@ -58,7 +52,7 @@ def generate_generator(
 
             image_path = Path(paths.dataset_path) / dataset_subfolder / img_name
 
-            full_text = page2fulltext[row_page]
+            full_text = pdi.annid2fulltext[row_ann_id]
 
             # todo: implement pdi.contextualize_by_words here
             if row.has_enough_context:
@@ -67,9 +61,7 @@ def generate_generator(
                     context = full_text[s_index - context_chars : s_index].strip()
                 else:
                     # si no, hay que tirar de la anterior (sabemos que esto no da problemas en general)
-                    prev_full_text = page2fulltext[
-                        context_chars(row_page)  # ¿¿¿ eng ???
-                    ]
+                    prev_full_text = pdi.page2somefulltext[pdi.prev_page(row_page)]
                     context = (
                         prev_full_text[-(context_chars - s_index) :].strip()
                         + " "
