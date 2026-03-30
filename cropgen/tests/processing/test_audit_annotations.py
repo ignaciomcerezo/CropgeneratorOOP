@@ -24,7 +24,7 @@ def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
         assert len(set(box.polygon.exterior.coords)) == 4
 
     if paragraph != -1:
-        assert box.fragment.row_id in paragraph.text_fragments_ids
+        assert box.fragment.id in paragraph.text_fragments_ids
 
 
 def _fragment_checks(
@@ -39,7 +39,7 @@ def _fragment_checks(
     assert isinstance(fragment.starting_index, int)
 
     if paragraph != -1:
-        assert fragment.box.row_id in paragraph.image_boxes_ids
+        assert fragment.box.id in paragraph.image_boxes_ids
 
 
 def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
@@ -142,8 +142,8 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
                 _fragment_checks(text_fragment, -1, ann)
 
                 image_box = text_fragment.box
-                assert image_box.row_id not in seen_boxes
-                seen_boxes.add(image_box.row_id)
+                assert image_box.id not in seen_boxes
+                seen_boxes.add(image_box.id)
                 _box_checks(image_box, -1, ann)
 
             assert seen_boxes == set(ann.image_boxes.keys())
