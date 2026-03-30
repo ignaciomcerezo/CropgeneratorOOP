@@ -1,3 +1,5 @@
+import pytest
+
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.processing.ImageBox import ImageBox
 from cropgen.processing.TextFragment import TextFragment
@@ -5,6 +7,7 @@ from tqdm.auto import tqdm
 from cropgen.processing.Paragraph import Paragraph
 from PIL import Image
 from shapely import Polygon, MultiPolygon
+import re
 
 
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
@@ -150,3 +153,22 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
             assert seen_fragments == set(ann.text_fragments.keys())
 
     assert AnnotatedPage.n_annotation_errors == 0
+
+
+re_letternumber = re.compile(r"[a-zA-Z]+\d", re.DOTALL)
+
+
+@pytest.mark.skip("Esto realmente no es un test")
+def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
+    for task in lsi.simplified_tasks:
+        image = Image.open(paths.get_image_path_from_task(task))
+
+        for k_ann, ann in enumerate(task["annotations"]):
+            ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
+
+            for paragraph in ann.paragraphs:
+                for text_fragment in paragraph.text_fragments:
+                    for match in re_letternumber.findall(text_fragment.text):
+                        print(
+                            f"({ann.task_id:>5}|{ann.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
+                        )
