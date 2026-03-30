@@ -11,8 +11,6 @@ from cropgen.processing.Paragraph import Paragraph
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
-    get_rotated_region,
-    unrotate_image,
     reemplazar_latex_espaciado,
     compose_collage,
     subdictionary,
@@ -26,7 +24,6 @@ from cropgen.shared.default_parameters import (
     big_box_threshold,
     min_nodes_for_big_box_removal,
 )
-from shapely import Polygon, box as boxshape
 from cropgen.shared.display import display
 import re
 from PIL import Image
@@ -36,8 +33,8 @@ import numpy as np
 class AnnotatedPage:
     """
     Clase que representa una única anotación. Recoge la información sobre las cajas-imagen y los fragmentos
-    de texto (con sus relaciones), construye el grafo de adyacencia y ordena la información y la hace
-    accesible de forma que la función augment_data tenga menor complejidad.
+    de texto (con sus relaciones), construye el grafo de adyacencia, crea los párrafos y ordena la información
+    y la hace accesible de forma que la función augment_data tenga menor complejidad.
     """
 
     n_annotation_errors = 0
@@ -96,10 +93,8 @@ class AnnotatedPage:
 
         self.image_boxes: dict[str, ImageBox] = (
             {  # conjunto de cajas-imagen (instancias de ImageBox)
-                imgbox_id: ImageBox(
-                    id=imgbox_id,
-                    task_id=self.task_id,
-                    **self._rotatedregion(imgbox_id, img, img_boxes_json, unrotate),
+                imgbox_id: ImageBox.from_json_value(
+                    img_boxes_json[imgbox_id], imgbox_id, self.task_id, img, unrotate
                 )
                 for imgbox_id in img_boxes_json
             }
@@ -187,10 +182,12 @@ class AnnotatedPage:
 
     @property
     def order(self) -> int:
+        """Número total de imágenes (si no hay PairingError también será el total de fragmentos)"""
         return len(self.graph)
 
     @property
     def graph(self) -> dict[str, set[str]]:
+        """Grafo de adyacencia de las ImageBox.id dado por las intersecciones de sus crops."""
         return self.__graph
 
     @graph.setter
@@ -202,9 +199,9 @@ class AnnotatedPage:
     def _setup_mappings(self, results: list) -> None:
         """
         A partir de las relaciones creadas en cada tarea de LS, genera respectivos diccionarios:
-            1. img2text_rel, [box_id] -> fragment_id,
+            1. img2text_rel: dict[str, str], box_id -> fragment_id,
         que lleva el ID de una caja-imagen al id de un fragmento, y
-            2. text2img_rel, [fragment_id] -> box_id,
+            2. text2img_rel: dict[str, str], fragment_id -> box_id,
         que lleva el ID de un fragmento a su caja-imagen correspondiente.
         """
 
@@ -225,7 +222,7 @@ class AnnotatedPage:
                 elif (source_id in self.image_boxes) and (
                     target_id in self.image_boxes
                 ):
-                    AnnotatedPage.register_error()
+                    AnnotatedPage._register_error()
                     # asociación caja-imagen -> caja-imagen (error de anotación)
                     print(f"(Task {self.task_id}) Asociación caja-imagen->caja-imagen:")
                     print("Caja 1 (source):")
@@ -236,14 +233,14 @@ class AnnotatedPage:
                 elif (source_id in self.text_fragments) and (
                     target_id in self.text_fragments
                 ):
-                    AnnotatedPage.register_error()
+                    AnnotatedPage._register_error()
                     # asociación fragmento -> fragmento (error de anotación)
                     print(f"(Task {self.task_id}) Asociación texto->texto.")
                     print(self.text_fragments[source_id].text)
                     print(self.text_fragments[target_id].text)
                     continue
                 else:
-                    AnnotatedPage.register_error()
+                    AnnotatedPage._register_error()
                     # otro tipo de asociación (extraña)
                     print(f"(Task {self.task_id}) Asociación rara.")
                     continue
@@ -259,7 +256,7 @@ class AnnotatedPage:
 
     def assert_pairing(self):
         """
-        Compruba que todas las cajas están asociadas a un texto, y viceversa
+        Compruba que todas las cajas están asociadas a un único texto, y viceversa
         """
         for box in self.image_boxes.values():
             if any([isinstance(obj, ImageBox) for obj in box.associated_fragments]):
@@ -287,77 +284,10 @@ class AnnotatedPage:
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
 
-    @staticmethod
-    def _rotatedregion(
-        key: str, img: Image.Image, img_boxes_json, unrotate=False
-    ) -> dict[str, Image.Image | Polygon | bool]:
-        """
-        Calcula la región recortada y el polígono asociado para cada fragmento.
-        Devuelve, en orden:
-            crop: PIL.Image.Image -> imagen recortada
-            polygon: Polygon -> polígono de shapely
-            rotation: bool -> ángulo de rotación (manual o calculado) de la región para su lectura.
-            true_rectangle: bool -> si se generó usando la herramienta rectángulo.
-
-        Si unrotate=True, la imagen se endereza y el polígono se reconstruye
-        para coincidir exactamente con las nuevas dimensiones visuales (sin márgenes).
-        De cualquier forma, el enderezamiento solamente es para el proceso de revisión,
-        no para la generación del dataset.
-        """
-        height = img_boxes_json[key]["original_height"]
-        width = img_boxes_json[key]["original_width"]
-        val = img_boxes_json[key]["value"]
-
-        # Obtenemos el recorte y el polígono original (en coordenadas globales)
-        crop, original_poly, rotation, polygonic = get_rotated_region(
-            val, width, height, img
-        )
-
-        if not unrotate or not rotation:
-            return {
-                "crop": crop,
-                "polygon": original_poly,
-                "rotation": rotation,
-                "true_rectangle": not polygonic,
-                "unrotated": False,
-            }
-        else:
-            # Si des-rotamos, la bounding box del polígono original (rotado) suele ser
-            # más grande que la imagen enderezada final, generando espacios en blanco en el collage.
-            # Procedemos a crear un nuevo polígono ajustado al píxel.
-
-            # Generamos primero la imagen final para obtener sus dimensiones reales (w, h)
-            # Esto elimina las zonas transparentes sobrantes tras la rotación.
-            final_crop = unrotate_image(crop, rotation)
-            cw, ch = final_crop.size
-
-            # calculamos el punto de anclado basándonos en la geometría original.
-            # Usamos el mínimo rectángulo rotado para hallar la verdadera esquina
-            # superior izquierda visual, independientemente de la orientación de los ejes.
-            rotated_rect = original_poly.minimum_rotated_rectangle
-            rect_coords = list(rotated_rect.exterior.coords)[:-1]
-
-            # ordenamos vértices: prioridad menor Y (arriba), desempate menor X (izquierda) - extremadamente improbable salvo en el borde inferior
-            pivot_point = sorted(rect_coords, key=lambda p: (p[1], p[0]))[0]
-            pivot_x, pivot_y = pivot_point
-
-            # construimos un nuevo polígono rectangular
-            # empieza en el pivote original pero tiene exactamente las dimensiones de la imagen recortada.
-            # esto nos asegura consistencia al pegar en el lienzo del collage.
-            new_poly = boxshape(pivot_x, pivot_y, pivot_x + cw, pivot_y + ch)
-
-            return {
-                "crop": final_crop,
-                "polygon": new_poly,
-                "rotation": rotation,
-                "true_rectangle": not polygonic,
-                "unrotated": True,
-            }
-
     def _build_intersection_graph(self):
         """
         Genera el grafo de intersecciones de una anotación.
-        Devuelve un diccionario de adyacencia {id: set(id_adyacentes)}.
+        Devuelve un diccionario de adyacencia {box_id: set(id_adyacentes)}.
         """
         adj = {image_box_id: set() for image_box_id in self.image_boxes}
         for i, box1 in enumerate(self.image_boxes.values()):
@@ -374,7 +304,7 @@ class AnnotatedPage:
     @staticmethod
     def correct_results(results):
         """
-        Realiza las sustituciones especificadas en 'replacements' y 'replacements_envs' en
+        Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
         los resultados de una tarea (ambas son variables de clase).
         """
         # return results
@@ -427,27 +357,15 @@ class AnnotatedPage:
 
         return results
 
-    def adjacency_matrix(self) -> np.ndarray:
-
-        adjacency_mx = np.zeros((self.order, self.order))
-
-        box_ids = list(self.graph.keys())
-
-        for i, j in np.ndindex(adjacency_mx.shape):
-            i_id, j_id = box_ids[i], box_ids[j]
-            if i_id in self.graph[j_id]:
-                adjacency_mx[i, j] = 1
-                adjacency_mx[j, i] = 1  # por simetría
-
-        return adjacency_mx
-
     def generate_collage(
         self,
         box_id_sequence: set[str] | list[str],
         background_color: tuple | None = None,
     ) -> Image.Image:
         """
-        Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo).
+        Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo), colocando en sus posiciones en
+        la página original los recortes, rellenando el resto con el color promedio de la imagen y recortando la imagen
+        al tamaño mínimo que contiene todos los recortes colocados.
         """
         if not isinstance(box_id_sequence, set):
             if len(box_id_sequence) != len(set(box_id_sequence)):
@@ -465,6 +383,9 @@ class AnnotatedPage:
         self,
         relative_threshold: float = big_box_threshold,
     ) -> None:
+        """
+        Elimina los nodos con una conectividad mayor a relative_threshold
+        """
 
         adj_graph = self.__graph.copy()
         nodes_to_remove = []
@@ -507,6 +428,9 @@ class AnnotatedPage:
         return collage, transcription, sindex
 
     def are_in_same_cc(self, box_id_sequence: list[str]) -> bool:
+        """
+        Devuelve si una secuencia de ids de cajas está o no en la misma componente conexa
+        """
         if not box_id_sequence:
             return True
 
@@ -524,6 +448,7 @@ class AnnotatedPage:
 
     @property
     def n_paragraphs(self):
+        """Número de párrafos de la anotación"""
         return len([paragraph for paragraph in self.paragraphs if (len(paragraph) > 1)])
 
     @property
@@ -531,10 +456,15 @@ class AnnotatedPage:
         return self.n_paragraphs == 1
 
     @staticmethod
-    def register_error():
+    def _register_error():
         AnnotatedPage.n_annotation_errors += 1
 
     def fragments_without_paragraph(self) -> list[TextFragment]:
+        """
+        Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
+            1. Son fragmentos aislados del resto durante las anotaciones.
+            2. Son fragmentos que tenían una conectividad muy alta y se han desconectado usando trim_star_nodes
+        """
         in_paragraph = []
         out_paragraph = []
         for paragraph in self.paragraphs:
@@ -548,6 +478,9 @@ class AnnotatedPage:
         return [self.text_fragments[fragment_id] for fragment_id in out_paragraph]
 
     def get_average_rotation(self, img_box_ids: Iterable[str]):
+        """
+        Devuelve la rotación promedio de un grupo de cajas-imagen dados sus ids.
+        """
         image_boxes = [self.image_boxes[box_id] for box_id in img_box_ids]
         areas = [box.polygon.area for box in image_boxes]
         angles_in_radians = [np.radians(box.rotation) for box in image_boxes]
