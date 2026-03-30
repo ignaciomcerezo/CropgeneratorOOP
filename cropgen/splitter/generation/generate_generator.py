@@ -30,10 +30,6 @@ def generate_generator(
     HuggingFace abrirá la imagen automáticamente cuando sea necesario gracias a ImageFeature().
     """
 
-    context_chars = pdi.context_chars
-
-    pages = pd.unique(pdi.ids)
-
     def raw_data_generator():
         # iteramos el dataframe (es rápido porque son solo textos)
         for index, row in pdi.df.iterrows():
@@ -54,22 +50,7 @@ def generate_generator(
 
             full_text = pdi.annid2fulltext[row_ann_id]
 
-            # todo: implement pdi.contextualize_by_words here
-            if row.has_enough_context:
-                if s_index >= context_chars:
-                    # si hay suficiente contexto en la página, usamos solamente esa
-                    context = full_text[s_index - context_chars : s_index].strip()
-                else:
-                    # si no, hay que tirar de la anterior (sabemos que esto no da problemas en general)
-                    prev_full_text = pdi.page2somefulltext[pdi.prev_page(row_page)]
-                    context = (
-                        prev_full_text[-(context_chars - s_index) :].strip()
-                        + " "
-                        + full_text[:s_index].strip()
-                    )
-
-            else:
-                context = ""  # no hay contexto posible!
+            context = pdi.get_row_context_by_words(row)
 
             yield {
                 "image": image_path,  # nótese que no abrimos la imagen, solamente pasamos la ruta
