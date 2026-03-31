@@ -36,7 +36,7 @@ def augment_data_sequential(
 
     print(f"Running {len(tasks_only)}")
 
-    if not worker_id:
+    if worker_id is None:
         jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
     else:
         jsonl_filepath = paths.get_worker_json_filepath(worker_id)

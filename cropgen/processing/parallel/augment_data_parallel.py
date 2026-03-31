@@ -11,7 +11,7 @@ def augment_data_parallel(
     orders_to_consider: list[int],
     generate_full_pages: bool,
     generate_paragraphs: bool,
-    tasks_only: list[int] | None = None,
+    tasks_only: list[int],
     lsi: LabelStudioInterface | None = None,
     num_processes: int = None,
 ):

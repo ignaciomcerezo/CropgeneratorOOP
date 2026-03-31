@@ -39,7 +39,6 @@ def generate_generator(
             row_page = row.page
             row_ann_id = row.id
             is_letter = row.is_letter
-            s_index = row.sindex
             avg_color = tuple([int(x) for x in row.background_color[1:-1].split(",")])
 
             order = str(row.order)
@@ -47,8 +46,6 @@ def generate_generator(
             dataset_subfolder = f"order{order}"
 
             image_path = Path(paths.dataset_path) / dataset_subfolder / img_name
-
-            full_text = pdi.annid2fulltext[row_ann_id]
 
             context = pdi.get_rows_context_by_words(row)
 
