@@ -1,10 +1,11 @@
 import pandas as pd
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
+from cropgen.shared.PathBundle import PathBundle
 
 
-def test_full_in_all_or_in_none(paths, pdi):
+def test_full_in_all_or_in_none(paths: PathBundle, pdi: PairsDataInterface):
 
     if "full" in pdi.df.order:
-
         for page in pd.unique(pdi.df.page):
             assert "full" in pd.unique(pdi.df.order[pdi.df.page == page])
         print('All have "full"')

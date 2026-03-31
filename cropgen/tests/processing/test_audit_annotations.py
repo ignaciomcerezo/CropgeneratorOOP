@@ -1,11 +1,10 @@
-import pytest
-
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.processing.ImageBox import ImageBox
 from cropgen.processing.TextFragment import TextFragment
 from tqdm.auto import tqdm
 from cropgen.processing.Paragraph import Paragraph
 from PIL import Image
+import pytest
 from shapely import Polygon, MultiPolygon
 import re
 
@@ -27,6 +26,7 @@ def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
         assert len(set(box.polygon.exterior.coords)) == 4
 
     if paragraph != -1:
+        paragraph: Paragraph
         assert box.fragment.id in paragraph.text_fragments_ids
 
 
@@ -42,6 +42,7 @@ def _fragment_checks(
     assert isinstance(fragment.starting_index, int)
 
     if paragraph != -1:
+        paragraph: Paragraph
         assert fragment.box.id in paragraph.image_boxes_ids
 
 
@@ -55,6 +56,7 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
     return msg
 
 
+@pytest.mark.audit
 def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
     for task in tqdm(lsi.simplified_tasks):
@@ -101,7 +103,9 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
                 assert set_keys == seen_boxes_par
 
-                for key in paragraph.subgraph:
+                assert isinstance(paragraph.subgraph, dict)
+
+                for key in paragraph.subgraph.keys():
                     assert paragraph.subgraph[key].issubset(set_keys)
 
                 seen_boxes = seen_boxes.union(seen_boxes_par)
@@ -114,7 +118,12 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
                 sindices_par_fragments = [
                     f.starting_index for f in paragraph.text_fragments
                 ]
+
+                assert all([isinstance(s, int) for s in sindices_par_fragments])
+
                 indices_par_boxes = [b.index for b in paragraph.image_boxes]
+
+                assert all([isinstance(s, int) for s in indices_par_boxes])
 
                 assert (
                     -1 not in sindices_par_fragments
@@ -172,3 +181,60 @@ def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
                         print(
                             f"({ann.task_id:>5}|{ann.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
                         )
+
+
+@pytest.mark.skip("Esto es un pseudotest para detectar ciclos en el grafo de párrafos")
+def test_paragraph_graphs_are_path_graphs(paths, ls_url, ls_token, lsi):
+    for task in lsi.simplified_tasks:
+        for k_ann, ann in enumerate(task["annotations"]):
+            ann_obj = AnnotatedPage(
+                ann,
+                Image.open(paths.get_image_path_from_task(task)),
+                usernames_labelstudio=lsi.usernames,
+            )
+            for paragraph in ann_obj.paragraphs:
+                graph = paragraph.subgraph
+                if not graph:
+                    print(f"Párrafo vacío: {repr(ann_obj)} | {paragraph}")
+                    continue
+
+                # Buscar nodos extremos (grado 1)
+                ends = [n for n, v in graph.items() if len(v) == 1]
+                if not ends:
+                    print(f"Párrafo sin extremos: {repr(ann_obj)} | {paragraph}")
+                    continue
+
+                start = ends[0]
+                seen = set([start])
+                current = start
+                prev = None
+                is_path = True
+
+                while True:
+                    neighbors = [n for n in graph[current] if n != prev]
+                    unvisited = [n for n in neighbors if n not in seen]
+                    if len(unvisited) > 1:
+                        is_path = False
+                        break
+                    if not unvisited:
+                        break
+                    next_node = unvisited[0]
+                    if (
+                        len(
+                            [
+                                n
+                                for n in graph[next_node]
+                                if n not in seen and n != current
+                            ]
+                        )
+                        > 1
+                    ):
+                        is_path = False
+                        break
+                    seen.add(next_node)
+                    prev, current = current, next_node
+
+                if not is_path or len(seen) != len(graph):
+                    print(
+                        f"Párrafo no isomorfo a un camino: {repr(ann_obj)} | {paragraph}"
+                    )

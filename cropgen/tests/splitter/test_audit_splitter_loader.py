@@ -2,8 +2,10 @@ from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 from pytest import skip
 import pandas as pd
+import pytest
 
 
+@pytest.mark.audit
 def test_audit_splitter_loader(paths: PathBundle):
     if not paths.json_filepath.exists():
         skip(

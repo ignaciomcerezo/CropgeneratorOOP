@@ -16,12 +16,26 @@ def paths() -> PathBundle:
 
 @pytest.fixture(scope="session")
 def ls_token() -> str:
-    return os.getenv("LS_TOKEN")
+    load_dotenv()
+    res = os.getenv("LS_TOKEN")
+    assert res is not None
+    return res
 
 
 @pytest.fixture(scope="session")
 def ls_url() -> str:
-    return os.getenv("LS_URL")
+    load_dotenv()
+    res = os.getenv("LS_URL")
+    assert res is not None
+    return res
+
+
+@pytest.fixture(scope="session")
+def bucket_url() -> str:
+    load_dotenv()
+    res = os.getenv("BUCKET_URL")
+    assert res is not None
+    return res
 
 
 @pytest.fixture(scope="session")
@@ -29,11 +43,18 @@ def lsi(paths, ls_token, ls_url) -> LabelStudioInterface:
     return LabelStudioInterface(paths)
 
 
+@pytest.fixture(scope="session")
+def obi(paths, bucket_url):
+    obi = OracleBucketInterface(paths, bucket_url)
+    obi.update()
+    return obi
+
+
 @pytest.fixture(scope="session", autouse=True)
-def prepare_data(paths, ls_url, ls_token):
+def prepare_data(paths, obi, ls_url, ls_token):
     load_dotenv()
 
-    OracleBucketInterface.from_env(paths).update()
+    obi.update()
     LabelStudioInterface.update_conditional(paths, ls_url, ls_token)
 
     yield
