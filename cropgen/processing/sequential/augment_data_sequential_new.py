@@ -27,7 +27,7 @@ def augment_data_sequential(
     """Función principal para procesar las tareas y generar los recortes aumentados."""
     lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
 
-    paths.output_path.mkdir(parents=True, exist_ok=True)
+    paths.data_out_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
 
     task_only = (
@@ -37,7 +37,7 @@ def augment_data_sequential(
     print(f"Running {len(tasks_only)}")
 
     if not worker_id:
-        jsonl_filepath = Path(paths.output_path) / paths.json_filepath.stem
+        jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
     else:
         jsonl_filepath = paths.get_worker_json_filepath(worker_id)
 

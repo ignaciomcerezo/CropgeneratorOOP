@@ -8,9 +8,7 @@ import os
 
 def test_augment_data_parallel(paths, lsi, task_macedonia):
 
-    if paths.output_path.exists():
-        for file in os.listdir(paths.output_path):
-            os.unlink(paths.exports_path / file)
+    paths.clean_output_folder()
 
     augment_data_parallel(
         paths,

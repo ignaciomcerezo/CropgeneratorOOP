@@ -26,9 +26,9 @@ class PathBundle:
         self.usernames_filepath: Path = self.exports_path / _usernames_filename
 
         # carpetas donde se van a colocar los datos generados.
-        self.output_path: Path = self.root / "data_out"
-        self.crops_path: Path = self.output_path / "crops"
-        self.json_filepath: Path = self.output_path / _output_json_filename
+        self.data_out_path: Path = self.root / "data_out"
+        self.crops_path: Path = self.data_out_path / "crops"
+        self.json_filepath: Path = self.data_out_path / _output_json_filename
 
         try:
             self.assert_paths()
@@ -48,7 +48,7 @@ class PathBundle:
             self.images_path,
             self.transcriptions_path,
             self.exports_path,
-            self.output_path,
+            self.data_out_path,
             self.crops_path,
             self.data_in_path,
         ]:
@@ -94,7 +94,7 @@ class PathBundle:
             self.images_path,
             self.transcriptions_path,
             self.exports_path,
-            self.output_path,
+            self.data_out_path,
             self.crops_path,
         ]:
             if path.exists() and path.is_dir():
@@ -112,3 +112,27 @@ class PathBundle:
             worker_id = ""
         worker_filename = f"{name}_{worker_id}{extension}"
         return Path(self.json_filepath.parent / worker_filename)
+
+    def clean_output_folder(self):
+        """
+        Elimina todos los archivos y carpetas dentro de la carpeta de salida (data_out_path),
+        pero no elimina la propia carpeta data_out_path.
+        """
+        if self.data_out_path.exists() and self.data_out_path.is_dir():
+            for item in self.data_out_path.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+
+    def clean_input_folder(self):
+        """
+        Elimina todos los archivos y carpetas dentro de la carpeta de entrada,
+        pero no elimina la propia carpeta data_out_path.
+        """
+        if self.data_in_path.exists() and self.data_in_path.is_dir():
+            for item in self.data_in_path.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()

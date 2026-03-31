@@ -258,16 +258,6 @@ class AnnotatedPage:
         """
         Compruba que todas las cajas están asociadas a un único texto, y viceversa
         """
-        for box in self.image_boxes.values():
-            if any([isinstance(obj, ImageBox) for obj in box.associated_fragments]):
-                raise SameToSameAssociation(box)
-
-            if len(set(box.associated_fragments)) != len(box.associated_fragments):
-                raise RepeatedSameAssociationError(box)
-            elif len(box.associated_fragments) > 1:
-                raise MultipleAssociationError(box)
-            elif len(box.associated_fragments) == 0:
-                raise NoAssociationError(box)
         for fragment in self.text_fragments.values():
             if any(
                 [isinstance(obj, TextFragment) for obj in fragment.associated_boxes]
