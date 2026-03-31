@@ -22,9 +22,11 @@ def augment_data_sequential(
     additive_json: bool = False,
     orders_to_consider: list[int] | str = "all",
     lsi: LabelStudioInterface | None = None,
+    worker_id: int | None = None,
 ):
     """Función principal para procesar las tareas y generar los recortes aumentados."""
-    lsi = lsi if lsi else LabelStudioInterface(paths)
+    lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
+
     paths.output_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
 
@@ -34,7 +36,10 @@ def augment_data_sequential(
 
     print(f"Running {len(tasks_only)}")
 
-    jsonl_filepath = Path(paths.output_path) / paths.json_filepath.stem
+    if not worker_id:
+        jsonl_filepath = Path(paths.output_path) / paths.json_filepath.stem
+    else:
+        jsonl_filepath = paths.get_worker_json_filepath(worker_id)
 
     tasks = lsi.simplified_tasks
 

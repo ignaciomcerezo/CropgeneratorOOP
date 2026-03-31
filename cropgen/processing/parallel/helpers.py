@@ -31,6 +31,7 @@ def run_chunk(
         generate_full_paragraphs=generate_paragraphs,
         tasks_only=tasks_subset,
         is_parallel=True,
+        worker_id=worker_id,
     )
     return f"Tarea del trabajador {worker_id} terminada."
 
