@@ -27,9 +27,9 @@ class OracleBucketInterface:
         paths: PathBundle,
         bucket_url: str = None,
     ) -> None:
-        if not bucket_url or not isinstance(bucket_url, str):
+        if not bucket_url:
             if "BUCKET_URL" in os.environ:
-                bucket_url = os.getenv("BUCKET_URL")
+                bucket_url: str = str(os.getenv("BUCKET_URL"))
             else:
                 raise ValueError(
                     "O bien se pasa un bucket_url (str no vacio) o bien se tiene en las variables de entorno BUCKET_URL."

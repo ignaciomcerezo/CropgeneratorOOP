@@ -46,8 +46,8 @@ class LabelStudioInterface:
         self.__simplified_tasks = load_simplified_export(paths)
 
         if paths.usernames_filepath.exists():
-            self.usernames = json.loads(
-                paths.usernames_filepath.read_text(encoding="utf-8")
+            self.usernames = list(
+                json.loads(paths.usernames_filepath.read_text(encoding="utf-8"))
             )
         else:
             self.usernames = []
