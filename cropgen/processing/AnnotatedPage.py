@@ -281,6 +281,17 @@ class AnnotatedPage:
             elif len(fragment.associated_boxes) == 0:
                 raise NoAssociationError(fragment)
 
+        for box in self.image_boxes.values():
+            if any([isinstance(obj, ImageBox) for obj in box.associated_fragments]):
+                raise SameToSameAssociation(box)
+
+            if len(set(box.associated_fragments)) != len(box.associated_fragments):
+                raise RepeatedSameAssociationError(box)
+            elif len(box.associated_fragments) > 1:
+                raise MultipleAssociationError(box)
+            elif len(box.associated_fragments) == 0:
+                raise NoAssociationError(box)
+
     def __repr__(self):
         return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
 
