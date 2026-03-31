@@ -17,5 +17,5 @@ def test_at_most_one_full_per_id(paths, pdi):
 
     for ann_id in pdi.ids:
         assert (
-            len(full[full.row_id == ann_id]) <= 1
+            len(full[full.id == ann_id]) <= 1
         ), f"Hay {len(full[full.ids == ann_id])} fulls en {ann_id=}"
