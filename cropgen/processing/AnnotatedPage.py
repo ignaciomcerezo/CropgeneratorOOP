@@ -171,13 +171,18 @@ class AnnotatedPage:
             ann["updated_at"].replace("Z", "").split("T")
         )  # última actualización de la tarea
 
-        self.completer = usernames_labelstudio[
-            ann["completed_by"]
-        ]  # persona que completó la tarea
-        self.updater = usernames_labelstudio[
-            ann["updated_by"]
-        ]  # útlima persona en actualizar la tarea
-
+        completer_index = ann["completed_by"]
+        updater_index = ann["updated_by"]
+        self.completer = (
+            usernames_labelstudio[completer_index]
+            if completer_index < len(usernames_labelstudio)
+            else "Unknown"
+        )
+        self.updater = (
+            usernames_labelstudio[updater_index]
+            if updater_index < len(usernames_labelstudio)
+            else "Unknown"
+        )
         self.annotation_unique_id = ann["id"]
 
     @property
