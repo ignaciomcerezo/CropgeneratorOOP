@@ -11,19 +11,21 @@ def test_contextualize_by_words(task_macedonia, pdi):
             if row.sindex == -1:
                 continue
 
-            context = pdi.get_row_context_by_words(row, 20, 3)
-            curr_trans_text = pdi.annid2fulltext[row.row_id]
-            prev_trans_text = (
-                pdi.page2somefulltext[pdi.prev_page(row.page)]
-                if pdi.prev_page(row.page)
-                else ""
-            )
+            context = pdi.get_rows_context_by_words(row)
             contextualized = " ".join([context, row.text])
+
+            curr_trans_text = pdi.annid2fulltext[row.id]
+            prev_page_n = pdi.prev_page(row.page)
+
+            prev_trans_text = pdi.page2somefulltext[
+                prev_page_n
+            ]  # si no hay, devuelve False, que p2sft -> ""
+
             reference = " ".join([prev_trans_text, curr_trans_text])
 
             score = fuzz.partial_ratio(contextualized, reference)
             assert score >= 95, (
-                f"Detectado bajo {score=}:\n\t {row.task=}, {row.row_id=}, {row.sindex}"
+                f"Detectado bajo {score=}:\n\t {row.task=}, {row.id=}, {row.sindex}"
                 f"contextualized =\n{contextualized}\n\n"
                 f"reference=\n{reference}\n\n"
             )

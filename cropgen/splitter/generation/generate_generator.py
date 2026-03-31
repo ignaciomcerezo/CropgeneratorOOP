@@ -50,7 +50,7 @@ def generate_generator(
 
             full_text = pdi.annid2fulltext[row_ann_id]
 
-            context = pdi.get_row_context_by_words(row)
+            context = pdi.get_rows_context_by_words(row)
 
             yield {
                 "image": image_path,  # nótese que no abrimos la imagen, solamente pasamos la ruta

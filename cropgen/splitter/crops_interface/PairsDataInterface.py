@@ -3,6 +3,7 @@ from cropgen.splitter.crops_interface.helpers import (
     get_split_separate_laloma_and_letters,
 )
 import re
+from typing import Literal
 from cropgen.shared.default_parameters import (
     context_chars as default_context_chars,
     context_words as default_context_words,
@@ -36,6 +37,7 @@ class PairsDataInterface:
 
     __slots__ = (
         "df",
+        "_filepath",
         "page2somefulltext",
         "annid2fulltext",
         "ids",
@@ -55,26 +57,33 @@ class PairsDataInterface:
         min_context_chars: int = default_min_context_chars,
     ):
         self.df = pd.read_json(paths.json_filepath, lines=True)
+        self._filepath = paths.json_filepath
         self.context_words = context_words
         self.min_context_words = min_context_words
         self.context_chars = context_chars
         self.min_context_chars = min_context_chars
 
-        clean_pages = self.clean_pages
-        self._pages = pd.unique(clean_pages.page)
-        self.ids = pd.unique(clean_pages.id)
+        self._pages = pd.unique(self.clean_pages.page)
+        self.ids = pd.unique(self.clean_pages.id)
 
-        if "is_letter" not in self.df.columns:
-            self.df["is_letter"] = self.df.page.apply(
-                lambda x: isinstance(x, int) or str(x).isdigit()
-            )
+        self._build_mappings()
 
-        self.df["has_enough_context"] = self.df.apply(
-            lambda x: self._has_enough_context_words(x),
+        self.df["is_letter"] = self.df.page.apply(
+            lambda x: isinstance(x, int) or str(x).isdigit()
+        )
+
+        self.df["context_length_chars"] = self.df.apply(
+            lambda x: len(self._maximal_context_chars(x)),
             axis=1,
         )
-        # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
+        self.df["context_length_words"] = self.df.apply(
+            lambda x: len(self._maximal_context_chars(x).split()) - 1,
+            axis=1,
+        )
+
+    def _build_mappings(self) -> None:
         self.page2somefulltext: dict[int | str, str] = dict()
+        self.page2somefulltext[False] = ""
 
         full = self.df[self.df.order == "full"]
 
@@ -87,8 +96,12 @@ class PairsDataInterface:
             )
 
         self.annid2fulltext: dict[int, str] = dict()
-        for row_id in pd.unique(self.df.id):
-            self.annid2fulltext[row_id] = full[full.row_id == row_id].iloc[0].text
+
+        for row_id in self.ids:
+            self.annid2fulltext[row_id] = full[full.id == row_id].iloc[0].text
+
+    def __repr__(self):
+        return f"<PairsDataInterface enlazando con {self._filepath}>"
 
     @property
     def clean_pages(self) -> pd.DataFrame:
@@ -102,7 +115,7 @@ class PairsDataInterface:
         ]
 
     @property
-    def is_clean(self):
+    def is_clean(self) -> bool:
         return not any(
             self.df["text"].apply(lambda x: not isinstance(x, str) or (x.strip() == ""))
         )
@@ -165,66 +178,50 @@ class PairsDataInterface:
         en ese respecto."""
         return get_split_separate_laloma_and_letters(self.df, p, order_to_consider)
 
-    def _has_enough_context_words(self, row: pd.Series, n_words: int | None = None):
+    @staticmethod
+    def _has_enough_context_words(row: pd.Series, threshold: int | None = None) -> bool:
         # aquí implementamos que aquello que los trocitos desconectados (star nodes) no tienen contexto posible (sindex = -1)
-        n_words = n_words or self.context_words
-        prev_text = self.page2somefulltext[self.prev_page(row.page)]
-        max_text = prev_text + self.annid2fulltext[row.id][: row.sindex]
-        return len(max_text.split()) - 1
+        return row.context_length_words >= threshold
 
-    def get_contextualized_text(
-        self, row: pd.Series, n_words: int | None = None, n_words_min: int | None = None
-    ):
-        return " ".join(
-            [self.get_row_context_by_words(row, n_words, n_words_min), row.text]
+    @staticmethod
+    def _has_enough_context_chars(row: pd.Series, threshold: int | None = None) -> bool:
+        # aquí implementamos que aquello que los trocitos desconectados (star nodes) no tienen contexto posible (sindex = -1)
+        return row.context_length_chars >= threshold
+
+    def _maximal_context_chars(self, row: pd.Series) -> str:
+        return (
+            self.page2somefulltext[self.prev_page(row.page)]
+            + self.annid2fulltext[row.id][: row.sindex]
         )
 
-    def get_row_context_by_words(
+    def get_rows_context_by_words(
         self,
         row: pd.Series,
         n_words: int | None = None,
         n_words_min: int | None = None,
-    ):
+    ) -> str:
         """
         Devuelve el texto anterior al presente en una fila del DataFrame. Se devuelven n_words como máximo y si es posible,
-        si no, se devuelven las palabras que haya hasta un mínimo de n_words_min. Si no hay suficientes, lanza un error.
+        si no, se devuelven las palabras que haya hasta un mínimo de n_words_min. Si no hay suficientes, devuelve la str vacía.
         """
-
-        if not self._has_enough_context_words(row, n_words_min):
-            return ""
-
         n_words = n_words or self.context_words
         n_words_min = n_words_min or self.min_context_words
+        if not self._has_enough_context_words(row, n_words_min):
+            return ""
+        return " ".join(self._maximal_context_chars(row).split()[-n_words:])
 
-        curr_page_n = row.page
-        prev_page_n = self.prev_page(curr_page_n)
-
-        if n_words < n_words_min:
-            raise ValueError(f"{n_words=} < {n_words_min=}")
-
-        text_curr_page = self.annid2fulltext[row.id][: row.sindex]
-
-        # raise ValueError()
-        words_curr_page = text_curr_page.split()
-
-        if (len(words_curr_page) >= n_words) or not prev_page_n:
-            return " ".join(words_curr_page[-n_words:])
-
-        n_needed_words_prev = n_words - len(words_curr_page)
-        n_needed_min = n_words_min - len(words_curr_page)
-
-        text_prev_page = self.page2somefulltext[prev_page_n]
-        words_prev_page = text_prev_page.split()
-
-        if len(words_prev_page) == n_needed_words_prev:
-            # en el caso en el que las plabras vayan justas, como no hay una forma fácil de diferenciar si vienen
-            # completas o cortadas, directamente deshechamos la primera.
-            return " ".join(
-                words_prev_page[-n_needed_words_prev + 1 :] + words_curr_page
-            )
-        elif len(words_prev_page) >= n_needed_min:
-            return " ".join(words_prev_page[-n_needed_words_prev:] + words_curr_page)
-        else:
-            raise ValueError(
-                f"No hay suficientes palabras para contextualizar con {n_words=}, {n_words_min=}"
-            )
+    def get_rows_context_by_chars(
+        self,
+        row: pd.Series,
+        n_chars: int | None = None,
+        n_chars_min: int | None = None,
+    ) -> str:
+        """
+        Devuelve el texto anterior al presente en una fila del DataFrame. Se devuelven n_words como máximo y si es posible,
+        si no, se devuelven las palabras que haya hasta un mínimo de n_words_min. Si no hay suficientes, devuelve la str vacía.
+        """
+        n_chars = n_chars or self.context_chars
+        n_chars_min = n_chars_min or self.min_context_chars
+        if not self._has_enough_context_chars(row, n_chars_min):
+            return ""
+        return self._maximal_context_chars(row)[-n_chars:]
