@@ -38,6 +38,7 @@ class PairsDataInterface:
     __slots__ = (
         "df",
         "_filepath",
+        "paths",
         "page2somefulltext",
         "annid2fulltext",
         "ids",
@@ -67,6 +68,7 @@ class PairsDataInterface:
         self.ids = pd.unique(self.clean_pages.id)
 
         self._build_mappings()
+        self.paths = paths
 
         self.df["is_letter"] = self.df.page.apply(
             lambda x: isinstance(x, int) or str(x).isdigit()

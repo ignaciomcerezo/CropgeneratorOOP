@@ -1,6 +1,10 @@
 from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
+
+from typing import Callable, Generator, Any
+
+import pandas as pd
 from pathlib import Path
 
 raw_features = Features(
@@ -23,16 +27,19 @@ raw_features = Features(
 # un generador (debemos pasárselo usando este sistema a Dataset.from_generator).
 # que, a partir de un dataframe, nos da el generador de las muestras
 def generate_generator(
-    paths: PathBundle, pdi: PairsDataInterface, augment=True, resize_scale=0.5
-):
+    pdi: PairsDataInterface, augment=True, resize_scale=0.5
+) -> Callable[[pd.DataFrame], Generator[dict[str, Any]]]:
     """
+    Toma como entrada un PairsDataInterface, un booleano y un factor de escala 0...1.
+    Devuelve una función cuya única entrada es
     Genera solamente las RUTAS y metadatos. NO abre las imágenes aquí para salvar RAM.
     HuggingFace abrirá la imagen automáticamente cuando sea necesario gracias a ImageFeature().
     """
+    paths: PathBundle = pdi.paths
 
-    def raw_data_generator():
+    def raw_data_generator(df: pd.DataFrame) -> Generator:
         # iteramos el dataframe (es rápido porque son solo textos)
-        for index, row in pdi.df.iterrows():
+        for index, row in df.iterrows():
 
             img_name = str(row.crop_file)
             text = str(row.text)

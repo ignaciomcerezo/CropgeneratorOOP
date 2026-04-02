@@ -21,16 +21,19 @@ def get_datasets(
 
     df_train, df_test = pdi.split(p, orders_to_consider)
 
+    generator_fn = generate_generator(pdi, augment=augment, resize_scale=resize_scale)
     print(f"Creando dataset de train ({augment=}...", end=" ")
     dataset_train = Dataset.from_generator(
-        generate_generator(df_train, augment=augment, resize_scale=resize_scale),
+        generator_fn,
+        gen_kwargs={"df": df_train},
         features=raw_features,
     )
     print(f"Creadas {len(dataset_train)} muestras de entrenamiento")
 
     print("Creando datset de test (sin aumentar)...", end=" ")
     dataset_test = Dataset.from_generator(
-        generate_generator(df_test, resize_scale=resize_scale),
+        generator_fn,
+        gen_kwargs={"df": df_test},
         features=raw_features,
     )
     print(f"Creadas {len(dataset_test)} muestras de test")
