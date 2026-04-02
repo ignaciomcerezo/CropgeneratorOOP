@@ -60,9 +60,11 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
 def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
     for task in tqdm(lsi.simplified_tasks, desc="test_audit_annotations"):
-        image = Image.open(paths.get_image_path_from_task(task))
+        path = paths.get_image_path_from_task(task)
+        assert path is not None
+        image = Image.open(path)
 
-        for k_ann, ann in enumerate(task["annotations"]):
+        for k_ann, ann in task.annotations:
             ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
             ann.assert_pairing()  # esto ya se llama dentro del AnnotatedPage.__init__(), pero por asegurar
 
@@ -170,9 +172,11 @@ re_letternumber = re.compile(r"[a-zA-Z]+\d", re.DOTALL)
 @pytest.mark.skip("Esto realmente no es un test")
 def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
     for task in lsi.simplified_tasks:
-        image = Image.open(paths.get_image_path_from_task(task))
+        path = paths.get_image_path_from_task(task)
+        assert path is not None
+        image = Image.open(path)
 
-        for k_ann, ann in enumerate(task["annotations"]):
+        for k_ann, ann in enumerate(task.annotations):
             ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
 
             for paragraph in ann.paragraphs:
@@ -186,10 +190,12 @@ def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
 @pytest.mark.skip("Esto es un pseudotest para detectar ciclos en el grafo de párrafos")
 def test_paragraph_graphs_are_path_graphs(paths, ls_url, ls_token, lsi):
     for task in lsi.simplified_tasks:
-        for k_ann, ann in enumerate(task["annotations"]):
+        for k_ann, ann in enumerate(task.annotations):
+            path = paths.get_image_path_from_task(task)
+            assert path is not None
             ann_obj = AnnotatedPage(
                 ann,
-                Image.open(paths.get_image_path_from_task(task)),
+                Image.open(path),
                 usernames_labelstudio=lsi.usernames,
             )
             for paragraph in ann_obj.paragraphs:
@@ -205,7 +211,7 @@ def test_paragraph_graphs_are_path_graphs(paths, ls_url, ls_token, lsi):
                     continue
 
                 start = ends[0]
-                seen = set([start])
+                seen = {start}
                 current = start
                 prev = None
                 is_path = True

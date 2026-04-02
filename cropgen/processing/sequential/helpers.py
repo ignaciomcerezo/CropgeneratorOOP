@@ -1,6 +1,6 @@
 def generate_connected_subgraphs(nodes, adj, k):
     """
-    Genera todos los subgrafos conexos de orden k a partir del conjunto de
+    Genera todos los subgrafos conexos de orden key a partir del conjunto de
     nodos dado y el grafo de adyacencia.
     Devuelve un generador de conjuntos inmutables (frozenset) de nodos, lo que
     nos permite hacer un hash de toda la secuencia de nodos para evitar repeticiones

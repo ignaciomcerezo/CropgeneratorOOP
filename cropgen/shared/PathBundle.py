@@ -1,7 +1,10 @@
 import urllib.parse
 from pathlib import Path
-from os import getcwd, listdir
+from os import getcwd
 import shutil
+
+from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
@@ -10,6 +13,11 @@ _usernames_filename = "usernames.txt"
 
 
 class PathBundle:
+    """
+    Clase para almacenar las rutas empleadas durante la generación, y algunas funcionalidades útiles relacionadas
+    con los archivos y esta carpeta.
+    """
+
     def __init__(self, root: Path | str | None = None):
         self.root: Path = Path(root) if root else Path(getcwd())
 
@@ -45,7 +53,10 @@ class PathBundle:
     def __repr__(self):
         return str(f"<PathBundle con raíz {self.root}>")
 
-    def assert_paths(self):
+    def assert_paths(self) -> None:
+        """
+        Comprueba que todas las rutas son accesibles, son instancias de Path válidas y las crea.
+        """
         for path in [
             self.images_path,
             self.transcriptions_path,
@@ -57,13 +68,15 @@ class PathBundle:
             assert isinstance(path, Path)
             path.mkdir(parents=True, exist_ok=True)
 
-    def get_image_path_from_task(self, task: dict):
+    def get_image_path_from_task(
+        self, task: SimplifiedTask | LabelStudioTask
+    ) -> Path | None:
         """
         Dada una tarea, devuelve la ruta LOCAL de la imagen correspondiente.
         Si no se encuentra, devuelve None.
         """
-        data = task.get("data", {})
-        image_url = data.get("image_url") or data.get("image") or ""
+        data = task.data
+        image_url = data.image_url or ""
 
         if not image_url:
             return None
@@ -85,12 +98,18 @@ class PathBundle:
         return None
 
     def get_order_folder(self, order: str | int) -> Path:
+        """
+        Devuelve la carpeta para guardar los crops de orden 'order'.
+        """
         folder = self.crops_path / str(order)
         if not folder.exists():
             folder.mkdir()
         return folder
 
     def remove_all_files(self) -> None:
+        """
+        Elimina todos los archivos de datos de los que depende la generación (data_in, data_out, exports).
+        """
         for path in [
             self.data_in_path,
             self.images_path,
@@ -108,6 +127,9 @@ class PathBundle:
                 )
 
     def get_worker_json_filepath(self, worker_id: int | None) -> Path:
+        """
+        Devuelve la ruta al archivo donde cada subproceso de augment_data_parallel debe guardar sus resultados parciales.
+        """
         name = self.json_filepath.stem
         extension = self.json_filepath.suffix
 
@@ -118,6 +140,7 @@ class PathBundle:
 
     @staticmethod
     def _empty_folder(folder):
+        """Vacía una carpeta indicada."""
         print(f"PathBundle - removing folder <{folder}>")
         if folder.exists() and folder.is_dir():
             for item in folder.iterdir():
@@ -141,6 +164,10 @@ class PathBundle:
         self._empty_folder(self.data_in_path)
 
     def clean_export_folder(self) -> None:
+        """
+        Elimina todos los archivos y carpetas dentro de la carpeta de los exports,
+        pero no elimina la propia carpeta data_out_path.
+        """
         self._empty_folder(self.exports_path)
 
     def remove_downloaded_image_and_transcription(self, page_name: str) -> None:
@@ -163,15 +190,18 @@ class PathBundle:
             print(f"No se encontró la transcripción: {transcription_path}")
 
     def get_image_path(self, page_name: str | int) -> Path:
+        """Devuelve la ruta a la imagen asociada a una página concreta."""
         return self.images_path / (self._normalize_page_name(page_name) + ".png")
 
     def get_transcription_path(self, page_name: str | int) -> Path:
+        """Devuelve la ruta a la transcripción asociada a una página concreta."""
         return self.transcriptions_path / (
             self._normalize_page_name(page_name) + ".txt"
         )
 
     @staticmethod
     def _normalize_page_name(page_name: str | int) -> str:
+        """Normaliza el nombre de la página para cuadrar con los usados en el resto del código."""
         page_name: str = str(page_name)
         if (".png" == page_name[-4:]) or (".txt" == page_name[-4:]):
             page_name = page_name[:-4]

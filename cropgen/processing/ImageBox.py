@@ -3,6 +3,7 @@ from typing import Optional
 from PIL import Image
 from typing import TYPE_CHECKING
 from shapely import Polygon
+from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 from cropgen.processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
     MultipleAssociationError,
@@ -92,7 +93,7 @@ class ImageBox:
 
     @staticmethod
     def from_json_value(
-        json_value: dict,
+        simplified_result_item: RectangleResult | PolygonResult,
         imgbox_id: str,
         task_id: int,
         img: Image.Image,
@@ -100,7 +101,7 @@ class ImageBox:
     ) -> "ImageBox":
 
         crop, polygon, rotation, true_rectangle, unrotated = ImageBox._rotatedregion(
-            img, json_value, unrotate
+            img, simplified_result_item, unrotate
         )
 
         return ImageBox(
@@ -115,7 +116,9 @@ class ImageBox:
 
     @staticmethod
     def _rotatedregion(
-        img: Image.Image, json_value, unrotate=False
+        img: Image.Image,
+        simplified_result_item: RectangleResult | PolygonResult,
+        unrotate=False,
     ) -> tuple[Image.Image, Polygon, float, bool, bool]:
         """
         Genera parte de la información necesaria para instanciar ImageBox a partir de la información en una tarea y
@@ -130,9 +133,9 @@ class ImageBox:
         la imagen completa, si se representa con los objetos enderezados, puede presentar anomalías: el enderezado
          solamente es para el proceso de revisión,
         """
-        height = json_value["original_height"]
-        width = json_value["original_width"]
-        val = json_value["value"]
+        height = simplified_result_item.original_height
+        width = simplified_result_item.original_width
+        val = simplified_result_item.value
 
         # Obtenemos el recorte y el polígono original (en coordenadas globales)
         crop, original_poly, rotation, polygonic = get_rotated_region(

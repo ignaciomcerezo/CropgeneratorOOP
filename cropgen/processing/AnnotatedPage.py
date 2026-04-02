@@ -20,6 +20,13 @@ from cropgen.processing.helpers.text_replacements import (
     replacements_envs,
     regex_replacements,
 )
+from cropgen.shared.LSTypedDicts.aggregates import ResultItem
+from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
+from cropgen.shared.LSTypedDicts.simplified import (
+    SimplifiedAnnotation,
+    SimplifiedResultItem,
+    SimplifiedTextCorrectionResult,
+)
 from cropgen.shared.default_parameters import (
     big_box_threshold,
     min_nodes_for_big_box_removal,
@@ -55,8 +62,8 @@ class AnnotatedPage:
 
     def __init__(
         self,
-        ann: dict[str, dict | str | int | list[str]],
-        img: Image.Image | None = None,
+        ann: SimplifiedAnnotation,
+        img: Image.Image,
         unrotate: bool = False,
         usernames_labelstudio: list[str] | None = None,
     ):
@@ -76,19 +83,19 @@ class AnnotatedPage:
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
-        results: dict = self._correct_results(
-            ann.get("result", [])
+        results: list[SimplifiedResultItem] = self._correct_results(
+            ann.result
         )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
-        self.task_id = int(ann["task"])
+        self.task_id = int(ann.task)
 
         self.background_color = get_dominant_color(img)
 
-        res_map = {r.get("id"): r for r in results}  # id -> dato anotado
+        res_map = {r.id: r for r in results}  # id -> dato anotado
 
         img_boxes_json = {
             rid: r
             for rid, r in res_map.items()
-            if r.get("type") in ("rectanglelabels", "polygonlabels")
+            if isinstance(r, (RectangleResult, PolygonResult))
         }
 
         self.image_boxes: dict[str, ImageBox] = (
@@ -100,10 +107,10 @@ class AnnotatedPage:
             }
         )
 
-        txt_boxes_json: dict[str, dict] = {
+        txt_boxes_json: dict[str, SimplifiedTextCorrectionResult] = {
             rid: r
             for rid, r in res_map.items()
-            if r.get("type") in ("labels", "hypertextlabels", "textarea")
+            if isinstance(r, SimplifiedTextCorrectionResult)
         }
 
         self.text_fragments: dict[str, TextFragment] = (
@@ -111,9 +118,9 @@ class AnnotatedPage:
                 fragment_id: TextFragment(
                     id=fragment_id,
                     text=(
-                        txtbox_res["value"]["text"].strip()
-                        if isinstance(txtbox_res["value"]["text"], str)
-                        else " ".join(txtbox_res["value"]["text"]).strip()
+                        txtbox_res.value.text.strip()
+                        if isinstance(txtbox_res.value.text, str)
+                        else " ".join(txtbox_res.value.text).strip()
                     ),
                     task_id=self.task_id,
                 )
@@ -168,11 +175,11 @@ class AnnotatedPage:
                 sindex += len(fragment.text) + 1
 
         self.last_update_time = " ".join(
-            ann["updated_at"].replace("Z", "").split("T")
+            ann.updated_at.replace("Z", "").split("T")
         )  # última actualización de la tarea
 
-        completer_index = ann["completed_by"]
-        updater_index = ann["updated_by"]
+        completer_index = ann.completed_by
+        updater_index = ann.updated_by
         self.completer = (
             usernames_labelstudio[completer_index]
             if completer_index < len(usernames_labelstudio)
@@ -183,7 +190,7 @@ class AnnotatedPage:
             if updater_index < len(usernames_labelstudio)
             else "Unknown"
         )
-        self.annotation_unique_id = ann["id"]
+        self.annotation_unique_id = ann.id
 
     @property
     def order(self) -> int:
@@ -308,7 +315,9 @@ class AnnotatedPage:
         return adj
 
     @staticmethod
-    def _correct_results(results: dict) -> dict:
+    def _correct_results(
+        results: list[SimplifiedResultItem],
+    ) -> list[SimplifiedResultItem]:
         """
         Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
         los resultados de una tarea (ambas son variables de clase).
@@ -317,7 +326,7 @@ class AnnotatedPage:
 
         for r in results:
             # solamente hacemos las sustituciones en los fragmentos de texto:
-            if r.get("type") in ("labels", "hypertextlabels", "textarea"):
+            if r.type in ("labels", "hypertextlabels", "textarea"):
 
                 # teóricamente esto debería ser únicamente un elemento, pero no realizamos suposiciones
                 # innecesarias
