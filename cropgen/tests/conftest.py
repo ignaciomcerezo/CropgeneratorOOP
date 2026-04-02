@@ -46,7 +46,6 @@ def lsi(paths, ls_token, ls_url) -> LabelStudioInterface:
 @pytest.fixture(scope="session")
 def obi(paths, bucket_url):
     obi = OracleBucketInterface(paths, bucket_url)
-    obi.update()
     return obi
 
 

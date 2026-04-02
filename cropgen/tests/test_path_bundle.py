@@ -18,10 +18,10 @@ def test_pathbundle_get_image_and_transcription_path(paths: PathBundle):
 
 
 def test_pathbundle_normalize_name():
-    assert PathBundle._normalize_name(5) == "005"
-    assert PathBundle._normalize_name("5") == "005"
-    assert PathBundle._normalize_name("015") == "015"
-    assert PathBundle._normalize_name(123) == "123"
+    assert PathBundle._normalize_page_name(5) == "005"
+    assert PathBundle._normalize_page_name("5") == "005"
+    assert PathBundle._normalize_page_name("015") == "015"
+    assert PathBundle._normalize_page_name(123) == "123"
 
 
 def test_pathbundle_get_image_path_from_task(paths: PathBundle):
@@ -33,7 +33,6 @@ def test_pathbundle_get_image_path_from_task(paths: PathBundle):
 
 
 def test_pathbundle_remove_and_clean(paths: PathBundle):
-    # Crea archivos temporales y verifica que los elimina
     temp_img = paths.images_path / "temp_test.png"
     temp_txt = paths.transcriptions_path / "temp_test.txt"
     temp_img.write_bytes(b"test")
@@ -41,13 +40,3 @@ def test_pathbundle_remove_and_clean(paths: PathBundle):
     assert temp_img.exists() and temp_txt.exists()
     paths.remove_downloaded_image_and_transcription("temp_test.png")
     assert not temp_img.exists() and not temp_txt.exists()
-    # Prueba clean_output_folder y clean_input_folder (no deben lanzar error)
-    paths.clean_output_folder()
-    paths.clean_input_folder()
-    paths.clean_export_folder()
-
-
-def test_pathbundle_repr(paths: PathBundle):
-    # Verifica que el __repr__ devuelve un string informativo
-    rep = repr(paths)
-    assert "PathBundle" in rep

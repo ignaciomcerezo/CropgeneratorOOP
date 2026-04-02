@@ -117,6 +117,7 @@ class PathBundle:
 
     @staticmethod
     def _empty_folder(folder):
+        print(f"PathBundle - removing folder <{folder}>")
         if folder.exists() and folder.is_dir():
             for item in folder.iterdir():
                 if item.is_dir():
@@ -145,8 +146,8 @@ class PathBundle:
         """
         Elimina la imagen y la transcripción asociadas a un nombre de página dado.
         """
-        image_path = self.images_path / page_name
-        transcription_path = self.transcriptions_path / (Path(page_name).stem + ".txt")
+        image_path = self.get_image_path(page_name)
+        transcription_path = self.get_transcription_path(page_name)
 
         if image_path.exists():
             image_path.unlink()
@@ -161,13 +162,19 @@ class PathBundle:
             print(f"No se encontró la transcripción: {transcription_path}")
 
     def get_image_path(self, page_name: str | int) -> Path:
-        return self.images_path / (self._normalize_name(page_name) + ".png")
+        return self.images_path / (self._normalize_page_name(page_name) + ".png")
 
     def get_transcription_path(self, page_name: str | int) -> Path:
-        return self.transcriptions_path / (self._normalize_name(page_name) + ".txt")
+        return self.transcriptions_path / (
+            self._normalize_page_name(page_name) + ".txt"
+        )
 
     @staticmethod
-    def _normalize_name(page_name: str | int) -> str:
+    def _normalize_page_name(page_name: str | int) -> str:
+        page_name = str(page_name)
+        if (".png" == page_name[-4:]) or (".txt" == page_name[-4:]):
+            page_name = page_name[:-4]
+
         page_name: str = str(page_name)
         if len(page_name) < 3 and page_name.isdigit():
             page_name = page_name.rjust(3, "0")

@@ -59,7 +59,7 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
 @pytest.mark.audit
 def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
-    for task in tqdm(lsi.simplified_tasks):
+    for task in tqdm(lsi.simplified_tasks, desc="test_audit_annotations"):
         image = Image.open(paths.get_image_path_from_task(task))
 
         for k_ann, ann in enumerate(task["annotations"]):
