@@ -53,14 +53,14 @@ def get_split_separate_laloma_and_letters(
         df[~df["is_letter"]], prop_train, lengths=orders
     )
 
-    train_pages_letters, test_pages_laloma = greedy_page_split_df(
+    train_pages_letters, test_pages_letters = greedy_page_split_df(
         df[df["is_letter"]], prop_train, lengths=orders
     )
 
     # dividimos de forma homogénea el train y el test
 
     a = train_pages_laloma.union(train_pages_letters)
-    b = test_pages_laloma.union(test_pages_laloma)
+    b = test_pages_laloma.union(test_pages_letters)
 
     train = df[df["page"].isin(a)]
     test = df[df["page"].isin(b)]

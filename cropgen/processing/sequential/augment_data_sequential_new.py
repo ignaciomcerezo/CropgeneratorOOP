@@ -272,7 +272,7 @@ def _process_orders_to_consider(
 
     # total de tareas a procesar
     total_tqdm = len(task_only) if filtering_active else len_tasks
-    progressbar = tqdm(total=total_tqdm)
+    progressbar = tqdm(total=total_tqdm, desc="order / total to consider")
 
     if not filtering_active:
         print(f"Procesando todas las tareas (sin filtro de tasks_only)")
