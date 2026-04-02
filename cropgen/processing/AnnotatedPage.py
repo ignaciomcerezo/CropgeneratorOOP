@@ -56,9 +56,9 @@ class AnnotatedPage:
     def __init__(
         self,
         ann: dict[str, dict | str | int | list[str]],
-        img: Image.Image = None,
+        img: Image.Image | None = None,
         unrotate: bool = False,
-        usernames_labelstudio: list[str] = None,
+        usernames_labelstudio: list[str] | None = None,
     ):
 
         if unrotate and AnnotatedPage.warn_unrotate:
@@ -76,7 +76,7 @@ class AnnotatedPage:
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
-        results: list = self._correct_results(
+        results: dict = self._correct_results(
             ann.get("result", [])
         )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
         self.task_id = int(ann["task"])
@@ -308,7 +308,7 @@ class AnnotatedPage:
         return adj
 
     @staticmethod
-    def _correct_results(results: list) -> list:
+    def _correct_results(results: dict) -> dict:
         """
         Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
         los resultados de una tarea (ambas son variables de clase).
@@ -429,7 +429,7 @@ class AnnotatedPage:
         fragments = sorted(fragments, key=lambda x: x.starting_index)
 
         transcription = " ".join([fragment.text for fragment in fragments])
-        sindex = fragments[0].starting_index
+        sindex = int(fragments[0].starting_index)
 
         return collage, transcription, sindex
 

@@ -13,6 +13,7 @@ dependencies = [
     "ipykernel>=7.2.0",
     "label-studio-sdk>=2.0.19",
     "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
     "pytest>=9.0.2",
     "python-dotenv>=1.2.2",
     "requests>=2.32.5",
@@ -22,3 +23,16 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["cropgen*"]
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+cropgen = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "cropgen",
+]

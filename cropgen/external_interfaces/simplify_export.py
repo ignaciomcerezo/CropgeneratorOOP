@@ -95,7 +95,7 @@ def simplify_export(raw_export_filepath: Path, simplified_filepath: Path):
             raw_results = ann.get("result", [])
 
             # agrupamos resultados por su ID
-            results_by_id = {}
+            results_by_id: dict[str, list] = {}
             relations = []
 
             for r in raw_results:

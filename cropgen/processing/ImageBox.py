@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from PIL import Image
+from typing import TYPE_CHECKING
 from shapely import Polygon
 from cropgen.processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
@@ -12,6 +13,9 @@ from cropgen.processing.helpers.helper_to_classes import (
     unrotate_image,
 )
 from shapely import Polygon, box as boxshape
+
+if TYPE_CHECKING:
+    from cropgen.processing.TextFragment import TextFragment
 
 
 @dataclass(slots=True, kw_only=True)
@@ -39,7 +43,7 @@ class ImageBox:
         if (
             len(self.associated_fragments) != 0
         ):  # si ya tenemos un fragmento de texto asociado
-            if warn and (fragment.row_id in self.associated_fragments):
+            if warn and (fragment.id in self.associated_fragments):
                 raise RepeatedSameAssociationError(self)
             elif warn:
                 raise MultipleAssociationError(self)
@@ -90,20 +94,29 @@ class ImageBox:
     def from_json_value(
         json_value: dict,
         imgbox_id: str,
-        task_id: int | str,
+        task_id: int,
         img: Image.Image,
         unrotate: bool = False,
     ) -> "ImageBox":
+
+        crop, polygon, rotation, true_rectangle, unrotated = ImageBox._rotatedregion(
+            img, json_value, unrotate
+        )
+
         return ImageBox(
             id=imgbox_id,
             task_id=task_id,
-            **ImageBox._rotatedregion(img, json_value, unrotate),
+            crop=crop,
+            polygon=polygon,
+            rotation=rotation,
+            true_rectangle=true_rectangle,
+            unrotated=unrotated,
         )
 
     @staticmethod
     def _rotatedregion(
         img: Image.Image, json_value, unrotate=False
-    ) -> dict[str, Image.Image | Polygon | bool]:
+    ) -> tuple[Image.Image, Polygon, float, bool, bool]:
         """
         Genera parte de la información necesaria para instanciar ImageBox a partir de la información en una tarea y
         su imagen. Devuelve, en orden:
@@ -127,13 +140,7 @@ class ImageBox:
         )
 
         if not unrotate or not rotation:
-            return {
-                "crop": crop,
-                "polygon": original_poly,
-                "rotation": rotation,
-                "true_rectangle": not polygonic,
-                "unrotated": False,
-            }
+            return crop, original_poly, rotation, not polygonic, False
         else:
             # Si des-rotamos, la bounding box del polígono original (rotado) suele ser
             # más grande que la imagen enderezada final, generando espacios en blanco en el collage.
@@ -157,12 +164,6 @@ class ImageBox:
             # construimos un nuevo polígono rectangular
             # empieza en el pivote original pero tiene exactamente las dimensiones de la imagen recortada.
             # esto nos asegura consistencia al pegar en el lienzo del collage.
-            new_poly = boxshape(pivot_x, pivot_y, pivot_x + cw, pivot_y + ch)
+            new_poly = Polygon(boxshape(pivot_x, pivot_y, pivot_x + cw, pivot_y + ch))
 
-            return {
-                "crop": final_crop,
-                "polygon": new_poly,
-                "rotation": rotation,
-                "true_rectangle": not polygonic,
-                "unrotated": True,
-            }
+            return final_crop, new_poly, rotation, not polygonic, True

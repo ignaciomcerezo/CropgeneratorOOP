@@ -62,7 +62,7 @@ class LabelStudioInterface:
     @staticmethod
     def update_conditional(
         paths: PathBundle,
-        ls_url: str = None,
+        ls_url: str | None = None,
         token: str | None = None,
         project_id: int = 4,
         forced: bool = False,
@@ -169,7 +169,9 @@ class LabelStudioInterface:
         if not isinstance(index, (str, int)):
             raise TypeError("El índice debe ser entero o string convertible a entero.")
 
-        items = []
+        items: list[dict] = (
+            []
+        )  # i believe this to be the correct type hint, not sure (mark to check ???)
         for tsk in self.__simplified_tasks:
             if int(tsk["id"]) > index:
                 return items

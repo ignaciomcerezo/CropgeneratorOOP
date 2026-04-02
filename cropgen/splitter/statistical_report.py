@@ -47,7 +47,7 @@ class PairsStatisticalData:
         self.average_rotation = self._describe_numerical(df.average_rotation)
         self.math_percentage = self._describe_numerical(df.math_percentage)
 
-        self.stratified = {}
+        self.stratified: dict[str, dict[str, pd.DataFrame]] = {}
         for col_one in _columns_to_use:
             self.stratified[col_one] = {}
             for col_other in _columns_to_stratify_with:

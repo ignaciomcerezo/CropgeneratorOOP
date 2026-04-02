@@ -90,7 +90,7 @@ def get_deterministic_id(text, length: int = 8):
     return hash_object.hexdigest()[:length]
 
 
-def unrotate_image(img, rotation_degrees):
+def unrotate_image(img, rotation_degrees) -> Image.Image:
     """
     Des-rota una imagen, quitando también la máscara transparente.
     """

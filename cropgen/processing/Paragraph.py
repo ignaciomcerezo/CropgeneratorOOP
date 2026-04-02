@@ -33,7 +33,7 @@ class Paragraph:
         text_fragments: list[TextFragment] | None = None,
         task_id: int | None = None,
         index: int | None = None,
-        subgraph: dict[str, set[str]] = None,
+        subgraph: dict[str, set[str]] | None = None,
     ):
         assert (
             image_boxes or text_fragments
@@ -51,8 +51,8 @@ class Paragraph:
 
         self.image_boxes: list[ImageBox] = image_boxes
         self.text_fragments: list[TextFragment] = text_fragments
-        self.task_id: int = task_id
-        self.index: int = index
+        self.task_id: int | None = task_id
+        self.index: int | None = index
         self.subgraph: Optional[dict[str, set[str]]] = subgraph
 
         self.centroid: np.ndarray = np.zeros((2,))
@@ -114,15 +114,24 @@ class Paragraph:
     def __gt__(self, other: "Paragraph"):
         return (self.top, self.left) > (other.top, other.left)
 
-    def collage(self, fill_color: tuple[int] = (255, 0, 255)):
+    def collage(
+        self,
+        fill_color: tuple[int, int, int] | tuple[int, int, int, int] = (255, 0, 255),
+    ):
         return compose_collage(self.image_boxes, fill_color)
 
     def transcription(self):
         return " ".join([fragment.text for fragment in self.text_fragments])
 
     def cluster_reading_order(
-        self, unrotate: bool = False, fill_color: tuple[int] | None = (255, 0, 255)
+        self,
+        unrotate: bool = False,
+        fill_color: tuple[int, int, int] | tuple[int, int, int, int] | None = None,
     ):
+        fill_color: tuple[int, int, int] | tuple[int, int, int, int] = (
+            tuple(fill_color) if fill_color is not None else (255, 0, 255)
+        )
+
         if not unrotate:
             collage = compose_collage(self.image_boxes, (255, 0, 255))
         else:
@@ -152,19 +161,21 @@ class Paragraph:
         return coverage_union_all([box.polygon for box in self.image_boxes])
 
     def corrected_polygon(self, box: ImageBox):
-        t = np.radians(self.avg_rotation)
-        a = np.cos(t)
-        b = -np.sin(t)
-        c = np.sin(t)
-        d = np.cos(t)
-        x_c = -self.centroid[0]
-        y_c = -self.centroid[1]
+        t: float = np.radians(self.avg_rotation)
+        a: float = np.cos(t)
+        b: float = -np.sin(t)
+        c: float = np.sin(t)
+        d: float = np.cos(t)
+        x_c: float = -float(self.centroid[0])
+        y_c: float = -float(self.centroid[1])
         return affine_transform(box.polygon, [a, b, c, d, -x_c, -y_c])
 
     @staticmethod
-    def _get_average_rotation(angles_in_degrees: list[float], areas: list[float]):
+    def _get_average_rotation(
+        angles_in_degrees: list[float], areas: list[float]
+    ) -> float:
 
         angles_in_radians = np.radians(angles_in_degrees)
         sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
         sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
-        return -np.degrees(np.arctan2(sum_sin, sum_cos))
+        return -float(np.degrees(np.arctan2(sum_sin, sum_cos)))

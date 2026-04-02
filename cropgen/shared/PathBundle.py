@@ -110,9 +110,10 @@ class PathBundle:
     def get_worker_json_filepath(self, worker_id: int | None) -> Path:
         name = self.json_filepath.stem
         extension = self.json_filepath.suffix
-        if worker_id is None:
-            worker_id: str = ""
-        worker_filename = f"{name}_{worker_id}{extension}"
+
+        worker_id_str: str = str(worker_id) if worker_id is not None else ""
+
+        worker_filename = f"{name}_{worker_id_str}{extension}"
         return Path(self.json_filepath.parent / worker_filename)
 
     @staticmethod
@@ -171,11 +172,10 @@ class PathBundle:
 
     @staticmethod
     def _normalize_page_name(page_name: str | int) -> str:
-        page_name = str(page_name)
+        page_name: str = str(page_name)
         if (".png" == page_name[-4:]) or (".txt" == page_name[-4:]):
             page_name = page_name[:-4]
 
-        page_name: str = str(page_name)
         if len(page_name) < 3 and page_name.isdigit():
             page_name = page_name.rjust(3, "0")
         return page_name

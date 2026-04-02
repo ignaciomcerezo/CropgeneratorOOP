@@ -25,10 +25,10 @@ def test_pathbundle_normalize_name():
 
 
 def test_pathbundle_get_image_path_from_task(paths: PathBundle):
-    task = {"data": {"image": "015.png"}}
+    task: dict[str, dict[str, str]] = {"data": {"image": "015.png"}}
     img_path = paths.get_image_path_from_task(task)
     assert img_path is not None and img_path.exists()
-    task2 = {"data": {}}
+    task2: dict[str, dict] = {"data": {}}
     assert paths.get_image_path_from_task(task2) is None
 
 

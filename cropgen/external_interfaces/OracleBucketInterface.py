@@ -23,7 +23,7 @@ class OracleBucketInterface:
     def __init__(
         self,
         paths: PathBundle,
-        bucket_url: str = None,
+        bucket_url: str | None = None,
     ) -> None:
         if not bucket_url:
             if "BUCKET_URL" in os.environ:

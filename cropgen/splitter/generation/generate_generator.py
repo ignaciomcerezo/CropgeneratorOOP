@@ -3,7 +3,6 @@ from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 
 from typing import Callable, Generator, Any
-
 import pandas as pd
 from pathlib import Path
 
@@ -28,7 +27,7 @@ raw_features = Features(
 # que, a partir de un dataframe, nos da el generador de las muestras
 def generate_generator(
     pdi: PairsDataInterface, augment=True, resize_scale=0.5
-) -> Callable[[pd.DataFrame], Generator[dict[str, Any]]]:
+) -> Callable[[pd.DataFrame], Generator[dict[str, Any], None, None]]:
     """
     Toma como entrada un PairsDataInterface, un booleano y un factor de escala 0...1.
     Devuelve una función cuya única entrada es
@@ -37,7 +36,7 @@ def generate_generator(
     """
     paths: PathBundle = pdi.paths
 
-    def raw_data_generator(df: pd.DataFrame) -> Generator:
+    def raw_data_generator(df: pd.DataFrame) -> Generator[dict[str, Any], None, None]:
         # iteramos el dataframe (es rápido porque son solo textos)
         for index, row in df.iterrows():
 
