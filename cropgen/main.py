@@ -1,22 +1,17 @@
-from shared.PathBundle import PathBundle
-from external_interfaces.LabelStudioInterface import LabelStudioInterface
-from external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.shared.PathBundle import PathBundle
+from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 from dotenv import load_dotenv
-from processing.parallel.augment_data_parallel import augment_data_parallel
+from cropgen.processing.parallel.augment_data_parallel import augment_data_parallel
 
 load_dotenv()
 paths = PathBundle()
-OracleBucketInterface.from_env(paths).update()
-LabelStudioInterface.update_conditional(paths)
+obi = OracleBucketInterface.from_env(paths)
+obi.update()
+has_updated = LabelStudioInterface.update_conditional(paths)
 lsi = LabelStudioInterface(paths)
-lsi.save_simplified_export()
+if has_updated:
+    lsi.save_simplified_export()
 
-# TODO: check if the names that are being set @crops.xlsx are correct (they should match the name generation) - otherwise, check other related things
-#
-#
-# def main():
-#     augment_data_parallel(paths, [1], True, True, tasks_only=[15], lsi=lsi)
-#
-#
-# if __name__ == "__main__":
-#     main()
+pdi = PairsDataInterface(paths)

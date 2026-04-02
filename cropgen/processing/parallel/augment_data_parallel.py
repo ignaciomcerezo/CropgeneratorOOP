@@ -1,10 +1,7 @@
 from multiprocessing import Pool, cpu_count
 import numpy as np
 from functools import partial
-from cropgen.shared.PathBundle import (
-    PathBundle,
-    _output_json_filename as default_output_json_name,
-)
+from cropgen.shared.PathBundle import PathBundle
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.processing.parallel.helpers import run_chunk, merge_jsonl_files
 
@@ -14,7 +11,7 @@ def augment_data_parallel(
     orders_to_consider: list[int],
     generate_full_pages: bool,
     generate_paragraphs: bool,
-    tasks_only: list[int] | None,
+    tasks_only: list[int],
     lsi: LabelStudioInterface | None = None,
     num_processes: int = None,
 ):

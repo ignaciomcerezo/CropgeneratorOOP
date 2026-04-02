@@ -18,10 +18,10 @@ def load_particular_annotation(
 
     if reload_lsi:
         LabelStudioInterface.update_conditional(paths)
-        lsi = LabelStudioInterface(paths)
+        lsi: LabelStudioInterface = LabelStudioInterface(paths)
     else:
 
-        lsi = lsi if lsi else LabelStudioInterface(paths)
+        lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
 
     tsk = lsi[task_id][annotation_number_in_task]
 
@@ -32,6 +32,6 @@ def load_particular_annotation(
         tsk,
         Image.open(img_path),
         False,
-        usernames_LS=lsi.usernames,
+        usernames_labelstudio=lsi.usernames,
     )
     return ann

@@ -8,7 +8,6 @@ from cropgen.processing.helpers.helper_to_classes import (
 )
 from cropgen.shared.PathBundle import (
     PathBundle,
-    _output_json_filename as default_json_name,
 )
 import pandas as pd
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
@@ -20,21 +19,27 @@ def augment_data_sequential(
     generate_full_paragraphs: bool = True,
     tasks_only: list[int] | None = None,
     is_parallel: bool = False,
-    output_json_name: str = default_json_name,
     additive_json: bool = False,
     orders_to_consider: list[int] | str = "all",
     lsi: LabelStudioInterface | None = None,
+    worker_id: int | None = None,
 ):
     """Función principal para procesar las tareas y generar los recortes aumentados."""
-    lsi = lsi if lsi else LabelStudioInterface(paths)
-    paths.output_path.mkdir(parents=True, exist_ok=True)
+    lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
+
+    paths.data_out_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
 
     task_only = (
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else None
     )
 
-    jsonl_filepath = Path(paths.output_path) / output_json_name
+    print(f"Running {len(tasks_only)}")
+
+    if worker_id is None:
+        jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
+    else:
+        jsonl_filepath = paths.get_worker_json_filepath(worker_id)
 
     tasks = lsi.simplified_tasks
 
@@ -55,6 +60,7 @@ def augment_data_sequential(
 
     for task_idx, task in enumerate(tasks, start=1):
         task_id = str(task.get("id"))
+
         if is_parallel:
             # cuando paralelizamos, los splits se hacen por tareas.
             if filtering_active and (task_id not in task_only_set):
@@ -85,7 +91,7 @@ def augment_data_sequential(
             continue
 
         for Ann in (
-            AnnotatedPage(ann, img, unrotate=False, usernames_LS=lsi.usernames)
+            AnnotatedPage(ann, img, unrotate=False, usernames_labelstudio=lsi.usernames)
             for ann in lsi[task_id]
         ):
             if generate_full_pages:
@@ -100,12 +106,12 @@ def augment_data_sequential(
                 filename = f"pg_{page_number}_t{task_id}_h{get_deterministic_id(transcription)}.png"
 
                 filepath = full_dir / filename
-                print(f"Saving file to {filepath}")
                 image.save(filepath)
 
                 new_rows_data.append(
                     {  # nueva fila para el dataframe
                         "task": task_id,
+                        "id": Ann.annotation_unique_id,
                         "paragraph": "full",
                         "order": "full",
                         "sindex": 0,
@@ -131,12 +137,12 @@ def augment_data_sequential(
                     filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
 
                     filepath = paragraph_dir / filename
-                    print(f"Saving file to {filepath}")
                     image.save(filepath)
 
                     new_rows_data.append(
                         {  # nueva fila para el dataframe
                             "task": task_id,
+                            "id": Ann.annotation_unique_id,
                             "order": "paragraph",
                             "paragraph": paragraph.index,
                             "sindex": sindex,
@@ -185,6 +191,7 @@ def augment_data_sequential(
                         new_rows_data.append(
                             {  # nueva fila para el dataframe
                                 "task": task_id,
+                                "id": Ann.annotation_unique_id,
                                 "order": order,
                                 "paragraph": paragraph.index,
                                 "sindex": sindex,
@@ -219,6 +226,7 @@ def augment_data_sequential(
                 columns=[
                     "task",
                     "page",
+                    "id",
                     "order",
                     "paragraph",
                     "sindex",
@@ -237,7 +245,7 @@ def augment_data_sequential(
             jsonl_filepath, orient="records", lines=True, force_ascii=False
         )
         print(
-            f"\nGenerados {total_saved} recortes aumentados y guardados en {output_json_name}."
+            f"\nGenerados {total_saved} recortes aumentados y guardados en {paths.json_filepath.stem}."
         )
     except Exception as e:
         print(f"Error guardando el archivo jsonl: {e}")
@@ -264,7 +272,7 @@ def _process_orders_to_consider(
 
     # total de tareas a procesar
     total_tqdm = len(task_only) if filtering_active else len_tasks
-    progressbar = tqdm(total=total_tqdm)
+    progressbar = tqdm(total=total_tqdm, desc="order / total to consider")
 
     if not filtering_active:
         print(f"Procesando todas las tareas (sin filtro de tasks_only)")

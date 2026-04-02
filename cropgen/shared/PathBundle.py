@@ -1,6 +1,6 @@
 import urllib.parse
 from pathlib import Path
-from os import getcwd
+from os import getcwd, listdir
 import shutil
 
 _raw_export_json_filename = "raw_export.json"
@@ -26,9 +26,11 @@ class PathBundle:
         self.usernames_filepath: Path = self.exports_path / _usernames_filename
 
         # carpetas donde se van a colocar los datos generados.
-        self.output_path: Path = self.root / "data_out"
-        self.crops_path: Path = self.output_path / "crops"
-        self.json_filepath: Path = self.output_path / _output_json_filename
+        self.data_out_path: Path = self.root / "data_out"
+        self.crops_path: Path = self.data_out_path / "crops"
+        self.json_filepath: Path = self.data_out_path / _output_json_filename
+
+        self.dataset_path = self.root / "dataset"
 
         try:
             self.assert_paths()
@@ -48,7 +50,7 @@ class PathBundle:
             self.images_path,
             self.transcriptions_path,
             self.exports_path,
-            self.output_path,
+            self.data_out_path,
             self.crops_path,
             self.data_in_path,
         ]:
@@ -88,13 +90,13 @@ class PathBundle:
             folder.mkdir()
         return folder
 
-    def remove_all_files(self):
+    def remove_all_files(self) -> None:
         for path in [
             self.data_in_path,
             self.images_path,
             self.transcriptions_path,
             self.exports_path,
-            self.output_path,
+            self.data_out_path,
             self.crops_path,
         ]:
             if path.exists() and path.is_dir():
@@ -105,10 +107,75 @@ class PathBundle:
                     f"Se esperaba una carpeta pero se encontró un archivo en la ruta: {path}"
                 )
 
-    def get_worker_json_filepath(self, worker_id: int | None):
+    def get_worker_json_filepath(self, worker_id: int | None) -> Path:
         name = self.json_filepath.stem
         extension = self.json_filepath.suffix
         if worker_id is None:
-            worker_id = ""
+            worker_id: str = ""
         worker_filename = f"{name}_{worker_id}{extension}"
         return Path(self.json_filepath.parent / worker_filename)
+
+    @staticmethod
+    def _empty_folder(folder):
+        print(f"PathBundle - removing folder <{folder}>")
+        if folder.exists() and folder.is_dir():
+            for item in folder.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+
+    def clean_output_folder(self) -> None:
+        """
+        Elimina todos los archivos y carpetas dentro de la carpeta de salida (data_out_path),
+        pero no elimina la propia carpeta data_out_path.
+        """
+        self._empty_folder(self.data_out_path)
+
+    def clean_input_folder(self) -> None:
+        """
+        Elimina todos los archivos y carpetas dentro de la carpeta de entrada,
+        pero no elimina la propia carpeta data_out_path.
+        """
+        self._empty_folder(self.data_in_path)
+
+    def clean_export_folder(self) -> None:
+        self._empty_folder(self.exports_path)
+
+    def remove_downloaded_image_and_transcription(self, page_name: str) -> None:
+        """
+        Elimina la imagen y la transcripción asociadas a un nombre de página dado.
+        """
+        image_path = self.get_image_path(page_name)
+        transcription_path = self.get_transcription_path(page_name)
+
+        if image_path.exists():
+            image_path.unlink()
+            print(f"Imagen eliminada: {image_path}")
+        else:
+            print(f"No se encontró la imagen: {image_path}")
+
+        if transcription_path.exists():
+            transcription_path.unlink()
+            print(f"Transcripción eliminada: {transcription_path}")
+        else:
+            print(f"No se encontró la transcripción: {transcription_path}")
+
+    def get_image_path(self, page_name: str | int) -> Path:
+        return self.images_path / (self._normalize_page_name(page_name) + ".png")
+
+    def get_transcription_path(self, page_name: str | int) -> Path:
+        return self.transcriptions_path / (
+            self._normalize_page_name(page_name) + ".txt"
+        )
+
+    @staticmethod
+    def _normalize_page_name(page_name: str | int) -> str:
+        page_name = str(page_name)
+        if (".png" == page_name[-4:]) or (".txt" == page_name[-4:]):
+            page_name = page_name[:-4]
+
+        page_name: str = str(page_name)
+        if len(page_name) < 3 and page_name.isdigit():
+            page_name = page_name.rjust(3, "0")
+        return page_name

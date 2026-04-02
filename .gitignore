@@ -5,4 +5,5 @@ data_in/
 __pycache__/
 cropgen.egg-info/
 build/
+.venv/
 .env

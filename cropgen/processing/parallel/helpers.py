@@ -24,15 +24,14 @@ def run_chunk(
 
     # Cada proceso guarda los resultados a un fichero JSONL diferente.
     part_json_name = paths.get_worker_json_filepath(worker_id)
-
     augment_data_sequential(
         paths=paths,
-        output_json_name=part_json_name,
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_full_paragraphs=generate_paragraphs,
         tasks_only=tasks_subset,
         is_parallel=True,
+        worker_id=worker_id,
     )
     return f"Tarea del trabajador {worker_id} terminada."
 
@@ -49,9 +48,9 @@ def merge_jsonl_files(paths: PathBundle, delete_parts=True):
     files_to_merge = []
 
     # buscamos los archivos tipo jsonl que coincidan con la estructura que buscamos
-    for filename in os.listdir(paths.output_path):
+    for filename in os.listdir(paths.data_out_path):
         if re.match(rf"^{re.escape(base_name)}_(\d+){re.escape(extension)}$", filename):
-            files_to_merge.append(paths.output_path / filename)
+            files_to_merge.append(paths.data_out_path / filename)
 
     if not files_to_merge:
         raise FileNotFoundError(
@@ -70,13 +69,13 @@ def merge_jsonl_files(paths: PathBundle, delete_parts=True):
     combined_df = pd.concat(dfs, ignore_index=True)
     try:
         combined_df.to_json(
-            paths.output_path / output_name,
+            paths.data_out_path / output_name,
             orient="records",
             lines=True,
             force_ascii=False,
         )
         print(
-            f"Archivo {output_name.suffix.upper()} combinado guardado en {paths.output_path / output_name}"
+            f"Archivo {output_name.suffix.upper()} combinado guardado en {paths.data_out_path / output_name}"
         )
     except Exception as e:
         print(f"Error guardando el archivo combinado: {e}")

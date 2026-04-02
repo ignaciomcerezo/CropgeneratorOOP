@@ -2,6 +2,7 @@ from __future__ import annotations
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from pathlib import Path
+from dotenv import load_dotenv  # type: ignore
 import os
 import urllib.parse
 
@@ -15,9 +16,7 @@ class _PairInfo:
     key: str
     image_object: str
     transcription_object: str
-    image_stem: str
-    image_size: int | None
-    transcription_size: int | None
+    page_name: str
 
 
 class OracleBucketInterface:
@@ -26,9 +25,9 @@ class OracleBucketInterface:
         paths: PathBundle,
         bucket_url: str = None,
     ) -> None:
-        if not bucket_url or not isinstance(bucket_url, str):
+        if not bucket_url:
             if "BUCKET_URL" in os.environ:
-                bucket_url = os.getenv("BUCKET_URL")
+                bucket_url: str = str(os.getenv("BUCKET_URL"))
             else:
                 raise ValueError(
                     "O bien se pasa un bucket_url (str no vacio) o bien se tiene en las variables de entorno BUCKET_URL."
@@ -51,10 +50,10 @@ class OracleBucketInterface:
     ) -> "OracleBucketInterface":
         # cargamos nuestro .env si python-dotenv esta disponible; si no, usa os.getenv
         try:
-            from dotenv import load_dotenv  # type: ignore
 
             load_dotenv()
         except Exception:
+            print("No se ha podido cargar el dotenv.")
             pass
 
         bucket_url = os.getenv(env_var)
@@ -102,64 +101,48 @@ class OracleBucketInterface:
         return objects
 
     def _build_pairs(self, objects: list[dict]) -> list[_PairInfo]:
-        images_by_key: dict[str, tuple[str, str, int | None]] = {}
-        trans_by_key: dict[str, tuple[str, int | None]] = {}
+        images_by_key: dict[str, tuple[str, str]] = {}
+        trans_by_key: dict[str, str] = {}
 
         for obj in objects:
             raw_name = obj.get("name")
             if not raw_name:
                 continue
 
-            # como puede venir con %2F en algunos casos, lo normalizamos.
             decoded_name = urllib.parse.unquote(str(raw_name))
             path_str = decoded_name.replace("\\", "/")
             p = Path(path_str)
             suffix = p.suffix.lower()
             stem = p.stem
-            size = obj.get("size")
-            size = (
-                int(size)
-                if isinstance(size, int) or (isinstance(size, str) and size.isdigit())
-                else None
-            )
 
             if suffix == ".png":
-                # ignoramos fotos dentro de transcripciones
                 if "transcripciones/" in path_str:
                     continue
                 key = self._normalize_key(stem)
-                # si hay duplicados de clave, nos quedamos con uno determinista.
-                current = images_by_key.get(key)
-                candidate = (decoded_name, stem, size)
-                if current is None or candidate[0] < current[0]:
-                    images_by_key[key] = candidate
-
+                images_by_key[key] = (decoded_name, stem)
             elif suffix == ".txt" and "transcripciones/" in path_str:
                 key = self._normalize_key(stem)
-                current_t = trans_by_key.get(key)
-                candidate_t = (decoded_name, size)
-                if current_t is None or candidate_t[0] < current_t[0]:
-                    trans_by_key[key] = candidate_t
+                trans_by_key[key] = decoded_name
 
         pairs: list[_PairInfo] = []
-        for key in sorted(images_by_key.keys() & trans_by_key.keys()):
-            img_obj, img_stem, img_size = images_by_key[key]
-            txt_obj, txt_size = trans_by_key[key]
+        for key in sorted(
+            set(images_by_key.keys()).intersection(set(trans_by_key.keys()))
+        ):
+            img_obj, img_stem = images_by_key[key]
+            txt_obj = trans_by_key[key]
             pairs.append(
                 _PairInfo(
                     key=key,
                     image_object=img_obj,
                     transcription_object=txt_obj,
-                    image_stem=img_stem,
-                    image_size=img_size,
-                    transcription_size=txt_size,
+                    page_name=img_stem,
                 )
             )
         return pairs
 
     def _needs_download(self, pair: _PairInfo) -> bool:
-        local_img = self.paths.images_path / f"{pair.image_stem}.png"
-        local_txt = self.paths.transcriptions_path / f"{pair.image_stem}.txt"
+        local_img = self.paths.get_image_path(pair.page_name)
+        local_txt = self.paths.get_transcription_path(pair.page_name)
 
         img_ok = local_img.exists()
         txt_ok = local_txt.exists()
@@ -172,7 +155,7 @@ class OracleBucketInterface:
         return [pair for pair in pairs if self._needs_download(pair)]
 
     def check_updates(self) -> list[str]:
-        return [pair.image_stem for pair in self._compute_updates()]
+        return [pair.page_name for pair in self._compute_updates()]
 
     def update(self) -> list[str]:
 
@@ -194,12 +177,12 @@ class OracleBucketInterface:
                 img_resp = session.get(img_url, timeout=self._timeout)
                 img_resp.raise_for_status()
 
-                local_txt = self.paths.transcriptions_path / f"{pair.image_stem}.txt"
-                local_img = self.paths.images_path / f"{pair.image_stem}.png"
+                local_txt = self.paths.get_transcription_path(pair.page_name)
+                local_img = self.paths.get_image_path(pair.page_name)
 
                 local_txt.write_text(txt_resp.text, encoding="utf-8")
                 local_img.write_bytes(img_resp.content)
 
-                downloaded.append(pair.image_stem)
+                downloaded.append(pair.page_name)
 
         return downloaded

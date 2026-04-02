@@ -24,3 +24,27 @@ def test_intersections_and_geometries(paths):
     assert len(load_particular_annotation(paths, 342, 0).paragraphs) == 1
     assert len(load_particular_annotation(paths, 343, 0).paragraphs) == 2
     assert len(load_particular_annotation(paths, 344, 1).paragraphs) == 2
+
+    ann103 = load_particular_annotation(paths, 103, 1)
+
+    # bloques [A][B][C] adyacentes, por otra parte [D][E]
+
+    box_a = ann103.image_boxes["IiE7GGxUDC"]
+    box_b = ann103.image_boxes["2xbI1Hl0SF"]
+    box_c = ann103.image_boxes["55lKzt7x5K"]
+    box_d = ann103.image_boxes["pUwiyxx5ef"]
+    box_e = ann103.image_boxes["9JCf_2DS45"]
+
+    assert box_a.polygon.intersects(box_b.polygon)
+    assert not box_a.polygon.intersects(box_c.polygon)
+    assert not box_a.polygon.intersects(box_d.polygon)
+    assert not box_a.polygon.intersects(box_e.polygon)
+
+    assert box_b.polygon.intersects(box_c.polygon)
+    assert not box_b.polygon.intersects(box_d.polygon)
+    assert not box_b.polygon.intersects(box_e.polygon)
+
+    assert not box_c.polygon.intersects(box_d.polygon)
+    assert not box_c.polygon.intersects(box_e.polygon)
+
+    assert box_d.polygon.intersects(box_e.polygon)
