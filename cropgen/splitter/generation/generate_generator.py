@@ -1,7 +1,6 @@
 from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
-import pandas as pd
 from pathlib import Path
 
 raw_features = Features(
@@ -9,6 +8,7 @@ raw_features = Features(
         "image": ImageFeature(),  # HF manejará la carga "perezosa" (Lazy Loading)
         "text": Value("string"),
         "page": Value("string"),
+        "ann_id": Value("int32"),
         "order": Value("string"),
         "augment": Value("bool"),  # Flag para saber si aplicar transformaciones
         "resize_scale": Value("float32"),  # Factor de escala
@@ -34,10 +34,10 @@ def generate_generator(
         # iteramos el dataframe (es rápido porque son solo textos)
         for index, row in pdi.df.iterrows():
 
-            img_name = row.crop_file
-            text = row.text
-            row_page = row.page
-            row_ann_id = row.id
+            img_name = str(row.crop_file)
+            text = str(row.text)
+            row_page = str(row.page)
+            row_ann_id = int(row.id)
             is_letter = row.is_letter
             avg_color = tuple([int(x) for x in row.background_color[1:-1].split(",")])
 
@@ -53,9 +53,10 @@ def generate_generator(
                 "image": image_path,  # nótese que no abrimos la imagen, solamente pasamos la ruta
                 "text": text,
                 "context": context,
-                # de aquí en adelante son valor que realmente no pasamos al modelo, pero son
+                # de aquí en adelante son valores que realmente no pasamos al modelo, pero son
                 # necesarios para el fit_transform o para poder ubicar qué archivo es
                 # durante el análisis de los resultados.
+                "ann_id": row_ann_id,
                 "page": row_page,
                 "order": order,
                 "is_letter": is_letter,

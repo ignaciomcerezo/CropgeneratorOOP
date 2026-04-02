@@ -18,6 +18,13 @@ _expected_columns = [
 ]
 
 
+def _has_correct_background_format(value: list[int]):
+    assert isinstance(value, list)
+    assert len(value) == 3
+    assert all([isinstance(xi, int) for xi in value])
+    return True
+
+
 def test_df_column_types(paths: PathBundle):
     pdi = PairsDataInterface(paths)
     assert set(pdi.df.columns) == set(_expected_columns)
@@ -36,11 +43,7 @@ def test_df_column_types(paths: PathBundle):
         .apply(lambda x: isinstance(x, int) or (x == "full") or (x == "paragraph"))
         .all()
     )
-    assert (
-        pdi.df["background_color"]
-        .apply(lambda x: isinstance(x, list) and all([isinstance(xi, int) for xi in x]))
-        .all()
-    )
+    assert pdi.df["background_color"].apply(_has_correct_background_format).all()
     assert pdi.df["average_rotation"].apply(lambda x: isinstance(x, float)).all
     assert pdi.df["context_length_chars"].apply(lambda x: isinstance(x, int)).all
     assert pdi.df["context_length_words"].apply(lambda x: isinstance(x, int)).all

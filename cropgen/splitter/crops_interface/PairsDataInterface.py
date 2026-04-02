@@ -171,12 +171,12 @@ class PairsDataInterface:
                 return False
 
     def split(
-        self, p: float, order_to_consider: tuple[int] = (1,)
+        self, p: float, orders_to_consider: list[int] | tuple[int] = (1,)
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Genera el split train/test, usando un algoritmo greedy sobre cada subconjunto con
         igual proporción deseada: primero LoLoMa y luego las cartas, para asegurar homogeneidad
         en ese respecto."""
-        return get_split_separate_laloma_and_letters(self.df, p, order_to_consider)
+        return get_split_separate_laloma_and_letters(self.df, p, orders_to_consider)
 
     @staticmethod
     def _has_enough_context_words(row: pd.Series, threshold: int | None = None) -> bool:

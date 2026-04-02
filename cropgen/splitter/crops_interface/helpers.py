@@ -1,4 +1,4 @@
-def greedy_page_split_df(df, p=0.8, lengths: tuple[int] = (1,)):
+def greedy_page_split_df(df, p=0.8, orders: list[int] | tuple[int] = (1,)):
     """
     Divide las páginas en dos grupos (que serán train y test), de forma que la relación
     #f(a)/(#f(a) + #f(b)) sea aproximadamente p, donde f(a) es el conjunto de archivos (muestras) en
@@ -8,7 +8,7 @@ def greedy_page_split_df(df, p=0.8, lengths: tuple[int] = (1,)):
     partición solamente las longitudes indicadas
     """
 
-    df_p = df[df.order.isin(lengths)]  # solamente los archivos que queremos considerar
+    df_p = df[df.order.isin(orders)]  # solamente los archivos que queremos considerar
 
     total = df_p.count().iloc[0]
 
@@ -42,19 +42,19 @@ def greedy_page_split_df(df, p=0.8, lengths: tuple[int] = (1,)):
 
 
 def get_split_separate_laloma_and_letters(
-    df, prop_train=0.8, orders: tuple[int] = (1,)
+    df, prop_train=0.8, orders: list[int] | tuple[int] = (1,)
 ):
     """
     Divide los nombres de los archivos según longitudes en train y test usando greedy_page_split.
-    Solamente tiene en cuenta para hacer la proporción las longitudes que se encuentren en "lengths"
+    Solamente tiene en cuenta para hacer la proporción las longitudes que se encuentren en "orders"
     """
 
     train_pages_laloma, test_pages_laloma = greedy_page_split_df(
-        df[~df["is_letter"]], prop_train, lengths=orders
+        df[~df["is_letter"]], prop_train, orders=orders
     )
 
     train_pages_letters, test_pages_letters = greedy_page_split_df(
-        df[df["is_letter"]], prop_train, lengths=orders
+        df[df["is_letter"]], prop_train, orders=orders
     )
 
     # dividimos de forma homogénea el train y el test
