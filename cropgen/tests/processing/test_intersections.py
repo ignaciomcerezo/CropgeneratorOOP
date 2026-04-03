@@ -33,7 +33,7 @@ def test_intersections_and_geometries(paths):
     box_b = ann103.image_boxes["2xbI1Hl0SF"]
     box_c = ann103.image_boxes["55lKzt7x5K"]
     box_d = ann103.image_boxes["pUwiyxx5ef"]
-    box_e = ann103.image_boxes["9JCf_2DS45"]
+    box_e = ann103.image_boxes["naknC3zYol"]
 
     assert box_a.polygon.intersects(box_b.polygon)
     assert not box_a.polygon.intersects(box_c.polygon)
@@ -48,3 +48,5 @@ def test_intersections_and_geometries(paths):
     assert not box_c.polygon.intersects(box_e.polygon)
 
     assert box_d.polygon.intersects(box_e.polygon)
+
+    assert len(ann103.graph[box_e.id]) == 2

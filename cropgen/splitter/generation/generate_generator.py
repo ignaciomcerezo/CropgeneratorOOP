@@ -1,7 +1,7 @@
 from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
-
+import numpy as np
 from typing import Callable, Generator, Any
 import pandas as pd
 from pathlib import Path
@@ -19,6 +19,7 @@ raw_features = Features(
             Value("int32"), length=3
         ),  # RGB promedio de la página completa
         "context": Value("string"),
+        "is_letter": Value("bool"),
     }
 )
 
@@ -45,7 +46,7 @@ def generate_generator(
             row_page = str(row.page)
             row_ann_id = int(row.id)
             is_letter = row.is_letter
-            avg_color = tuple(row.background_color[1:-1])
+            avg_color = tuple(row.background_color)
 
             order = str(row.order)
 
@@ -68,7 +69,9 @@ def generate_generator(
                 "is_letter": is_letter,
                 "augment": augment,  # pasamos el flag para usarlo luego
                 "resize_scale": resize_scale,  # pasamos el factor para usarlo luego
-                "avg_color": avg_color,  # color promedio, para luego usarlo
+                "avg_color": np.array(
+                    avg_color, dtype=np.int32
+                ),  # color promedio, para luego usarlo
             }
 
     return raw_data_generator
