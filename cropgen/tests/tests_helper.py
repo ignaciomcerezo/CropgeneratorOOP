@@ -25,7 +25,7 @@ def load_particular_annotation(
 
     tsk = lsi[task_id][annotation_number_in_task]
 
-    task = [task for task in lsi.raw_tasks if task.get("id") == int(task_id)][0]
+    task = [task for task in lsi.raw_tasks if task.id == int(task_id)][0]
     img_path = paths.get_image_path_from_task(task)
     # img_path = images_path / f"{str(task_id).rjust(3,"0")}.png"
     ann = AnnotatedPage(

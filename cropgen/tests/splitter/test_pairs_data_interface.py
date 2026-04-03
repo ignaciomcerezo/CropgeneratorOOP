@@ -1,8 +1,12 @@
 import pandas as pd
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
+import pytest
 
 
 def test_pdi_clean_pages_and_is_clean(pdi: PairsDataInterface):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
+
     clean = pdi.clean_pages
     assert isinstance(clean, pd.DataFrame)
     assert pdi.is_clean is True
@@ -11,6 +15,9 @@ def test_pdi_clean_pages_and_is_clean(pdi: PairsDataInterface):
 
 
 def test_pdi_prev_page(pdi: PairsDataInterface):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
+
     # Prueba con páginas numéricas y de cartas
     pages = list(pdi._pages)
     for page in pages[:5]:
@@ -19,6 +26,9 @@ def test_pdi_prev_page(pdi: PairsDataInterface):
 
 
 def test_pdi_split(pdi: PairsDataInterface):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
+
     train, test = pdi.split(0.2)
     assert isinstance(train, pd.DataFrame)
     assert isinstance(test, pd.DataFrame)
@@ -26,6 +36,9 @@ def test_pdi_split(pdi: PairsDataInterface):
 
 
 def test_pdi_get_rows_context_by_words_and_chars(pdi: PairsDataInterface):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
+
     row = pdi.df.iloc[0]
     ctx_words = pdi.get_rows_context_by_words(row)
     ctx_chars = pdi.get_rows_context_by_chars(row)
@@ -34,6 +47,9 @@ def test_pdi_get_rows_context_by_words_and_chars(pdi: PairsDataInterface):
 
 
 def test_pdi_build_mappings_and_properties(pdi: PairsDataInterface):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
+
     # Verifica que los diccionarios de mapeo están bien formados
     assert isinstance(pdi.page2somefulltext, dict)
     assert isinstance(pdi.annid2fulltext, dict)

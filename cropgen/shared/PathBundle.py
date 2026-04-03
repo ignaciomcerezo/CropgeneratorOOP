@@ -4,7 +4,7 @@ from os import getcwd
 import shutil
 
 from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
-from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask, SimplifiedAnnotation
 
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
@@ -68,13 +68,37 @@ class PathBundle:
             assert isinstance(path, Path)
             path.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _simplified_or_raw(
+        obj: dict | SimplifiedTask | LabelStudioTask,
+    ) -> SimplifiedTask | LabelStudioTask:
+
+        if isinstance(obj, dict):
+            try:
+                converted_obj = SimplifiedTask.model_validate(obj)
+                return converted_obj
+            except:
+                try:
+                    converted_obj = LabelStudioTask.model_validate(obj)
+                    return converted_obj
+                except:
+                    raise TypeError(
+                        "Se ha pasado un objeto que no cumple ninguna de las dos."
+                    )
+        elif isinstance(obj, (SimplifiedTask, LabelStudioTask)):
+            return obj
+        else:
+            raise TypeError("Se ha pasado un tipo incorrecto")
+
     def get_image_path_from_task(
-        self, task: SimplifiedTask | LabelStudioTask
+        self, task: dict | LabelStudioTask | SimplifiedTask
     ) -> Path | None:
         """
         Dada una tarea, devuelve la ruta LOCAL de la imagen correspondiente.
         Si no se encuentra, devuelve None.
         """
+
+        task: LabelStudioTask | SimplifiedTask = PathBundle._simplified_or_raw(task)
         data = task.data
         image_url = data.image_url or ""
 
@@ -94,7 +118,7 @@ class PathBundle:
                 if p.stem == stem:
                     return p
 
-        print("No se encontró la imagen para la tarea:", task.get("id"))
+        print("No se encontró la imagen para la tarea:", task.id)
         return None
 
     def get_order_folder(self, order: str | int) -> Path:

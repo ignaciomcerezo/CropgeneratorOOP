@@ -36,7 +36,7 @@ def augment_data_sequential(
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else []
     )
 
-    print(f"Running {len(tasks_only)}")
+    print(f"Running {len(task_only)} tasks (from tasks_only={task_only})")
 
     if worker_id is None:
         jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
@@ -73,7 +73,7 @@ def augment_data_sequential(
         )  # cogemos la imagen que le corresponde
 
         if img_path is None:
-            print(f"No hay imagen para la tarea {task.get('id')}")
+            print(f"No hay imagen para la tarea {task.id}")
             continue
 
         page_number = img_path.stem if img_path else "N/A"
@@ -92,9 +92,14 @@ def augment_data_sequential(
             print(f"Error cargando {img_path}: {e}")
             continue
 
+        annotations = lsi[task_id]
+        if not annotations:
+            print(f"Aviso: task {task_id} no tiene anotaciones en lsi (lsi[{task_id}] = [])")
+            continue
+
         for Ann in (
             AnnotatedPage(ann, img, unrotate=False, usernames_labelstudio=lsi.usernames)
-            for ann in lsi[task_id]
+            for ann in annotations
         ):
             if generate_full_pages:
                 full_dir = paths.get_order_folder("full")

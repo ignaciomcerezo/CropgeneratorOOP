@@ -1,8 +1,12 @@
 import numpy as np
 from fuzzywuzzy import fuzz
+import pytest
 
 
 def test_contextualize_by_words(task_macedonia, pdi):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
+
     scores = []
 
     for task_n in task_macedonia:

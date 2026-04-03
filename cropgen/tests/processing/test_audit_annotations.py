@@ -64,7 +64,7 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
         assert path is not None
         image = Image.open(path)
 
-        for k_ann, ann in task.annotations:
+        for ann in task.annotations:
             ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
             ann.assert_pairing()  # esto ya se llama dentro del AnnotatedPage.__init__(), pero por asegurar
 

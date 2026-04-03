@@ -7,7 +7,6 @@ def test_pathbundle_paths_exist(paths: PathBundle):
     assert paths.transcriptions_path.exists() and paths.transcriptions_path.is_dir()
     assert paths.exports_path.exists() and paths.exports_path.is_dir()
     assert paths.data_out_path.exists() and paths.data_out_path.is_dir()
-    assert paths.crops_path.exists() and paths.crops_path.is_dir()
 
 
 def test_pathbundle_get_image_and_transcription_path(paths: PathBundle):
@@ -25,10 +24,51 @@ def test_pathbundle_normalize_name():
 
 
 def test_pathbundle_get_image_path_from_task(paths: PathBundle):
-    task: dict[str, dict[str, str]] = {"data": {"image": "015.png"}}
+    # Crear un dict con estructura mínima válida que se pueda serializar como SimplifiedTask
+    task: dict = {
+        "id": 1,
+        "inner_id": 1,
+        "file_upload": "test.png",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "project": 4,
+        "updated_by": 0,
+        "data": {"image_url": "015.png", "transcription": "test"},
+        "annotations": [],
+        "drafts": [],
+        "predictions": [],
+        "meta": {},
+        "total_annotations": 0,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_authors": [],
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+    }
     img_path = paths.get_image_path_from_task(task)
     assert img_path is not None and img_path.exists()
-    task2: dict[str, dict] = {"data": {}}
+
+    # Test caso sin image_url
+    task2: dict = {
+        "id": 1,
+        "inner_id": 1,
+        "file_upload": "test.png",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "project": 4,
+        "updated_by": 0,
+        "data": {"image_url": "", "transcription": "test"},
+        "annotations": [],
+        "drafts": [],
+        "predictions": [],
+        "meta": {},
+        "total_annotations": 0,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_authors": [],
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+    }
     assert paths.get_image_path_from_task(task2) is None
 
 

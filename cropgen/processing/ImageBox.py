@@ -92,13 +92,13 @@ class ImageBox:
         return self.polygon.bounds[0]
 
     @staticmethod
-    def from_json_value(
+    def from_image_result(
         simplified_result_item: RectangleResult | PolygonResult,
-        imgbox_id: str,
         task_id: int,
         img: Image.Image,
         unrotate: bool = False,
     ) -> "ImageBox":
+        imgbox_id = simplified_result_item.id
 
         crop, polygon, rotation, true_rectangle, unrotated = ImageBox._rotatedregion(
             img, simplified_result_item, unrotate

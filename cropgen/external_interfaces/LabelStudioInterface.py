@@ -11,6 +11,7 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTask,
     SimplifiedAnnotation,
 )
+from pathlib import Path
 
 
 class LabelStudioInterface:
@@ -23,8 +24,8 @@ class LabelStudioInterface:
         "project",
         "local_last_update",
         "usernames",
-        "raw_export_path",
-        "simplified_filepath",
+        "raw_export_filepath",
+        "simplified_export_filepath",
         "__raw_tasks",
         "__simplified_tasks",
     )
@@ -36,52 +37,51 @@ class LabelStudioInterface:
         Lanza un error si no existe el export raw local.
         """
         self.project = None
-        self.raw_export_path = paths.raw_export_filepath
-        self.simplified_filepath = paths.simplified_filepath
+        self.raw_export_filepath = paths.raw_export_filepath
+        self.simplified_export_filepath = paths.simplified_filepath
 
-        if not self.raw_export_path.exists():
+        if not self.raw_export_filepath.exists():
             raise FileNotFoundError(
-                f"No existe export local en {self.raw_export_path}. "
+                f"No existe export local en {self.raw_export_filepath}. "
                 "Ejecuta primero LabelStudioInterface.update_conditional(paths)."
             )
 
-        loaded_export_dicts = list(
-            json.loads(self.raw_export_path.read_text(encoding="utf-8"))
-        )
-        loaded_export_dicts.sort(key=lambda tsk: int(tsk["id"]))
-        # Convertir a instancias de LabelStudioTask
-        loaded_export = [
-            LabelStudioTask.model_validate(tsk) for tsk in loaded_export_dicts
-        ]
-        self.__raw_tasks = loaded_export
+        self.__raw_tasks = self._load_raw_as_schema(self.raw_export_filepath)
 
-        if loaded_export:
-            self.local_last_update = max(task.updated_at for task in loaded_export)
+        self.__raw_tasks.sort(key=lambda task: task.id)
+
+        if self.__raw_tasks:
+            self.local_last_update = max(task.updated_at for task in self.__raw_tasks)
         else:
             self.local_last_update = None
 
         # Cargar y convertir simplified_tasks a instancias de SimplifiedTask
-        simplified_tasks_dicts = load_simplified_export(paths)
-        self.__simplified_tasks = [
-            SimplifiedTask.model_validate(tsk) for tsk in simplified_tasks_dicts
-        ]
+        self.__simplified_tasks = self._load_simplified_as_schema(
+            self.simplified_export_filepath
+        )
+        self.__simplified_tasks.sort(key=lambda task: task.id)
 
         if paths.usernames_filepath.exists():
-            self.usernames = list(
+            self.usernames: list[str] = list(
                 json.loads(paths.usernames_filepath.read_text(encoding="utf-8"))
             )
         else:
-            self.usernames = []
+            self.usernames: list[str] = []
 
     @staticmethod
     def _get_latest_update_of_project(project) -> str:
         """
         Devuelve la fecha de la última actualización de una tarea en el proyecto de Label Studio.
         """
-        most_recently_updated_task = project.get_paginated_tasks(
+        # most_recently_updated_task = LabelStudioTask.model_validate(
+        #     project.get_paginated_tasks(ordering=["-updated_at"], page=1, page_size=1)[
+        #         "tasks"
+        #     ][0]
+        # )
+        updated_at = project.get_paginated_tasks(
             ordering=["-updated_at"], page=1, page_size=1
-        )["tasks"][0]
-        return most_recently_updated_task["updated_at"]
+        )["tasks"][0]["updated_at"]
+        return str(updated_at)
 
     @staticmethod
     def update_conditional(
@@ -134,34 +134,36 @@ class LabelStudioInterface:
         # comprobamos si hace falta actualizar
         latest_update = LabelStudioInterface._get_latest_update_of_project(project)
 
-        raw_exists = paths.raw_export_filepath.exists()
-        simplified_exists = paths.simplified_filepath.exists()
-
-        if raw_exists and not forced:
-            loaded_export = list(
-                json.loads(paths.raw_export_filepath.read_text(encoding="utf-8"))
+        if paths.raw_export_filepath.exists() and not forced:
+            loaded_export = LabelStudioInterface._load_raw_as_schema(
+                paths.raw_export_filepath
             )
+
             if loaded_export:
-                local_last_update = max(
-                    task.get("updated_at", "") for task in loaded_export
-                )
-                if (latest_update <= local_last_update) and simplified_exists:
+                local_last_update = max(task.updated_at for task in loaded_export)
+                if (
+                    latest_update <= local_last_update
+                ) and paths.simplified_filepath.exists():
                     print("Export local ya actualizado. No se descarga nada.")
                     return False
 
         # descargamos y guardamos el raw
         print("Actualizando export desde Label Studio...")
-        raw_tasks = sorted(
-            project.export_tasks().copy(), key=lambda tsk: int(tsk["id"])
-        )
-        paths.raw_export_filepath.write_text(json.dumps(raw_tasks), encoding="utf-8")
+        raw_tasks: list[LabelStudioTask] = [
+            LabelStudioTask.model_validate(task_dict)
+            for task_dict in project.export_tasks().copy()
+        ]
+        raw_tasks.sort(key=lambda task: task.id)
+
+        dump_data = [task.model_dump(mode="json") for task in raw_tasks]
+        paths.raw_export_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
 
         # regeneramos el simplified_tasks
         simplify_export(paths.raw_export_filepath, paths.simplified_filepath)
-        simplified_tasks = load_simplified_export(paths)
-        paths.simplified_filepath.write_text(
-            json.dumps(simplified_tasks), encoding="utf-8"
-        )
+        # simplified_tasks: list[SimplifiedTask] = load_simplified_export(paths)
+        # paths.simplified_export_filepath.write_text(
+        #     json.dumps(simplified_tasks), encoding="utf-8"
+        # )
 
         return True
 
@@ -196,19 +198,21 @@ class LabelStudioInterface:
             for i in range(len(tsk.annotations))
         ]
 
-    def save_raw_export(self):
+    def save_raw_export(self) -> None:
         """
         Guarda el export raw actual en disco, sobrescribiendo el archivo correspondiente.
         """
         dump_data = [task.model_dump(mode="json") for task in self.__raw_tasks]
-        self.raw_export_path.write_text(json.dumps(dump_data), encoding="utf-8")
+        self.raw_export_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
 
-    def save_simplified_export(self):
+    def save_simplified_export(self) -> None:
         """
         Guarda el export simplificado actual, sobrescribiendo el archivo correspondiente si hubiera había
         """
         dump_data = [task.model_dump(mode="json") for task in self.__simplified_tasks]
-        self.simplified_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
+        self.simplified_export_filepath.write_text(
+            json.dumps(dump_data), encoding="utf-8"
+        )
 
     def __getitem__(self, index: int | str) -> list[SimplifiedAnnotation]:
         """
@@ -227,3 +231,17 @@ class LabelStudioInterface:
             elif tsk.id == index:
                 items.extend(tsk.annotations)
         return items
+
+    @staticmethod
+    def _load_raw_as_schema(filepath: Path) -> list[LabelStudioTask]:
+        return [
+            LabelStudioTask.model_validate(task_dict)
+            for task_dict in json.loads(filepath.read_text(encoding="utf-8"))
+        ]
+
+    @staticmethod
+    def _load_simplified_as_schema(filepath: Path) -> list[SimplifiedTask]:
+        return [
+            SimplifiedTask.model_validate(task_dict)
+            for task_dict in json.loads(filepath.read_text(encoding="utf-8"))
+        ]

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+
 from cropgen.shared.PathBundle import PathBundle
 import os
 from cropgen.shared.LSTypedDicts.results import (
@@ -13,7 +14,6 @@ from cropgen.shared.LSTypedDicts.aggregates import (
     LabelStudioTask,
     RawAnnotation,
     ResultItem,
-    ResultItemNotRelation,
 )
 from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTask,
@@ -32,8 +32,8 @@ def resolve_text_for_group(group: List[ResultItem], full_text: str) -> list[str]
     Correcciones manuales > Texto en la etiqueta > Texto entre start/end.
     """
     # mira si hay corrección (busca todas las ocurrencias)
-    correction_res_list: list[TextRegionResult] = [
-        TextRegionResult.model_validate(r) for r in group if r.get("type") == "textarea"
+    correction_res_list: list[TextCorrectionResult] = [
+        r for r in group if isinstance(r, TextCorrectionResult)
     ]
     collected_corrections = []
 
@@ -53,7 +53,12 @@ def resolve_text_for_group(group: List[ResultItem], full_text: str) -> list[str]
 
     # busca la etiqueta original
     label_res: TextRegionResult | None = next(
-        (r for r in group if isinstance(r, TextRegionResult)), None
+        (
+            TextRegionResult.model_validate(r)
+            for r in group
+            if r.type in ["labels", "hypertextlabels"]
+        ),
+        None,
     )
     if label_res:
         val = label_res.value
@@ -64,7 +69,7 @@ def resolve_text_for_group(group: List[ResultItem], full_text: str) -> list[str]
             return t if isinstance(t, list) else [t]
 
         # busca rangos start-end
-        if "start" in val and "end" in val and full_text:
+        if full_text:
             try:
                 return [full_text[int(val.start) : int(val.end)]]
             except:
@@ -73,6 +78,73 @@ def resolve_text_for_group(group: List[ResultItem], full_text: str) -> list[str]
                 )
                 pass
     return []
+
+
+def convert_result_raw(
+    obj: (
+        dict
+        | RelationResult
+        | TextCorrectionResult
+        | PolygonResult
+        | RectangleResult
+        | TextRegionResult
+    ),
+) -> (
+    RelationResult
+    | PolygonResult
+    | TextCorrectionResult
+    | RectangleResult
+    | TextRegionResult
+):
+    if not isinstance(obj, dict):
+        return obj
+    match obj["type"]:
+        case "relation":
+            return RelationResult.model_validate(obj)
+        case "polygonlabels":
+            return PolygonResult.model_validate(obj)
+        case "textarea":
+            return TextCorrectionResult.model_validate(obj)
+        case "rectanglelabels":
+            return RectangleResult.model_validate(obj)
+        case "labels" | "hypertextlabels":
+            return TextRegionResult.model_validate(obj)
+        case _:
+            raise ValueError('El diccionario no tiene ["type"] conocido')
+
+
+def convert_result_simplified(
+    obj: (
+        dict
+        | RelationResult
+        | PolygonResult
+        | SimplifiedTextCorrectionResult
+        | RectangleResult
+        | TextRegionResult
+    ),
+) -> (
+    RelationResult
+    | PolygonResult
+    | SimplifiedTextCorrectionResult
+    | RectangleResult
+    | TextRegionResult
+):
+    if not isinstance(obj, dict):
+        return obj
+
+    match obj["type"]:
+        case "relation":
+            return RelationResult.model_validate(obj)
+        case "polygonlabels":
+            return PolygonResult.model_validate(obj)
+        case "textarea":
+            return SimplifiedTextCorrectionResult.model_validate(obj)
+        case "rectanglelabels":
+            return RectangleResult.model_validate(obj)
+        case "labels" | "hypertextlabels":
+            return TextRegionResult.model_validate(obj)
+        case _:
+            raise ValueError('El diccionario no tiene ["type"] conocido')
 
 
 def simplify_export(raw_export_filepath: Path, simplified_filepath: Path) -> None:
@@ -92,18 +164,18 @@ def simplify_export(raw_export_filepath: Path, simplified_filepath: Path) -> Non
     os.makedirs(os.path.dirname(simplified_filepath), exist_ok=True)
 
     try:
-        raw_data = json.loads(raw_export_filepath.read_text(encoding="utf-8"))
+        tasks: list[LabelStudioTask] = [
+            LabelStudioTask.model_validate(task_dict)
+            for task_dict in json.loads(raw_export_filepath.read_text(encoding="utf-8"))
+        ]
 
     except Exception as e:
         raise ValueError(f"Error reading JSON: {e}")
 
-    # normalizamos los datos
-    tasks: List[LabelStudioTask] = (
-        raw_data if isinstance(raw_data, list) else [raw_data]
-    )
     processed_tasks: List[SimplifiedTask] = []
 
     for task in tasks:
+
         # definimos la nueva estructura de las tareas
         new_task = task.model_copy()
         full_text = task.data.transcription
@@ -116,51 +188,57 @@ def simplify_export(raw_export_filepath: Path, simplified_filepath: Path) -> Non
             # agrupamos resultados por su ID
             results_by_id: dict[str, list[ResultItem]] = {}
             relations = []
-            for r in raw_results:
-                if r.type == "relation":
-                    relations.append(RelationResult.model_validate(r))
+            for res in (convert_result_raw(r) for r in raw_results):
+
+                if isinstance(res, RelationResult):
+                    relations.append(res)
                     continue
-                r: ResultItemNotRelation
-                rid = r.id
+
+                rid = res.id
                 if rid not in results_by_id:
                     results_by_id[rid] = []
-                results_by_id[rid].append(r)
+
+                results_by_id[rid].append(res)
+
             # iteramos sobre cada ID
             for rid, group in results_by_id.items():
                 # buscamos solamente cajas-imagen
                 box_res = None
                 for item in group:
-                    if item.type in ["rectanglelabels", "polygonlabels"]:
-                        box_res = item
+                    if item.type == "rectanglelabels":
+                        box_res = RectangleResult.model_validate(item)
                         break
-                if box_res:
+                    elif item.type == "polygonlabels":
+                        box_res = PolygonResult.model_validate(item)
+                        break
+
+                if box_res is not None:
                     box_res: PolygonResult | RectangleResult
                     new_results.append(box_res)
                 else:
                     final_text_list = resolve_text_for_group(group, full_text)
+                    if not final_text_list:
+                        empty_boxes_on_page += 1
+                        continue
                     if len(final_text_list) > 1:
-                        label_res: TextCorrectionResult = (
-                            TextCorrectionResult.model_validate(
-                                next(
-                                    (
-                                        r
-                                        for r in group
-                                        if r.type in ["labels", "hypertextlabels"]
-                                    ),
-                                    None,
-                                )
-                            )
+                        label_res = next(
+                            (
+                                TextRegionResult.model_validate(r)
+                                for r in group
+                                if r.type in ["labels", "hypertextlabels"]
+                            ),
+                            None,
                         )
-                        t = label_res.value.text
-                        original_text = " ".join(t) if isinstance(t, list) else str(t)
+                        original_text = (
+                            str(label_res.value.text) if label_res is not None else "<sin etiqueta original>"
+                        )
                         print(
                             f"En la tarea {task.id}, el fragmento \n\t > {original_text.replace('\n', '\n\t')}\n tiene múltiples correcciones:"
                         )
                         for correction in final_text_list:
                             print(f"\t > {correction.replace('\n', '\n\t')}")
-                    final_text = final_text_list[
-                        0
-                    ]  # en el caso en el que haya más de una, cogemos la primera (placeholder)
+                    # en el caso en el que haya más de una, cogemos la primera (placeholder)
+                    final_text = final_text_list[0]
                     if final_text and final_text.strip():
                         synthetic_res = SimplifiedTextCorrectionResult.model_validate(
                             {

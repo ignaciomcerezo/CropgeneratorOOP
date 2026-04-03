@@ -1,7 +1,10 @@
 from cropgen.shared.default_parameters import min_context_chars, min_context_words
+import pytest
 
 
 def test_min_context_chars_is_low_enough(pdi, paths):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
 
     df_full = pdi.df[pdi.df.order == "full"]
     lower_bound = min(df_full.text.apply(len))
@@ -13,6 +16,8 @@ def test_min_context_chars_is_low_enough(pdi, paths):
 
 
 def test_min_context_words_is_low_enough(pdi, paths):
+    if pdi is None:
+        pytest.skip("pairs.jsonl no existe")
 
     df_full = pdi.df[pdi.df.order == "full"]
     lower_bound = min(df_full.text.apply(lambda t: len(t.split())))
