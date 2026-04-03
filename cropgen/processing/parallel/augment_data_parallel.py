@@ -11,8 +11,8 @@ def augment_data_parallel(
     orders_to_consider: list[int],
     generate_full_pages: bool,
     generate_paragraphs: bool,
-    tasks_only: list[int],
     lsi: LabelStudioInterface,
+    tasks_only: list[int] | None = None,
     num_processes: int = None,
 ):
     lsi = lsi if (lsi is not None) else LabelStudioInterface(paths)
@@ -22,6 +22,8 @@ def augment_data_parallel(
     if tasks_only:
         tasks_only = [int(i) for i in tasks_only]
         simplified_tasks = [t for t in simplified_tasks if t.id in tasks_only]
+    else:
+        simplified_tasks = simplified_tasks
 
     all_task_ids = [str(t.id) for t in simplified_tasks]
 

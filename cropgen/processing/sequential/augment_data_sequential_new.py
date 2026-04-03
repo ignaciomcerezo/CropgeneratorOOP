@@ -36,7 +36,7 @@ def augment_data_sequential(
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else []
     )
 
-    print(f"Running {len(task_only)} tasks (from tasks_only={task_only})")
+    print(f"Procesando {len(task_only)} tareas secuencialmente.")
 
     if worker_id is None:
         jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
@@ -94,7 +94,9 @@ def augment_data_sequential(
 
         annotations = lsi[task_id]
         if not annotations:
-            print(f"Aviso: task {task_id} no tiene anotaciones en lsi (lsi[{task_id}] = [])")
+            print(
+                f"Aviso: task {task_id} no tiene anotaciones en lsi (lsi[{task_id}] = [])"
+            )
             continue
 
         for Ann in (

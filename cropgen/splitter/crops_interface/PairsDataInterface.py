@@ -136,13 +136,13 @@ class PairsDataInterface:
             raise ValueError(f"No hay transcripciones completas para la página {page}")
         return texts[0]
 
-    def prev_page(self, page: str) -> str | bool:
+    def prev_page(self, page: int | str) -> str | bool:
         """
         Devuelve el nombre de la página anterior (ya sea si está en LaLoMa o en las cartas). Si no la encuentra, devuelve
         False.
         """
 
-        if page.isdigit():  # si es una página de LaLoMa
+        if isinstance(page, int) or page.isdigit():  # si es una página de LaLoMa
 
             prev = str(int(page) - 1).rjust(3, "0")
 

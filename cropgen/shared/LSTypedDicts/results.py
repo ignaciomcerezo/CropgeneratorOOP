@@ -18,7 +18,7 @@ class BaseResult(BaseModel):
 class ImageBaseResult(BaseResult):
     original_width: int
     original_height: int
-    image_rotation: int
+    image_rotation: int | float
 
 
 class TextRegionResult(BaseResult):
