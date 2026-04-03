@@ -20,6 +20,18 @@ from cropgen.processing.helpers.text_replacements import (
     replacements_envs,
     regex_replacements,
 )
+from cropgen.shared.LSTypedDicts.aggregates import ResultItem
+from cropgen.shared.LSTypedDicts.results import (
+    RectangleResult,
+    PolygonResult,
+    RelationResult,
+    TextRegionResult,
+)
+from cropgen.shared.LSTypedDicts.simplified import (
+    SimplifiedAnnotation,
+    SimplifiedResultItem,
+    SimplifiedTextCorrectionResult,
+)
 from cropgen.shared.default_parameters import (
     big_box_threshold,
     min_nodes_for_big_box_removal,
@@ -55,8 +67,8 @@ class AnnotatedPage:
 
     def __init__(
         self,
-        ann: dict[str, dict | str | int | list[str]],
-        img: Image.Image | None = None,
+        ann: SimplifiedAnnotation,
+        img: Image.Image,
         unrotate: bool = False,
         usernames_labelstudio: list[str] | None = None,
     ):
@@ -76,50 +88,38 @@ class AnnotatedPage:
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
-        results: dict = self._correct_results(
-            ann.get("result", [])
+        results: list[SimplifiedResultItem] = self._correct_results(
+            ann.result
         )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
-        self.task_id = int(ann["task"])
+        self.task_id = int(ann.task)
 
         self.background_color = get_dominant_color(img)
 
-        res_map = {r.get("id"): r for r in results}  # id -> dato anotado
+        img_results_list: list[RectangleResult | PolygonResult] = [
+            r for r in results if isinstance(r, (RectangleResult, PolygonResult))
+        ]
 
-        img_boxes_json = {
-            rid: r
-            for rid, r in res_map.items()
-            if r.get("type") in ("rectanglelabels", "polygonlabels")
-        }
+        txt_results_list: list[SimplifiedTextCorrectionResult] = [
+            r for r in results if isinstance(r, SimplifiedTextCorrectionResult)
+        ]
 
         self.image_boxes: dict[str, ImageBox] = (
             {  # conjunto de cajas-imagen (instancias de ImageBox)
-                imgbox_id: ImageBox.from_json_value(
-                    img_boxes_json[imgbox_id], imgbox_id, self.task_id, img, unrotate
+                img_result.id: ImageBox.from_image_result(
+                    img_result, self.task_id, img, unrotate
                 )
-                for imgbox_id in img_boxes_json
+                for img_result in img_results_list
             }
         )
 
-        txt_boxes_json: dict[str, dict] = {
-            rid: r
-            for rid, r in res_map.items()
-            if r.get("type") in ("labels", "hypertextlabels", "textarea")
+        self.text_fragments: dict[str, TextFragment] = {
+            txt_result.id: TextFragment(
+                id=txt_result.id,
+                text=" ".join(txt_result.value.text).strip(),
+                task_id=self.task_id,
+            )
+            for txt_result in txt_results_list
         }
-
-        self.text_fragments: dict[str, TextFragment] = (
-            {  # conjunto de fragmentos de texto (instancias de TextFragment)
-                fragment_id: TextFragment(
-                    id=fragment_id,
-                    text=(
-                        txtbox_res["value"]["text"].strip()
-                        if isinstance(txtbox_res["value"]["text"], str)
-                        else " ".join(txtbox_res["value"]["text"]).strip()
-                    ),
-                    task_id=self.task_id,
-                )
-                for (fragment_id, txtbox_res) in txt_boxes_json.items()
-            }
-        )
 
         self._setup_mappings(
             results
@@ -168,11 +168,11 @@ class AnnotatedPage:
                 sindex += len(fragment.text) + 1
 
         self.last_update_time = " ".join(
-            ann["updated_at"].replace("Z", "").split("T")
+            ann.updated_at.replace("Z", "").split("T")
         )  # última actualización de la tarea
 
-        completer_index = ann["completed_by"]
-        updater_index = ann["updated_by"]
+        completer_index = ann.completed_by
+        updater_index = ann.updated_by
         self.completer = (
             usernames_labelstudio[completer_index]
             if completer_index < len(usernames_labelstudio)
@@ -183,7 +183,7 @@ class AnnotatedPage:
             if updater_index < len(usernames_labelstudio)
             else "Unknown"
         )
-        self.annotation_unique_id = ann["id"]
+        self.annotation_unique_id = ann.id
 
     @property
     def order(self) -> int:
@@ -201,7 +201,7 @@ class AnnotatedPage:
             "Por causas de starting_index y composición del documento, no es posible modificar el grafo!"
         )
 
-    def _setup_mappings(self, results: list) -> None:
+    def _setup_mappings(self, results: list[SimplifiedResultItem]) -> None:
         """
         A partir de las relaciones creadas en cada tarea de LS, genera respectivos diccionarios:
             1. img2text_rel: dict[str, str], box_id -> fragment_id,
@@ -211,8 +211,8 @@ class AnnotatedPage:
         """
 
         for r in results:
-            if r.get("type") == "relation":  # si el resultado es una relación
-                source_id, target_id = r.get("from_id"), r.get("to_id")
+            if isinstance(r, RelationResult):  # si el resultado es una relación
+                source_id, target_id = r.from_id, r.to_id
 
                 if (source_id in self.image_boxes) and (
                     target_id in self.text_fragments
@@ -308,7 +308,9 @@ class AnnotatedPage:
         return adj
 
     @staticmethod
-    def _correct_results(results: dict) -> dict:
+    def _correct_results(
+        results: list[SimplifiedResultItem],
+    ) -> list[SimplifiedResultItem]:
         """
         Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
         los resultados de una tarea (ambas son variables de clase).
@@ -317,56 +319,38 @@ class AnnotatedPage:
 
         for r in results:
             # solamente hacemos las sustituciones en los fragmentos de texto:
-            if r.get("type") in ("labels", "hypertextlabels", "textarea"):
-
+            if isinstance(r, (SimplifiedTextCorrectionResult, TextRegionResult)):
                 # teóricamente esto debería ser únicamente un elemento, pero no realizamos suposiciones
                 # innecesarias
-                text_res = r["value"]["text"]
-                if isinstance(text_res, list):
 
-                    for i in range(len(text_res)):
-                        text = text_res[i]
-                        for old, new in replacements:
-                            newtext = text.replace(
-                                old, new
-                            )  # hacemos todos los cambios indicados
-                            text = newtext
+                text_res = r.value.text
 
-                        for beg, end in replacements_envs:
-                            text = reemplazar_latex_espaciado(text, beg, end)
-
-                        for pattern, substitution in regex_replacements:
-                            text = re.sub(pattern, substitution, text)
-
-                        text_res[i] = text
-
-                    r["value"][
-                        "text"
-                    ] = text_res  # lo sustituímos por el original (en la variable, no en el .json)
-
-                elif isinstance(text_res, str):
-
+                for i in range(len(text_res)):
+                    text = text_res[i]
                     for old, new in replacements:
-                        text_res = text_res.replace(
+                        newtext = text.replace(
                             old, new
                         )  # hacemos todos los cambios indicados
+                        text = newtext
 
                     for beg, end in replacements_envs:
-                        text_res = reemplazar_latex_espaciado(text_res, beg, end)
+                        text = reemplazar_latex_espaciado(text, beg, end)
 
                     for pattern, substitution in regex_replacements:
-                        text_res = re.sub(pattern, substitution, text_res)
+                        text = re.sub(pattern, substitution, text)
 
-                    # para terminar, quitamos un <.strip> para eliminar los espacios que Malgoire haya podido
-                    # añadir al princpio o final.
-                    r["value"]["text"] = text_res.strip()
+                    text_res[i] = text
+
+                r.value.text = text_res  # lo sustituímos
 
         return results
 
     def generate_collage(
         self,
         box_id_sequence: set[str] | list[str],
-        background_color: tuple | None = None,
+        background_color: (
+            tuple[int, int, int] | tuple[int, int, int, int] | None
+        ) = None,
     ) -> Image.Image:
         """
         Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo), colocando en sus posiciones en
@@ -380,9 +364,16 @@ class AnnotatedPage:
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]
 
+        background_color = (
+            background_color if background_color is not None else self.background_color
+        )
         return compose_collage(
             subgraph_image_boxes,
-            background_color if background_color else self.background_color,
+            (
+                background_color
+                if not isinstance(background_color, tuple)
+                else self.background_color
+            ),
         )
 
     def trim_star_nodes(
@@ -429,6 +420,10 @@ class AnnotatedPage:
         fragments = sorted(fragments, key=lambda x: x.starting_index)
 
         transcription = " ".join([fragment.text for fragment in fragments])
+        if not fragments:
+            raise ValueError(
+                f"No se puede llamar cluster_reading_order si no hay fragmentos asociados ({self.task_id}) -> {box_ids=}"
+            )
         sindex = int(fragments[0].starting_index)
 
         return collage, transcription, sindex

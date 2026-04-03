@@ -3,6 +3,11 @@ import math
 import hashlib  # para los identificadores únicos de subgrafos
 from shapely import Polygon, box as boxshape
 import numpy as np
+from cropgen.shared.LSTypedDicts.values import RectangleValue, PolygonValue
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cropgen.processing.ImageBox import ImageBox
 
 
 def reemplazar_latex_espaciado(texto, apertura, cierre="}"):
@@ -104,7 +109,7 @@ def unrotate_image(img, rotation_degrees) -> Image.Image:
     return unrotated
 
 
-def get_dominant_color(pil_img):
+def get_dominant_color(pil_img) -> tuple[int, int, int]:
     """
     Calcula el color dominante de una imagen. Realiza el siguiente proceso:
     - Reduce la imagen para que quepa en 50 x 50 píxeles manteniendo las proporciones.
@@ -210,7 +215,12 @@ def calculate_polygon_angle(poly):
     return angle
 
 
-def get_rotated_region(val, width, height, img):
+def get_rotated_region(
+    val: PolygonValue | RectangleValue,
+    page_width: float | int,
+    page_height: float | int,
+    img: Image.Image,
+):
     """
     Extrae una imagen (sea rectángulo rotado o polígono arbitrario). Devuelve:
     - crop: el recorte de imagen correspondiente.
@@ -219,12 +229,15 @@ def get_rotated_region(val, width, height, img):
     - polygon_tool: booleano que representa si la región se hizo usando la herramienta polígono (True) o no.
     """
 
-    points = val.get("points")
-
-    if points:  # es un polígono (hecho con la herramienta polígono específicamente)
+    if isinstance(
+        val, PolygonValue
+    ):  # es un polígono (hecho con la herramienta polígono específicamente)
+        points = val.points
         # convertimos puntos relativos (0-100) a absolutos (píxeles)
         # Label Studio devuelve [[x1, y1], [x2, y2], ...] si se hizo con un polígono
-        abs_points = [(p[0] * width / 100.0, p[1] * height / 100.0) for p in points]
+        abs_points = [
+            (p[0] * page_width / 100.0, p[1] * page_height / 100.0) for p in points
+        ]
 
         # 2. Crear objeto Polygon de Shapely (para calcular intersecciones en el grafo después)
         poly = Polygon(abs_points)
@@ -270,20 +283,22 @@ def get_rotated_region(val, width, height, img):
 
     # hecho con la herramienta caja-imagen rectangular
 
-    x_pct = val.get("x")
-    y_pct = val.get("y")
-    w_pct = val.get("width")
-    h_pct = val.get("height")
-    rotation = val.get("rotation", 0)
+    val: RectangleValue
+
+    x_pct = val.x
+    y_pct = val.y
+    w_pct = val.width
+    h_pct = val.height
+    rotation = val.rotation
 
     if None in (x_pct, y_pct, w_pct, h_pct):
         return None
 
     # conversión a píxeles
-    x = x_pct * width / 100.0
-    y = y_pct * height / 100.0
-    w = w_pct * width / 100.0
-    h = h_pct * height / 100.0
+    x = x_pct * page_width / 100.0
+    y = y_pct * page_height / 100.0
+    w = w_pct * page_width / 100.0
+    h = h_pct * page_height / 100.0
 
     # calculamos la forma geométrica usando la función auxiliar
     poly, corners = calculate_polygon(x, y, w, h, rotation)
@@ -294,7 +309,7 @@ def get_rotated_region(val, width, height, img):
         x2, y2 = int(round(x + w)), int(round(y + h))
 
         x1, y1 = max(0, x1), max(0, y1)
-        x2, y2 = min(width, x2), min(height, y2)
+        x2, y2 = min(page_width, x2), min(page_height, y2)
 
         return img.crop((x1, y1, x2, y2)), poly, 0, False
 
@@ -311,8 +326,8 @@ def get_rotated_region(val, width, height, img):
     # Validaciones de límites
     crop_x1 = max(0, crop_x1)
     crop_y1 = max(0, crop_y1)
-    crop_x2 = min(width, crop_x2)
-    crop_y2 = min(height, crop_y2)
+    crop_x2 = min(page_width, crop_x2)
+    crop_y2 = min(page_height, crop_y2)
 
     if crop_x2 <= crop_x1 or crop_y2 <= crop_y1:
         return None
@@ -356,8 +371,8 @@ def calculate_reading_angle(polygon: Polygon) -> float:
     else:
         dx, dy = dx_b, dy_b
 
-    angle_rad = np.arctan2(dy, dx)
-    angle_deg = np.degrees(angle_rad)
+    angle_rad = float(np.arctan2(dy, dx))
+    angle_deg = float(np.degrees(angle_rad))
 
     if angle_deg > 90:
         angle_deg -= 180
@@ -367,7 +382,7 @@ def calculate_reading_angle(polygon: Polygon) -> float:
     return angle_deg
 
 
-def get_union_rect(polys):
+def get_union_rect(polys: list[Polygon]):
     """
     Dada una lista coordenadas de cajas imagen con el formato
     (x1, y1, x2, y2), devuelve la bounding box que las contiene a todas.
@@ -381,7 +396,7 @@ def get_union_rect(polys):
     return x1, y1, x2, y2
 
 
-def get_connected_components(adj):
+def get_connected_components(adj: dict[str, set]):
     """
     Dado un grafo de adyacencia, devuelve las componentes conexas como una lista
     de conjuntos de nodos.
@@ -410,7 +425,10 @@ def get_connected_components(adj):
     return components
 
 
-def compose_collage(image_boxes, fill_color):
+def compose_collage(
+    image_boxes: list["ImageBox"],
+    fill_color: tuple[int, int, int] | tuple[int, int, int, int],
+):
     # calculamos la región mínima de la imagen que contiene todas las cajas
     x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
 

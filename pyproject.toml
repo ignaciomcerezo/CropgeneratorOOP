@@ -14,6 +14,7 @@ dependencies = [
     "label-studio-sdk>=2.0.19",
     "openpyxl>=3.1.5",
     "pandas>=2.3.3",
+    "pydantic>=2.12.5",
     "pytest>=9.0.2",
     "python-dotenv>=1.2.2",
     "requests>=2.32.5",

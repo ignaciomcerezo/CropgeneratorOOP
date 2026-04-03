@@ -1,5 +1,6 @@
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
+import pytest
 
 _expected_columns = [
     "task",
@@ -26,6 +27,9 @@ def _has_correct_background_format(value: list[int]):
 
 
 def test_df_column_types(paths: PathBundle):
+    if not paths.json_filepath.exists():
+        pytest.skip("pairs.jsonl no existe")
+
     pdi = PairsDataInterface(paths)
     assert set(pdi.df.columns) == set(_expected_columns)
 

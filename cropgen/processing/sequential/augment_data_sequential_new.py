@@ -1,5 +1,7 @@
 from pathlib import Path
 from PIL import Image, ImageOps
+
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
 from cropgen.processing.sequential.helpers import generate_connected_subgraphs
@@ -30,18 +32,18 @@ def augment_data_sequential(
     paths.data_out_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
 
-    task_only = (
-        [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else None
+    task_only: list = (
+        [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else []
     )
 
-    print(f"Running {len(tasks_only)}")
+    print(f"Running {len(task_only)} tasks (from tasks_only={task_only})")
 
     if worker_id is None:
         jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
     else:
         jsonl_filepath = paths.get_worker_json_filepath(worker_id)
 
-    tasks = lsi.simplified_tasks
+    tasks: list[SimplifiedTask] = lsi.simplified_tasks
 
     new_rows_data = []
 
@@ -59,7 +61,7 @@ def augment_data_sequential(
     )
 
     for task_idx, task in enumerate(tasks, start=1):
-        task_id = str(task.get("id"))
+        task_id = str(task.id)
 
         if is_parallel:
             # cuando paralelizamos, los splits se hacen por tareas.
@@ -71,7 +73,7 @@ def augment_data_sequential(
         )  # cogemos la imagen que le corresponde
 
         if img_path is None:
-            print(f"No hay imagen para la tarea {task.get('id')}")
+            print(f"No hay imagen para la tarea {task.id}")
             continue
 
         page_number = img_path.stem if img_path else "N/A"
@@ -90,9 +92,14 @@ def augment_data_sequential(
             print(f"Error cargando {img_path}: {e}")
             continue
 
+        annotations = lsi[task_id]
+        if not annotations:
+            print(f"Aviso: task {task_id} no tiene anotaciones en lsi (lsi[{task_id}] = [])")
+            continue
+
         for Ann in (
             AnnotatedPage(ann, img, unrotate=False, usernames_labelstudio=lsi.usernames)
-            for ann in lsi[task_id]
+            for ann in annotations
         ):
             if generate_full_pages:
                 full_dir = paths.get_order_folder("full")

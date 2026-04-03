@@ -1,6 +1,7 @@
 import pytest
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedAnnotation
 
 
 def test_lsi_raw_and_simplified_tasks(lsi: LabelStudioInterface):
@@ -19,7 +20,7 @@ def test_lsi_annotations(lsi: LabelStudioInterface):
     annotations = lsi.annotations
     assert isinstance(annotations, list)
     if annotations:
-        assert isinstance(annotations[0], dict)
+        assert isinstance(annotations[0], SimplifiedAnnotation)
 
 
 @pytest.mark.parametrize("index", [0, 1, "0", "1"])

@@ -21,11 +21,9 @@ def augment_data_parallel(
 
     if tasks_only:
         tasks_only = [int(i) for i in tasks_only]
-        simplified_tasks = [
-            t for t in simplified_tasks if str(t.get("id")) in tasks_only
-        ]
+        simplified_tasks = [t for t in simplified_tasks if t.id in tasks_only]
 
-    all_task_ids = [str(t.get("id")) for t in simplified_tasks]
+    all_task_ids = [str(t.id) for t in simplified_tasks]
 
     # hacemos un shuffle para que no todas las cartas vayan al mismo proceso (son más sencillas)
     np.random.shuffle(all_task_ids)
