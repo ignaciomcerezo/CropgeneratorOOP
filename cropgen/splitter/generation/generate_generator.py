@@ -1,4 +1,4 @@
-from datasets import Features, Value, Sequence, Image as ImageFeature
+from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 
@@ -45,18 +45,18 @@ def generate_generator(
             row_page = str(row.page)
             row_ann_id = int(row.id)
             is_letter = row.is_letter
-            avg_color = tuple(int(color) for color in row.background_color)
+            avg_color = tuple(row.background_color[1:-1])
 
             order = str(row.order)
 
             dataset_subfolder = f"order{order}"
 
-            image_path = Path(paths.dataset_path) / dataset_subfolder / img_name
+            crop_path = Path(paths.data_out_path) / dataset_subfolder / img_name
 
             context = pdi.get_rows_context_by_words(row)
 
             yield {
-                "image": image_path,  # nótese que no abrimos la imagen, solamente pasamos la ruta
+                "image": crop_path,  # nótese que no abrimos la imagen, solamente pasamos la ruta
                 "text": text,
                 "context": context,
                 # de aquí en adelante son valores que realmente no pasamos al modelo, pero son
