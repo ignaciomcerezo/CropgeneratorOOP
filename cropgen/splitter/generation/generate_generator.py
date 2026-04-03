@@ -1,4 +1,4 @@
-from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
+from datasets import Features, Value, Sequence, Image as ImageFeature
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 
@@ -45,7 +45,7 @@ def generate_generator(
             row_page = str(row.page)
             row_ann_id = int(row.id)
             is_letter = row.is_letter
-            avg_color = tuple([int(x) for x in row.background_color[1:-1].split(",")])
+            avg_color = tuple(int(color) for color in row.background_color)
 
             order = str(row.order)
 

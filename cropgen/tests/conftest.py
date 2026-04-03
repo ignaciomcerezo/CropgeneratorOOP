@@ -7,7 +7,6 @@ from cropgen.shared.PathBundle import PathBundle
 from dotenv import load_dotenv
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 import multiprocessing
-from typing import Optional
 
 
 @pytest.fixture(scope="session")
@@ -113,8 +112,12 @@ def set_multiprocessing_start_method():
 
 
 @pytest.fixture
-def pdi(paths) -> Optional[PairsDataInterface]:
-    """Si pairls.jsonl no existe, devuelve None"""
+def pdi(paths) -> PairsDataInterface:
     if not paths.json_filepath.exists():
-        return None
-    return PairsDataInterface(paths)
+        pytest.skip("pairs.jsonl no existe")
+
+    interface = PairsDataInterface(paths)
+    if interface.df.empty:
+        pytest.fail("pairs.jsonl existe pero no contiene filas para probar")
+
+    return interface
