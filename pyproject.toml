@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "First step in the generation of the dataset for fine-tuning an LLM in vision tasks."
 requires-python = ">=3.10"
 dependencies = [
+    "numpy>=2.2.0",
+    "scipy>=1.14.0",
     "python-levenshtein>=0.27.3",
     "levenshtein>=0.27.3",
     "datasets>=4.8.4",
