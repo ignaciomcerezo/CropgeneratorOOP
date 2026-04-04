@@ -174,6 +174,8 @@ def augment_data_sequential(
                     # generate_full_paragraphs = False, sí que los generamos si cumplen el orden (lo que no hacemos
                     # es repetir generación).
 
+                    order_folder = paths.get_order_folder(order)
+
                     if order not in orders_to_consider:
                         continue
 
@@ -194,7 +196,7 @@ def augment_data_sequential(
                             box_id_sequence
                         )
 
-                        filepath = paths.get_order_folder(order) / filename
+                        filepath = order_folder / filename
                         collage.save(filepath)
 
                         new_rows_data.append(
@@ -262,12 +264,10 @@ def augment_data_sequential(
 
 def _process_orders_to_consider(
     orders_to_consider: list[int] | str,
-    task_only: list[str] | None,
+    task_only: list[str],
     len_tasks: int,
 ):
-    if (orders_to_consider == "all") or (orders_to_consider is None):
-        orders_to_consider = None
-    else:
+    if not ((orders_to_consider == "all") or (orders_to_consider is None)):
         assert isinstance(
             orders_to_consider, list
         ), 'orders_to_consider debe ser una lista, NoneType, tupla o "all"'

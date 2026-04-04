@@ -50,9 +50,7 @@ def generate_generator(
 
             order = str(row.order)
 
-            dataset_subfolder = f"order{order}"
-
-            crop_path = Path(paths.crops_path) / dataset_subfolder / img_name
+            crop_path = paths.get_order_folder(order) / img_name
 
             context = pdi.get_rows_context_by_words(row)
 
