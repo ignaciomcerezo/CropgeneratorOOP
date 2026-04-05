@@ -68,6 +68,9 @@ class LabelStudioInterface:
         else:
             self.usernames: list[str] = []
 
+    def __repr__(self):
+        return f"<LabelStudioInterface con REF = {self.raw_export_filepath} y SEF={self.simplified_export_filepath}.>"
+
     @staticmethod
     def _get_latest_update_of_project(project) -> str:
         """

@@ -174,10 +174,9 @@ def augment_data_sequential(
                     # generate_full_paragraphs = False, sí que los generamos si cumplen el orden (lo que no hacemos
                     # es repetir generación).
 
-                    order_folder = paths.get_order_folder(order)
-
                     if order not in orders_to_consider:
                         continue
+                    order_folder = paths.get_order_folder(order)
 
                     for box_id_sequence in generate_connected_subgraphs(
                         paragraph.image_boxes_ids, paragraph.subgraph, order
