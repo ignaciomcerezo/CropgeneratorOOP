@@ -3,10 +3,10 @@ from cropgen.tests.tests_helper import load_particular_annotation
 
 def test_intersections_and_geometries(paths):
 
-    ann5 = load_particular_annotation(paths, 1, 0)
-    box_a = ann5.image_boxes["5LKgXZs7ij"]
-    box_b = ann5.image_boxes["cf7ItU794h"]
-    box_c = ann5.image_boxes["cXXa92pGsI"]
+    ann = load_particular_annotation(paths, 4, 0)
+    box_a = ann.image_boxes["_3qKT12Lkm"]
+    box_b = ann.image_boxes["9bD_DAaJ9I"]
+    box_c = ann.image_boxes["R0cpzJhaF8"]
 
     assert len(box_a.polygon.exterior.coords[:]) > 4
     assert len(box_b.polygon.exterior.coords[:]) > 4

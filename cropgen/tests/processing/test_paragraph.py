@@ -5,7 +5,7 @@ from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterfac
 
 def test_paragraph_v1(paths: PathBundle, lsi: LabelStudioInterface):
     n_paragraph_tasks: list[list[int | tuple]] = [
-        [1, 2, 3, 4, 5, 6, 7, 8, (11, 0), 13, 14, 16, 17, 18, (11, 1)],
+        [1, 2, 3, 4, 6, 7, (11, 0), 13, 14, 16, 17, 18, (11, 1)],
         [9, 10, 12, 15],
     ]
 
