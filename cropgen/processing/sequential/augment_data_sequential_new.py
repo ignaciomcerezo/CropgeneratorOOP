@@ -56,6 +56,8 @@ def augment_data_sequential(
 
     total_saved = 0
 
+    # TODO: implement better subgraph generation (accounting for graphs being isomorphic to disjoint unions of path graphs)
+
     task_only_set, filtering_active, progressbar = _process_orders_to_consider(
         orders_to_consider, task_only, len(tasks)
     )

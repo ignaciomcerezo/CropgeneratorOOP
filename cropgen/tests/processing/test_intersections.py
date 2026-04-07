@@ -3,7 +3,7 @@ from cropgen.tests.tests_helper import load_particular_annotation
 
 def test_intersections_and_geometries(paths):
 
-    ann5 = load_particular_annotation(paths, 5, 0)
+    ann5 = load_particular_annotation(paths, 1, 0)
     box_a = ann5.image_boxes["5LKgXZs7ij"]
     box_b = ann5.image_boxes["cf7ItU794h"]
     box_c = ann5.image_boxes["cXXa92pGsI"]
