@@ -130,7 +130,7 @@ def get_dominant_color(pil_img) -> tuple[int, int, int]:
 
         dominant_count, dominant_index = max(colors, key=lambda x: x[0])
 
-        palette = paletted.getpalette()
+        palette: list[int] = paletted.getpalette()
         start = dominant_index * 3
         return tuple(palette[start : start + 3])
 
@@ -464,3 +464,38 @@ def subdictionary(nodes, adj) -> dict[str, set[str]]:
     for node in nodes:
         subdict[node] = adj[node]
     return subdict
+
+
+def is_path_graph(graph_dict):
+    """
+    checks if a graph is isomorphic to a path graph by checking if it is connected and
+    its degree sequence matches that of a path graph.
+    """
+    n = len(graph_dict)
+
+    if n == 0:
+        return False
+    if n == 1:
+        return len(list(graph_dict.values())[0]) == 0
+
+    degrees = [len(neighbors) for neighbors in graph_dict.values()]
+
+    if degrees.count(1) != 2 or degrees.count(2) != n - 2:
+        return False
+
+    visited = set()
+
+    start_node = next(
+        node for node, neighbors in graph_dict.items() if len(neighbors) == 1
+    )
+
+    stack = [start_node]
+    while stack:
+        node = stack.pop()
+        if node not in visited:
+            visited.add(node)
+            for neighbor in graph_dict[node]:
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+    return len(visited) == n

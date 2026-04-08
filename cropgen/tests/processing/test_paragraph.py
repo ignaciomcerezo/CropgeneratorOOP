@@ -54,3 +54,44 @@ def test_paragraph_v2(
         print(f"3 // Checking {task_n=}")
         ann = load_particular_annotation(paths, task_n, lsi=lsi)
         assert len(ann.paragraphs) == 3
+
+
+def test_paragraph_ordering_v3(paths, lsi):
+    ann = load_particular_annotation(paths, 280)
+    assert ann.n_paragraphs == 1
+    paragraph = ann.paragraphs[0]
+    assert paragraph.image_boxes_ids == [
+        "3vLJQ-OQfx",
+        "0mE8YfO-qb",
+        "fI2od0TJYp",
+        "-i8tVxsXKk",
+        "2Kg1W6xu_o",
+        "EqWM_bDMj3",
+        "MlxoXDWETl",
+        "MENHQhxGbX",
+        "G7ISJaC5B3",
+        "7r2YhWQDTz",
+        "mCWcKtnWy7",
+        "FgD1VOifzq",
+        "TcqI79fmwV",
+    ]
+
+    ann = load_particular_annotation(paths, 690)
+
+    assert ann.n_paragraphs == 2
+
+    paragraph = ann.paragraphs[0]
+
+    assert paragraph.image_boxes_ids[:11] == [
+        "XhDbxw40iQ",
+        "gIMBZ5nlKa",
+        "HkIgHqMJAY",
+        "fdroAOvxV0",
+        "9iaENiPLJf",
+        "RYvD2P4Yso",
+        "TbGcgLEoHR",
+        "q5aAvQGbt_",
+        "-Nu-LoVU7L",
+        "x1z_rZLPBn",
+        "jMeItlFlAT",
+    ]

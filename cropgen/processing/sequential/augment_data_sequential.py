@@ -4,7 +4,6 @@ from PIL import Image, ImageOps
 from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from tqdm.auto import tqdm
-from cropgen.processing.sequential.helpers import generate_connected_subgraphs
 from cropgen.processing.helpers.helper_to_classes import (
     get_deterministic_id,
 )
@@ -180,15 +179,16 @@ def augment_data_sequential(
                         continue
                     order_folder = paths.get_order_folder(order)
 
-                    for box_id_sequence in generate_connected_subgraphs(
-                        paragraph.image_boxes_ids, paragraph.subgraph, order
+                    for box_id_sequence in paragraph.generate_conntected_subgraphs(
+                        order
                     ):
+
                         seq_hash = get_deterministic_id(
                             "".join(sorted(box_id_sequence))
                         )
 
                         if seq_hash in saved_subgraphs_ids:
-                            # esto debería ser imposible a no ser que no haya reservoir.
+                            # esto debería ser imposible a no ser que no haya reservoir
                             continue
 
                         filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{seq_hash}.png"

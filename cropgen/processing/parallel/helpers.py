@@ -1,4 +1,4 @@
-from cropgen.processing.sequential.augment_data_sequential_new import (
+from cropgen.processing.sequential.augment_data_sequential import (
     augment_data_sequential,
 )
 from cropgen.shared.PathBundle import PathBundle

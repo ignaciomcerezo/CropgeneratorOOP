@@ -79,6 +79,8 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi):
             # hasta aquí (por ahora)
 
             for paragraph in ann.paragraphs:
+                assert paragraph._subgraph_is_Pk()
+
                 seen_boxes_par = set()
                 seen_fragments_par = set()
 
@@ -185,62 +187,3 @@ def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
                         print(
                             f"({ann.task_id:>5}|{ann.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
                         )
-
-
-@pytest.mark.skip("Esto es un pseudotest para detectar ciclos en el grafo de párrafos")
-def test_paragraph_graphs_are_path_graphs(paths, ls_url, ls_token, lsi):
-    for task in lsi.simplified_tasks:
-        for k_ann, ann in enumerate(task.annotations):
-            path = paths.get_image_path_from_task(task)
-            assert path is not None
-            ann_obj = AnnotatedPage(
-                ann,
-                Image.open(path),
-                usernames_labelstudio=lsi.usernames,
-            )
-            for paragraph in ann_obj.paragraphs:
-                graph = paragraph.subgraph
-                if not graph:
-                    print(f"Párrafo vacío: {repr(ann_obj)} | {paragraph}")
-                    continue
-
-                # Buscar nodos extremos (grado 1)
-                ends = [n for n, v in graph.items() if len(v) == 1]
-                if not ends:
-                    print(f"Párrafo sin extremos: {repr(ann_obj)} | {paragraph}")
-                    continue
-
-                start = ends[0]
-                seen = {start}
-                current = start
-                prev = None
-                is_path = True
-
-                while True:
-                    neighbors = [n for n in graph[current] if n != prev]
-                    unvisited = [n for n in neighbors if n not in seen]
-                    if len(unvisited) > 1:
-                        is_path = False
-                        break
-                    if not unvisited:
-                        break
-                    next_node = unvisited[0]
-                    if (
-                        len(
-                            [
-                                n
-                                for n in graph[next_node]
-                                if n not in seen and n != current
-                            ]
-                        )
-                        > 1
-                    ):
-                        is_path = False
-                        break
-                    seen.add(next_node)
-                    prev, current = current, next_node
-
-                if not is_path or len(seen) != len(graph):
-                    print(
-                        f"Párrafo no isomorfo a un camino: {repr(ann_obj)} | {paragraph}"
-                    )
