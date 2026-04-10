@@ -1,15 +1,17 @@
 from typing import Optional
-from cropgen.processing.TextFragment import TextFragment
+
+import numpy as np
+from PIL import Image
+from shapely import coverage_union_all
+from shapely.affinity import affine_transform
+
 from cropgen.processing.ImageBox import ImageBox
+from cropgen.processing.TextFragment import TextFragment
 from cropgen.processing.helpers.helper_to_classes import (
     compose_collage,
     unrotate_image,
     is_path_graph,
 )
-from shapely import coverage_union_all
-from shapely.affinity import affine_transform
-import numpy as np
-from PIL import Image
 
 
 class Paragraph:
@@ -142,13 +144,22 @@ class Paragraph:
         sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
         return -float(np.degrees(np.arctan2(sum_sin, sum_cos)))
 
-    def generate_conntected_subgraphs(self, order: int) -> list[list[str]]:
+    def generate_conntected_subgraphs(
+        self, order: int, max_subgraphs_to_generate: Optional[int] = None
+    ) -> list[list[str]]:
         """
         genera los subgrafos conexos.
         !!! - Asume que el subgrafo es de tipo camino, pero no lo comprueba! para eso están los tests
         """
         if len(self.image_boxes_ids) < order:
             return []
+        if (max_subgraphs_to_generate is not None) and (
+            max_subgraphs_to_generate < (len(self.image_boxes_ids) - order + 1)
+        ):
+            random_sequence = np.random.choice(
+                range(len(self.image_boxes) - order + 1), size=max_subgraphs_to_generate
+            )
+            return [self.image_boxes_ids[i : i + order] for i in random_sequence]
         else:
             return [
                 self.image_boxes_ids[i : i + order]
