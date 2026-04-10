@@ -28,6 +28,7 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTextCorrectionResult,
     SimplifiedAnnotation,
     SimplifiedTask,
+    SimplifiedResultItem,
 )
 from cropgen.shared.LSTypedDicts.values import (
     TextRegionValue,
@@ -573,7 +574,7 @@ def mother_simplified_annotation(
         box_width = max(0.5, min(20.0, gap * 0.7))
         box_height = 20.0
 
-        generated_results: list[Any] = []
+        generated_results: list[SimplifiedResultItem] = []
         for paragraph_index, paragraph_size in enumerate(sizes):
             base_x = paragraph_index * gap
             x = min(base_x + 0.5, max(0.0, 100.0 - box_width - 0.5))
@@ -617,7 +618,7 @@ def mother_simplified_annotation(
                         )
                     )
 
-        result = generated_results
+        result: list[SimplifiedResultItem] = generated_results
     return SimplifiedAnnotation(
         id=id if id is not None else random.randint(1, 10000),
         completed_by=(
@@ -884,7 +885,7 @@ def mother_annotated_page(
             ann_kwargs["n_paragraphs"] = n_paragraphs
         ann_kwargs.setdefault("image_width", img.width)
         ann_kwargs.setdefault("image_height", img.height)
-        ann = mother_simplified_annotation(**ann_kwargs)
+        ann: SimplifiedAnnotation = mother_simplified_annotation(**ann_kwargs)
     if usernames_labelstudio is None:
         n_usernames: int = (
             n_usernames if n_usernames is not None else random.randint(1, 3)
