@@ -1,6 +1,8 @@
 import re
-from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
+
 import pandas as pd
+
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 
 _columns_to_stratify_with = [
     "paragraph",
@@ -12,7 +14,6 @@ _columns_to_stratify_with = [
 _columns_to_use_categorical = [
     "paragraph",
     "order",
-    "has_enough_context",
     "is_letter",
 ]
 
@@ -39,7 +40,6 @@ class PairsStatisticalData:
         self.paragraph = self._describe_categorical(df.paragraph)
         self.is_letter = self._describe_categorical(df.is_letter)
         self.order = self._describe_categorical(df.order)
-        self.has_enough_context = self._describe_categorical(df.has_enough_context)
         self.is_letter = self._describe_categorical(df.is_letter)
 
         self.sindex = self._describe_numerical(df.sindex)
@@ -97,29 +97,39 @@ class PairsStatisticalData:
         return df_stratified_desc
 
 
-def text_inside_math(text: str) -> str:
-    return extract_math_from_dollars(text)
-
-
-def text_outside_math(text: str) -> str:
-    return extract_math_from_dollars("$" + text + "$")
+def count_tokens(text: str) -> int:
+    r"""
+    Estimates the nubmer of tokens in a string, matching latex commands, standards words and individual
+    punctuation and symbols.
+    """
+    tokens = re.findall(r"\\[a-zA-Z]+|\w+|[^\w\s]", text)
+    return len(tokens)
 
 
 def math_percentage(text: str) -> float:
-    if text.replace(r"\$", "").count("$") % 2:  # hay "$" desparejados
-        return -1
 
-    in_math_length = len(text_inside_math(text))
-    out_math_length = len(text_inside_math(text))
+    clean_text = text.replace(r"\$", "")
 
-    if not in_math_length and not out_math_length:
-        return 0
-    return in_math_length / (out_math_length + in_math_length)
+    if clean_text.count("$") % 2 != 0:
+        return -1.0
+    parts = re.split(r"(\$\$.*?\$\$|\$.*?\$)", text, flags=re.DOTALL)
 
+    math_tokens = 0
+    text_tokens = 0
 
-def extract_math_from_dollars(text, separator=" "):
+    for i, part in enumerate(parts):
+        if not part.strip():
+            continue
 
-    matches = math_pattern.findall(text)
-    extracted_text = [match[1].strip() for match in matches]
+        if i % 2 == 1:
+            math_content = part.strip("$")
+            math_tokens += count_tokens(math_content)
+        else:
+            text_tokens += count_tokens(part)
 
-    return separator.join(extracted_text)
+    total_tokens = math_tokens + text_tokens
+
+    if total_tokens == 0:
+        return 0.0
+
+    return math_tokens / total_tokens

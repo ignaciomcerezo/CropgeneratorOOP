@@ -1,9 +1,9 @@
-from cropgen.tests.tests_helper import load_particular_annotation
+from cropgen.tests.tests_helper import load_ann
 
 
-def test_intersections_and_geometries(paths):
+def test_intersections_and_geometries(paths, lsi):
 
-    ann = load_particular_annotation(paths, 4, 0)
+    ann = load_ann(paths, 4, 0, lsi=lsi, fake_image=True)
     box_a = ann.image_boxes["_3qKT12Lkm"]
     box_b = ann.image_boxes["9bD_DAaJ9I"]
     box_c = ann.image_boxes["R0cpzJhaF8"]
@@ -20,12 +20,12 @@ def test_intersections_and_geometries(paths):
     assert box_b.polygon.intersects(box_c.polygon)
     assert not box_c.polygon.intersects(box_a.polygon)
 
-    assert len(load_particular_annotation(paths, 341, 0).paragraphs) == 1
-    assert len(load_particular_annotation(paths, 342, 0).paragraphs) == 1
-    assert len(load_particular_annotation(paths, 343, 0).paragraphs) == 2
-    assert len(load_particular_annotation(paths, 344, 1).paragraphs) == 2
+    assert len(load_ann(paths, 341, 0, lsi=lsi, fake_image=True).paragraphs) == 1
+    assert len(load_ann(paths, 342, 0, lsi=lsi, fake_image=True).paragraphs) == 1
+    assert len(load_ann(paths, 343, 0, lsi=lsi, fake_image=True).paragraphs) == 2
+    assert len(load_ann(paths, 344, 1, lsi=lsi, fake_image=True).paragraphs) == 2
 
-    ann103 = load_particular_annotation(paths, 103, 1)
+    ann103 = load_ann(paths, 103, 1)
 
     # bloques [A][B][C] adyacentes, por otra parte [D][E]
 

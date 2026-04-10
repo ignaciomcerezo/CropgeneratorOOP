@@ -1,10 +1,10 @@
 import numpy as np
-from fuzzywuzzy import fuzz
 import pytest
+from fuzzywuzzy import fuzz
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
-from cropgen.tests.tests_helper import load_particular_annotation
+from cropgen.tests.tests_helper import load_ann
 
 
 def test_contextualize_by_words(task_macedonia, pdi):
@@ -65,7 +65,7 @@ def test_cluster_in_contextualize(
             raise ValueError(f"No existe la tarea {task_n} en el dataframe")
 
         annotations = [
-            load_particular_annotation(paths, task_n, k, lsi=lsi)
+            load_ann(paths, task_n, k, lsi=lsi, fake_image=True)
             for k in range(len(lsi[task_n]))
         ]
         anns_by_id = {ann.annotation_unique_id: ann for ann in annotations}

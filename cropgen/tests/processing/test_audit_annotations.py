@@ -1,12 +1,16 @@
+import re
+
+import pytest
+from PIL import Image
+from shapely import Polygon, MultiPolygon
+from tqdm.auto import tqdm
+
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.TextFragment import TextFragment
-from tqdm.auto import tqdm
 from cropgen.processing.Paragraph import Paragraph
-from PIL import Image
-import pytest
-from shapely import Polygon, MultiPolygon
-import re
+from cropgen.processing.TextFragment import TextFragment
+from cropgen.tests.object_mothers import mother_pil_image
+from tests_helper import extract_height_width_from_task
 
 
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
@@ -60,9 +64,9 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
 def test_audit_annotations(paths, ls_url, ls_token, lsi):
 
     for task in tqdm(lsi.simplified_tasks, desc="test_audit_annotations"):
-        path = paths.get_image_path_from_task(task)
-        assert path is not None
-        image = Image.open(path)
+        width, height = extract_height_width_from_task(task)
+
+        image = mother_pil_image(width=width, height=height, color=(255, 255, 255))
 
         for ann in task.annotations:
             ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)

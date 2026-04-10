@@ -167,8 +167,6 @@ def augment_data_sequential(
                     )
                     total_saved += 1
 
-                saved_subgraphs_ids = set()  # para evitar duplicados
-
                 for order in range(
                     1, len(paragraph) - generate_full_paragraphs + 1
                 ):  # aquí ya forzamos que no se generen dos veces los párrafos completos. Sin embargo si
@@ -183,15 +181,9 @@ def augment_data_sequential(
                         order
                     ):
 
-                        seq_hash = get_deterministic_id(
-                            "".join(sorted(box_id_sequence))
-                        )
+                        sequence_pseudohash = box_id_sequence[0] + box_id_sequence[-1]
 
-                        if seq_hash in saved_subgraphs_ids:
-                            # esto debería ser imposible a no ser que no haya reservoir
-                            continue
-
-                        filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{seq_hash}.png"
+                        filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{sequence_pseudohash}.png"
 
                         collage, transcripcion, sindex = Ann.cluster_reading_order(
                             box_id_sequence
@@ -218,7 +210,6 @@ def augment_data_sequential(
                         )
 
                         total_saved += 1
-                        saved_subgraphs_ids.add(seq_hash)
 
     # guardamos en JSONL con la correspondencia
     new_df = pd.DataFrame(new_rows_data)
