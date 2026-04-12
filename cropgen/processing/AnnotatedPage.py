@@ -1,13 +1,18 @@
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.TextFragment import TextFragment
+import re
 from collections.abc import Iterable
+
+import numpy as np
+from PIL import Image, ImageDraw
+
+from cropgen.processing.ImageBox import ImageBox
+from cropgen.processing.Paragraph import Paragraph
+from cropgen.processing.TextFragment import TextFragment
 from cropgen.processing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
     RepeatedSameAssociationError,
     SameToSameAssociation,
 )
-from cropgen.processing.Paragraph import Paragraph
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
@@ -20,7 +25,6 @@ from cropgen.processing.helpers.text_replacements import (
     replacements_envs,
     regex_replacements,
 )
-from cropgen.shared.LSTypedDicts.aggregates import ResultItem
 from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
     PolygonResult,
@@ -37,9 +41,6 @@ from cropgen.shared.default_parameters import (
     min_nodes_for_big_box_removal,
 )
 from cropgen.shared.display import display
-import re
-from PIL import Image
-import numpy as np
 
 
 class AnnotatedPage:
@@ -490,3 +491,52 @@ class AnnotatedPage:
         sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
 
         return -np.degrees(np.arctan2(sum_sin, sum_cos))
+
+    def represent_by_ids(
+        self,
+        image_box_ids: list[str],
+        represent_mbr: bool = False,
+        polygon_color: tuple[int, int, int] | tuple[int, int, int, int] = (255, 0, 0),
+        mbr_color: tuple[int, int, int] | tuple[int, int, int, int] = (0, 255, 0),
+        background_color: (
+            tuple[int, int, int] | tuple[int, int, int, int] | None
+        ) = None,
+        line_width: int = 2,
+    ) -> Image.Image:
+        """
+        Genera un collage con las cajas seleccionadas y dibuja sus polígonos encima.
+        Si represent_mbr=True, añade también el mínimo rectángulo rotado de cada polígono.
+        """
+        selected_ids = list(image_box_ids)
+        if not selected_ids:
+            raise ValueError(
+                "No se puede representar una secuencia vacía de image_box_ids."
+            )
+
+        selected_boxes = [self.image_boxes[box_id] for box_id in selected_ids]
+        collage = compose_collage(
+            selected_boxes,
+            background_color if background_color is not None else self.background_color,
+        )
+
+        # Usamos el mismo anclaje que compose_collage para convertir coordenadas globales a locales.
+        min_x = int(min(box.polygon.bounds[0] for box in selected_boxes))
+        min_y = int(min(box.polygon.bounds[1] for box in selected_boxes))
+
+        draw = ImageDraw.Draw(collage)
+
+        for box in selected_boxes:
+            polygon_points = [
+                (float(x - min_x), float(y - min_y))
+                for x, y in box.polygon.exterior.coords
+            ]
+            draw.line(polygon_points, fill=polygon_color, width=line_width)
+
+            if represent_mbr:
+                mbr_points = [
+                    (float(x - min_x), float(y - min_y))
+                    for x, y in box.polygon.minimum_rotated_rectangle.exterior.coords
+                ]
+                draw.line(mbr_points, fill=mbr_color, width=line_width)
+
+        return collage

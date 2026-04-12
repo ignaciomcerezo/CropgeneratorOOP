@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Optional
-from PIL import Image
 from typing import TYPE_CHECKING
-from shapely import Polygon
-from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
+
+from PIL import Image
+from shapely import Polygon, box as boxshape
+
 from cropgen.processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
     MultipleAssociationError,
@@ -13,7 +14,7 @@ from cropgen.processing.helpers.helper_to_classes import (
     get_rotated_region,
     unrotate_image,
 )
-from shapely import Polygon, box as boxshape
+from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 
 if TYPE_CHECKING:
     from cropgen.processing.TextFragment import TextFragment
