@@ -6,7 +6,7 @@ from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
 from cropgen.shared.LSTypedDicts.results import ImageBaseResult
 from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 from cropgen.shared.PathBundle import PathBundle
-from object_mothers import mother_pil_image
+from cropgen.tests.object_mothers import mother_pil_image
 
 
 def load_ann(
