@@ -10,7 +10,7 @@ from cropgen.processing.ImageBox import ImageBox
 from cropgen.processing.Paragraph import Paragraph
 from cropgen.processing.TextFragment import TextFragment
 from cropgen.tests.object_mothers import mother_pil_image
-from tests_helper import extract_height_width_from_task
+from cropgen.tests.tests_helper import extract_height_width_from_task
 
 
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
