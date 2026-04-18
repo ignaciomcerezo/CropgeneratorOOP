@@ -1,16 +1,17 @@
-from cropgen.shared.PathBundle import PathBundle
-from cropgen.splitter.crops_interface.helpers import (
-    get_split_separate_laloma_and_letters,
-)
 import re
-from typing import Literal
+
+import pandas as pd
+
+from cropgen.shared.PathBundle import PathBundle
 from cropgen.shared.default_parameters import (
     context_chars as default_context_chars,
     context_words as default_context_words,
     min_context_chars as default_min_context_chars,
     min_context_words as default_min_context_words,
 )
-import pandas as pd
+from cropgen.splitter.crops_interface.helpers import (
+    get_split_separate_laloma_and_letters,
+)
 
 
 def _is_letter(x):
@@ -57,7 +58,7 @@ class PairsDataInterface:
         context_chars: int = default_context_chars,
         min_context_chars: int = default_min_context_chars,
     ):
-        self.df = pd.read_json(paths.json_filepath, lines=True)
+        self.df = pd.read_json(paths.json_filepath, encoding="utf-8")
         self._filepath = paths.json_filepath
         self.context_words = context_words
         self.min_context_words = min_context_words

@@ -1,12 +1,13 @@
 from __future__ import annotations
-from tqdm.auto import tqdm
-from dataclasses import dataclass
-from pathlib import Path
-from dotenv import load_dotenv  # type: ignore
+
 import os
 import urllib.parse
+from dataclasses import dataclass
+from pathlib import Path
 
 import requests
+from dotenv import load_dotenv  # type: ignore
+from tqdm.auto import tqdm
 
 from cropgen.shared.PathBundle import PathBundle
 
@@ -77,6 +78,20 @@ class OracleBucketInterface:
     def _object_url(self, object_name: str) -> str:
         quoted_name = urllib.parse.quote(object_name, safe="")
         return self.bucket_url + quoted_name
+
+    @staticmethod
+    def _decode_transcription_bytes(raw_bytes: bytes, source_url: str) -> str:
+        """decodifica siempre en utf-8"""
+        try:
+            return raw_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError as e:
+            raise UnicodeDecodeError(
+                e.encoding,
+                e.object,
+                e.start,
+                e.end,
+                f"No se ha podido decodificar en UTF-8 la transcripcion descargada desde {source_url}.",
+            )
 
     def _list_bucket_objects(self) -> list[dict]:
         objects: list[dict] = []
@@ -180,7 +195,10 @@ class OracleBucketInterface:
                 local_txt = self.paths.get_transcription_path(pair.page_name)
                 local_img = self.paths.get_image_path(pair.page_name)
 
-                local_txt.write_text(txt_resp.text, encoding="utf-8")
+                transcription_text = self._decode_transcription_bytes(
+                    txt_resp.content, txt_url
+                )
+                local_txt.write_text(transcription_text, encoding="utf-8")
                 local_img.write_bytes(img_resp.content)
 
                 downloaded.append(pair.page_name)

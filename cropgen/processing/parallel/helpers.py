@@ -1,3 +1,8 @@
+import os
+import re
+
+import pandas as pd
+
 from cropgen.processing.sequential.augment_data_sequential import (
     augment_data_sequential,
 )
@@ -5,9 +10,6 @@ from cropgen.shared.PathBundle import PathBundle
 from cropgen.shared.default_parameters import (
     orders_to_consider as default_orders_to_consider,
 )
-import pandas as pd
-import os
-import re
 
 
 def run_chunk(
@@ -62,18 +64,18 @@ def merge_jsonl_files(paths: PathBundle, delete_parts=True):
     dfs = []
     for filepath in files_to_merge:
         try:
-            dfs.append(pd.read_json(filepath, lines=True))
+            dfs.append(pd.read_json(filepath, encoding="utf-8"))
         except Exception as e:
             print(f"Error leyendo {filepath}: {e}")
 
     combined_df = pd.concat(dfs, ignore_index=True)
     try:
-        combined_df.to_json(
-            paths.data_out_path / output_name,
+        json_data = combined_df.to_json(
             orient="records",
-            lines=True,
             force_ascii=False,
         )
+
+        (paths.data_out_path / output_name).write_text(json_data, encoding="utf-8")
         print(
             f"Archivo {output_name.suffix.upper()} combinado guardado en {paths.data_out_path / output_name}"
         )

@@ -1,17 +1,18 @@
 from pathlib import Path
-from PIL import Image, ImageOps
 
-from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
-from cropgen.processing.AnnotatedPage import AnnotatedPage
+import pandas as pd
+from PIL import Image, ImageOps
 from tqdm.auto import tqdm
+
+from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.processing.helpers.helper_to_classes import (
     get_deterministic_id,
 )
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 from cropgen.shared.PathBundle import (
     PathBundle,
 )
-import pandas as pd
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 
 
 def augment_data_sequential(
@@ -217,7 +218,7 @@ def augment_data_sequential(
     # comprobamos si hay que unirlo con un dataset anterior (JSONL)
     if jsonl_filepath.exists() and additive_json:
         try:
-            existing_df = pd.read_json(jsonl_filepath, lines=True)
+            existing_df = pd.read_json(jsonl_filepath, encoding="utf-8")
             # concatenamos los dataframes
             final_df = pd.concat([existing_df, new_df], ignore_index=True)
         except Exception as e:
@@ -244,9 +245,8 @@ def augment_data_sequential(
 
     # lo guardamos a un JSONL (one-record-per-line)
     try:
-        final_df.to_json(
-            jsonl_filepath, orient="records", lines=True, force_ascii=False
-        )
+        jsonl_data = final_df.to_json(orient="records", force_ascii=False)
+        jsonl_filepath.write_text(jsonl_data, encoding="utf-8")
         print(
             f"\nGenerados {total_saved} recortes aumentados y guardados en {paths.json_filepath.stem}."
         )
