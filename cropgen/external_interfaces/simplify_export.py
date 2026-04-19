@@ -1,8 +1,13 @@
 import json
-from pathlib import Path
-
-from cropgen.shared.PathBundle import PathBundle
 import os
+from pathlib import Path
+from typing import List
+
+from cropgen.shared.LSTypedDicts.aggregates import (
+    LabelStudioTask,
+    RawAnnotation,
+    ResultItem,
+)
 from cropgen.shared.LSTypedDicts.results import (
     TextCorrectionResult,
     TextRegionResult,
@@ -10,18 +15,16 @@ from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
     PolygonResult,
 )
-from cropgen.shared.LSTypedDicts.aggregates import (
-    LabelStudioTask,
-    RawAnnotation,
-    ResultItem,
-)
 from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTask,
     SimplifiedAnnotation,
     SimplifiedTextCorrectionResult,
     SimplifiedResultItem,
 )
-from typing import List
+from cropgen.shared.PathBundle import PathBundle
+
+newline = "\n"
+tab = "\t"
 
 
 def resolve_text_for_group(group: List[ResultItem], full_text: str) -> list[str]:
@@ -230,13 +233,15 @@ def simplify_export(raw_export_filepath: Path, simplified_filepath: Path) -> Non
                             None,
                         )
                         original_text = (
-                            str(label_res.value.text) if label_res is not None else "<sin etiqueta original>"
+                            str(label_res.value.text)
+                            if label_res is not None
+                            else "<sin etiqueta original>"
                         )
                         print(
-                            f"En la tarea {task.id}, el fragmento \n\t > {original_text.replace('\n', '\n\t')}\n tiene múltiples correcciones:"
+                            f"En la tarea {task.id}, el fragmento {newline}{tab} > {original_text.replace(newline, newline+tab)}{newline} tiene múltiples correcciones:"
                         )
                         for correction in final_text_list:
-                            print(f"\t > {correction.replace('\n', '\n\t')}")
+                            print(f"{tab} > {correction.replace(newline, newline+tab)}")
                     # en el caso en el que haya más de una, cogemos la primera (placeholder)
                     final_text = final_text_list[0]
                     if final_text and final_text.strip():
