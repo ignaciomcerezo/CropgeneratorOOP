@@ -72,7 +72,7 @@ class PairsDataInterface:
         self.paths = paths
 
         self.df["is_letter"] = self.df.page.apply(
-            lambda x: isinstance(x, int) or str(x).isdigit()
+            lambda x: not(isinstance(x, int) or str(x).isdigit())
         )
 
         self.df["context_length_chars"] = self.df.apply(
