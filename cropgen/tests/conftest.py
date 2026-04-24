@@ -1,12 +1,14 @@
 # tests/conftest.py
-from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
-from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
-import pytest
-import os
-from cropgen.shared.PathBundle import PathBundle
-from dotenv import load_dotenv
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 import multiprocessing
+import os
+
+import pytest
+from dotenv import load_dotenv
+
+from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.shared.PathBundle import PathBundle
+from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 
 
 @pytest.fixture(scope="session")
@@ -71,7 +73,7 @@ def five_letter_task_numbers() -> list[int]:
 
 @pytest.fixture
 def five_laloma_task_numbers() -> list[int]:
-    return [1, 101, 143, 465, 526]
+    return [1, 101, 138, 465, 526]
 
 
 @pytest.fixture

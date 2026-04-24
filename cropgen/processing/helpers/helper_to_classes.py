@@ -34,23 +34,26 @@ def reemplazar_latex_espaciado(texto, apertura, cierre="}"):
             break
 
         idx_contenido = idx_inicio + len(apertura)
-        balance = balance_inicial
+        balance = 1
         idx_fin = -1
         i = idx_contenido
 
         # balanceo de llaves
         while i < len(texto):
-            char = texto[i]
-            if char == "\\":
+            if texto[i] == "\\":
                 i += 2
                 continue
-            if char == apertura:
+            if texto[i:i+len(apertura)] == apertura:
                 balance += 1
-            elif char == cierre:
+                i += len(apertura)
+                continue
+            if texto[i:i+len(cierre)] == cierre:
                 balance -= 1
                 if balance == 0:
                     idx_fin = i
                     break
+                i += len(cierre)
+                continue
             i += 1
 
         if idx_fin != -1:

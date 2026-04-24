@@ -49,6 +49,10 @@ replacements = [
     (r"\rightarrow", r"\to"),
     (r"\Longrightarrow", r"\Rightarrow"),
     (r"\longlefttarrow", r"\leftarrow"),
+    (r"\left", ""),
+    (r"\right", ""),
+    ("``", '"'),
+    ("''", '"'),
 ]
 replacements_envs = [
     # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
