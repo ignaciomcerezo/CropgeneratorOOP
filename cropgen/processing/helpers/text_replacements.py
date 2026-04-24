@@ -45,6 +45,10 @@ replacements = [
     (" f9", "ù"),
     (r"\{\mathcal U\}", r"\mathcal U"),
     (r"\{\mathcal{U}\}", r"\mathcal U"),
+    (r"\longrightarrow", r"\to"),
+    (r"\rightarrow", r"\to"),
+    (r"\Longrightarrow", r"\Rightarrow"),
+    (r"\longlefttarrow", r"\leftarrow"),
 ]
 replacements_envs = [
     # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
@@ -59,6 +63,7 @@ replacements_envs = [
     (r"\textsl{", "}"),
     (r"\underline{", "}"),
     (r"\emph{", "}"),
+    (r"\emph{donnée}", "donnée"),
     (r"\footnote{", "}"),
     (r"\begin{center}", r"\end{center}"),
     (r"\tag{", "}"),
