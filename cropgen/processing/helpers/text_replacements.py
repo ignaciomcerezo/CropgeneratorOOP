@@ -51,8 +51,15 @@ replacements = [
     (r"\longlefttarrow", r"\leftarrow"),
     (r"\left", ""),
     (r"\right", ""),
+    (r"\operatorname", r"\mathrm"),
     ("``", '"'),
     ("''", '"'),
+    ("«", '"'),
+    ("»", '"'),
+    ("O.P.S.", "OPS"),
+    ("O.P.S", "OPS"),
+    (r"\varprojlim", r"\lim_{\to}"),
+    (r"\varinjlim", r"\lim_{\to}"),
 ]
 replacements_envs = [
     # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
@@ -75,11 +82,12 @@ replacements_envs = [
 
 regex_replacements = [
     (
-        r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|natural|eg|earrow|warrow|abla)(?![a-zA-Z]))",
+        r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|atural|eg|earrow|warrow|abla)(?![a-zA-Z]))",
         " ",
     ),
     # reemplazar nuevas líneas
     (r"\\U\b", r"\\mathcal U"),
     (r"\\E\b", r"\\mathcal E"),
     (r"\s{2,}", " "),
+    (r"-{2,}", "-"),
 ]

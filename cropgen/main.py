@@ -27,9 +27,9 @@ def generate(
     augment_data_parallel(
         paths,
         tasks_only=None,
-        orders_to_consider=[0],
-        generate_full_pages=True,
-        generate_paragraphs=False,
+        orders_to_consider=[1, 2, 3],
+        generate_full_pages=False,
+        generate_paragraphs=True,
         num_processes=6,
         lsi=lsi,
     )
