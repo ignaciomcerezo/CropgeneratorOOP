@@ -75,6 +75,9 @@ replacements = [
     ("N.B.", "NB"),
     ("N.B", "NB"),
     ("NB.", "NB"),
+    (" ...", "..."),
+    (r"\cal", r"\mathcal"),
+    (r"\frak", r"\mathfrak"),
 ]
 replacements_envs = [
     # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
@@ -108,10 +111,17 @@ regex_replacements = [
     (r"\\E\b", r"\\mathcal E"),
     (r"\s{2,}", " "),
     (r"-{2,}", "-"),
-    (r"\s\:", ":"),
-    (r"\s\;", ";"),
-    (r"\(\s+", r"\("),
-    (r"\\mathcal\{([a-zA-Z])\}", r"\\mathcal \1 "),
-    (r"\\mathfrak\{([a-zA-Z])\}", r"\\mathfrak \1 "),
-    (r"\\mathbb\{([a-zA-Z])\}", r"\\mathbb \1 "),
+    (r"\s+:", ":"),
+    (r"\s+;", ";"),
+    (r"\(\s+", r"("),
+    (r"\s\)+", r")"),
+    (r"\[\s+", r"["),
+    (r"\s\]+", r"]"),
+    (r"\s+!", "!"),
+    (r"\s+\?", "?"),
+    (r"\\mathcal\{([a-zA-Z])\}", r"\\mathcal \1"),
+    (r"\\mathfrak\{([a-zA-Z])\}", r"\\mathfrak \1"),
+    (r"\\mathbb\{([a-zA-Z])\}", r"\\mathbb \1"),
+    # (rf"\\overset({bracketed_block})({bracketed_block})", r"\2^\1"),
+    (r"\s{2,}", " "),
 ]
