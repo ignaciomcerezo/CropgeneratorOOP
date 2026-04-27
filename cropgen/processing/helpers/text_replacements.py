@@ -52,6 +52,7 @@ replacements = [
     (r"\left", ""),
     (r"\right", ""),
     (r"\operatorname", r"\mathrm"),
+    (r"\mathop", r"\mathrm"),
     ("``", '"'),
     ("''", '"'),
     ("«", '"'),
@@ -59,7 +60,21 @@ replacements = [
     ("O.P.S.", "OPS"),
     ("O.P.S", "OPS"),
     (r"\varprojlim", r"\lim_{\to}"),
-    (r"\varinjlim", r"\lim_{\to}"),
+    (r"\varinjlim", r"\lim_{\leftarrow}"),
+    (r"\ ", ""),
+    (r"\,", ""),
+    (r"\;", ""),
+    (r"\:", ""),
+    (r"\quad", ""),
+    (r"\qquad", ""),
+    ("—", "-"),
+    (r"\big", ""),
+    (r"\ldots", r"\dots"),
+    (r"\/", r""),
+    (r"\nobreak", ""),
+    ("N.B.", "NB"),
+    ("N.B", "NB"),
+    ("NB.", "NB"),
 ]
 replacements_envs = [
     # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
@@ -81,8 +96,11 @@ replacements_envs = [
 ]
 
 regex_replacements = [
+    # (pattern, replacement)
+    # en la parte de replacement solamente se formatean raro las barras invertidas \, que tienen que ir como \\
+    # para diferenciarlas de los grupos de captura que se van a sustituir (\1, \2, etc.).
     (
-        r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|atural|eg|earrow|warrow|abla)(?![a-zA-Z]))",
+        r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|atural|eg|earrow|warrow|abla|obreak)(?![a-zA-Z]))",
         " ",
     ),
     # reemplazar nuevas líneas
@@ -90,4 +108,10 @@ regex_replacements = [
     (r"\\E\b", r"\\mathcal E"),
     (r"\s{2,}", " "),
     (r"-{2,}", "-"),
+    (r"\s\:", ":"),
+    (r"\s\;", ";"),
+    (r"\(\s+", r"\("),
+    (r"\\mathcal\{([a-zA-Z])\}", r"\\mathcal \1 "),
+    (r"\\mathfrak\{([a-zA-Z])\}", r"\\mathfrak \1 "),
+    (r"\\mathbb\{([a-zA-Z])\}", r"\\mathbb \1 "),
 ]
