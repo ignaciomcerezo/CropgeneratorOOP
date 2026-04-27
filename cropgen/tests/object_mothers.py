@@ -856,11 +856,9 @@ def mother_pil_image(
             (height, width, 3),
             dtype=np.uint8,
         )
-    else:
-        arr = np.zeros((height, width, 3), dtype=np.uint8)
-        arr[:, :, :] = color
+        return Image.fromarray(arr)
 
-    return Image.fromarray(arr)
+    return Image.new("RGB", (width, height), color)
 
 
 def mother_annotated_page(

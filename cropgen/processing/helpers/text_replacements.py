@@ -98,6 +98,14 @@ replacements_envs = [
     (r"\tag{", "}"),
 ]
 
+text_nobracket_p = r"[^{}]"
+bracketed_block = r"\{" + text_nobracket_p + r"*\}"
+cmm_p = r"\\[a-zA-Z]+"
+for _ in range(10):
+    # creamos un bloque de contenido entre llaves - el 10 es un número arbitrario, pero parece razonable.
+    bracketed_block = r"\{(?:" + text_nobracket_p + r"|" + bracketed_block + r")*\}"
+scriptable_block = rf"({cmm_p}|\w|{bracketed_block})"
+
 regex_replacements = [
     # (pattern, replacement)
     # en la parte de replacement solamente se formatean raro las barras invertidas \, que tienen que ir como \\
@@ -109,7 +117,6 @@ regex_replacements = [
     # reemplazar nuevas líneas
     (r"\\U\b", r"\\mathcal U"),
     (r"\\E\b", r"\\mathcal E"),
-    (r"\s{2,}", " "),
     (r"-{2,}", "-"),
     (r"\s+:", ":"),
     (r"\s+;", ";"),

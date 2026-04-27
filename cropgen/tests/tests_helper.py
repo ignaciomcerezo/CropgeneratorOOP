@@ -63,6 +63,8 @@ def extract_height_width_from_task(
             result, ImageBaseResult
         ):
             break
+    else:
+        raise ValueError(f"No es ha encontrado ningún resultado en la tarea {task}.")
 
     retrieved_width = result.original_width
     retrieved_height = result.original_height

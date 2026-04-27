@@ -93,3 +93,20 @@ def test_paragraph_ordering_v3(paths, lsi):
         "x1z_rZLPBn",
         "jMeItlFlAT",
     ]
+
+    ann = load_ann(paths, 332, annotation_number_in_task=1, lsi=lsi, fake_image=True)
+
+    paragraph = ann.paragraphs[0]
+
+    assert paragraph.image_boxes_ids == [
+        "KotWxsgS87",
+        "ydPjZ4UtEq",
+        "9mI-CXY7JI",
+        "sES-y04ZNp",
+        "8orwKeStWy",
+        "1drw-LKT-G",
+        "EjbYa0Bqrz",
+        "HGvNRU0DCD",
+        "LehE7XMpFp",
+        "dNal3edaPF",
+    ]
