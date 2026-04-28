@@ -95,7 +95,6 @@ replacements_envs = [
     (r"\emph{donnée}", "donnée"),
     (r"\footnote{", "}"),
     (r"\begin{center}", r"\end{center}"),
-    (r"\tag{", "}"),
 ]
 
 text_nobracket_p = r"[^{}]"
@@ -133,5 +132,4 @@ regex_replacements = [
     (r"\\tag\{\d*\}", ""),
     (r"\s{2,}", " "),
     # (rf"\\overset({bracketed_block})({bracketed_block})", r"\2^\1"),
-    (r"\s{2,}", " "),
 ]

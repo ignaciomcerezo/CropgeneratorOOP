@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
@@ -13,7 +16,7 @@ def generate(
 ):
     # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
     load_dotenv()
-    paths: PathBundle = PathBundle() if paths is None else paths
+    paths: PathBundle = PathBundle(Path(os.getcwd()).parent) if paths is None else paths
 
     obi: OracleBucketInterface = (
         OracleBucketInterface.from_env(paths) if obi is None else obi

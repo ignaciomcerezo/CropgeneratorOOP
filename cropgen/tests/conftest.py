@@ -1,6 +1,7 @@
 # tests/conftest.py
 import multiprocessing
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
@@ -13,7 +14,7 @@ from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterfa
 
 @pytest.fixture(scope="session")
 def paths() -> PathBundle:
-    return PathBundle()
+    return PathBundle(Path(os.getcwd()).parents[1])
 
 
 @pytest.fixture(scope="session")

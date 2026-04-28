@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 import requests
-from dotenv import load_dotenv  # type: ignore
+from dotenv import load_dotenv
 from tqdm.auto import tqdm
 
 from cropgen.shared.PathBundle import PathBundle
@@ -180,9 +181,9 @@ class OracleBucketInterface:
         print(
             f"OracleBucketInterface - Descargando imágenes y transcripciones en la carpeta {self.paths.data_in_path}"
         )
-        downloaded: list[str] = []
-        with requests.Session() as session:
-            for pair in tqdm(pending, desc="OracleBucketInterface downloading..."):
+
+        def download_pair(pair: _PairInfo) -> str:
+            with requests.Session() as session:
                 txt_url = self._object_url(pair.transcription_object)
                 img_url = self._object_url(pair.image_object)
 
@@ -200,7 +201,15 @@ class OracleBucketInterface:
                 )
                 local_txt.write_text(transcription_text, encoding="utf-8")
                 local_img.write_bytes(img_resp.content)
+                return pair.page_name
 
-                downloaded.append(pair.page_name)
+        downloaded: list[str] = []
+        with ThreadPoolExecutor() as executor:
+            for name in tqdm(
+                executor.map(download_pair, pending),
+                total=len(pending),
+                desc="OracleBucketInterface downloading...",
+            ):
+                downloaded.append(name)
 
         return downloaded

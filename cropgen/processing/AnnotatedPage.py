@@ -76,14 +76,15 @@ class AnnotatedPage:
 
         if unrotate and AnnotatedPage.warn_unrotate:
             print(
-                "[!!!] Usar unrotate = True destruye la información sobre la posición del crop en la instancia de AnnotatedPage. "
-                "Además, reduce la calidad de las imágenes por usar interpolación bicúbica, y esta misma interpolación introduce "
-                "artefactos visuales en los bordes de la imagen. Úsese solamente en caso de revisión manual de las imágenes, y "
-                "NO para el código de generación del dataset."
+                "[!!!] Usar unrotate = True destruye la información sobre la posición del crop en "
+                "la instancia de AnnotatedPage. Además, reduce la calidad de las imágenes por usar "
+                "interpolación bicúbica, y esta misma interpolación introduce artefactos visuales "
+                "en los bordes de la imagen. También invalida la forma en la que se generan los párrafos, "
+                "la transcripción global (y la de los clusters) y los starting_indices.\n"
+                "Úsese solamente en caso de revisión manual de las imágenes, y NO para el código de "
+                "generación del dataset."
             )
-            print(
-                "También invalida la forma en la que se generan los párrafos, la transcripción y los starting_indices."
-            )
+            print()
         assert (
             usernames_labelstudio is not None
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."

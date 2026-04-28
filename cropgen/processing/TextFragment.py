@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional
+
 from cropgen.processing.ImageBox import (
     ImageBox,
 )
@@ -7,11 +8,6 @@ from cropgen.processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
     MultipleAssociationError,
     NoAssociationError,
-)
-
-_things_to_close = (
-    ("{", "}"),
-    ("$", "$"),
 )
 
 
