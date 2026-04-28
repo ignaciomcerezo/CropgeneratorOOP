@@ -1,6 +1,7 @@
 import os
 import re
 from pathlib import Path
+from typing import Iterable
 
 from dotenv import load_dotenv
 
@@ -15,7 +16,7 @@ from cropgen.shared.PathBundle import PathBundle
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 from tqdm.auto import tqdm
 
-paths = PathBundle(Path(os.getcwd()).parents[1])
+paths = PathBundle(Path(os.getcwd()).parents[2])
 obi = OracleBucketInterface(paths)
 obi.update()
 LabelStudioInterface.update_conditional(paths)
@@ -34,14 +35,14 @@ scriptable_block = rf"({cmm_p}|\w|{bracketed_block})"
 subscript_p = rf"\_{scriptable_block}"
 superscript_p = rf"\^{scriptable_block}"
 
-_PATTERNS = [r"[a-zA-Z]\d", r"[a-zA-Z]\w", r"\s\;", r"\s\:", r"\\rightarrow"]
+_PATTERNS = (r"[a-zA-Z]\d", r"[a-zA-Z]\w", r"\s\;", r"\s\:", r"\\rightarrow")
 
 
-def test_undesirable_matches(re_patterns: list[str] = _PATTERNS) -> None:
-    assert number_of_matches(re_patterns) == 0
+def test_undesirable_matches(re_patterns: Iterable[str] = _PATTERNS) -> None:
+    assert sum(number_of_matches(re_patterns)) == 0
 
 
-def number_of_matches(re_patterns: list[str], show_where: bool = True) -> int:
+def number_of_matches(re_patterns: Iterable[str], show_where: bool = True) -> list[int]:
     """
     Devuelve el número de ocurrencias de un patrón de regex concreto en las cajas-imagen selccionadas.
     No se hace con el texto concreto, sino en cada línea de forma individual.
@@ -56,7 +57,7 @@ def number_of_matches(re_patterns: list[str], show_where: bool = True) -> int:
 
     AnnotatedPage.min_nodes_for_big_box_removal = 500
 
-    total_matches = 0
+    total_matches = [0] * len(re_patterns)
 
     for task in tqdm(tasks):
         width, height = extract_height_width_from_task(task)
@@ -64,7 +65,7 @@ def number_of_matches(re_patterns: list[str], show_where: bool = True) -> int:
 
         for k, ann in enumerate(task.annotations):
 
-            for re_pattern in re_patterns:
+            for pttrn_index, re_pattern in enumerate(re_patterns):
 
                 # Primero con unrotate = True (comprobación de los recortes individuales)
                 Ann = AnnotatedPage(ann, img, usernames_labelstudio=lsi.usernames)
@@ -91,7 +92,7 @@ def number_of_matches(re_patterns: list[str], show_where: bool = True) -> int:
                             ends.append(b)
                             b_prev = b
                         print("\n", end="")
-                        total_matches += len(matches)
+                        total_matches[pttrn_index] += len(matches)
 
     return total_matches
 
