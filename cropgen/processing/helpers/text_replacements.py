@@ -130,6 +130,7 @@ regex_replacements = [
     (r"\\mathbb\{\s*([a-zA-Z])\s*\}", r"\\mathbb \1"),
     (rf"\{{\\rm\s+({text_nobracket_p})\}}", r"\\mathrm{\1}"),
     (r"\\tag\{\d*\}", ""),
+    (r"\\not\s*=", r"\neq"),
     (r"\s{2,}", " "),
     # (rf"\\overset({bracketed_block})({bracketed_block})", r"\2^\1"),
 ]
