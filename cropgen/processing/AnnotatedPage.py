@@ -24,6 +24,7 @@ from cropgen.processing.helpers.text_replacements import (
     replacements,
     replacements_envs,
     regex_replacements,
+    task_specific_regex_replacements,
 )
 from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
@@ -84,16 +85,15 @@ class AnnotatedPage:
                 "Úsese solamente en caso de revisión manual de las imágenes, y NO para el código de "
                 "generación del dataset."
             )
-            print()
         assert (
             usernames_labelstudio is not None
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
-        results: list[SimplifiedResultItem] = self._correct_results(
-            ann.result
-        )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
         self.task_id = int(ann.task)
+        results: list[SimplifiedResultItem] = self._correct_results(
+            ann.result,
+        )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
 
         self.background_color = get_dominant_color(img)
 
@@ -309,16 +309,14 @@ class AnnotatedPage:
 
         return adj
 
-    @staticmethod
     def _correct_results(
+        self,
         results: list[SimplifiedResultItem],
     ) -> list[SimplifiedResultItem]:
         """
         Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
         los resultados de una tarea (ambas son variables de clase).
         """
-        # return results
-
         for r in results:
             # solamente hacemos las sustituciones en los fragmentos de texto:
             if isinstance(r, (SimplifiedTextCorrectionResult, TextRegionResult)):
@@ -340,6 +338,11 @@ class AnnotatedPage:
 
                     for pattern, substitution in regex_replacements:
                         text = re.sub(pattern, substitution, text)
+
+                    for pattern, substitution in task_specific_regex_replacements.get(
+                        self.task_id, []
+                    ):
+                        text = re.sub(pattern=pattern, subs=substitution, string=text)
 
                     text_res[i] = text
 

@@ -5,6 +5,7 @@ from typing import Iterable
 
 from dotenv import load_dotenv
 
+from cropgen.processing.helpers.text_replacements import french_latex_characters
 from cropgen.tests.tests_helper import extract_height_width_from_task
 from object_mothers import mother_pil_image
 
@@ -14,7 +15,6 @@ from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterfac
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
-from tqdm.auto import tqdm
 
 paths = PathBundle(Path(os.getcwd()).parents[2])
 obi = OracleBucketInterface(paths)
@@ -34,6 +34,7 @@ scriptable_block = rf"({cmm_p}|\w|{bracketed_block})"
 
 subscript_p = rf"\_{scriptable_block}"
 superscript_p = rf"\^{scriptable_block}"
+foreign_p = rf"[^{''.join([re.escape(char) for char in french_latex_characters])}]"
 
 _PATTERNS = (r"[a-zA-Z]\d", r"[a-zA-Z]\w", r"\s\;", r"\s\:", r"\\rightarrow")
 
@@ -42,12 +43,17 @@ def test_undesirable_matches(re_patterns: Iterable[str] = _PATTERNS) -> None:
     assert sum(number_of_matches(re_patterns)) == 0
 
 
-def number_of_matches(re_patterns: Iterable[str], show_where: bool = True) -> list[int]:
+def number_of_matches(
+    re_patterns: Iterable[str] | str, show_where: bool = True
+) -> list[int]:
     """
     Devuelve el número de ocurrencias de un patrón de regex concreto en las cajas-imagen selccionadas.
     No se hace con el texto concreto, sino en cada línea de forma individual.
     Si show_where, se muestran además qué lugares.
     """
+
+    if isinstance(re_patterns, str):
+        re_patterns: list[str] = [re_patterns]
 
     re_patterns: list[re.Pattern] = [
         re.compile(re_pattern) for re_pattern in re_patterns
@@ -59,7 +65,7 @@ def number_of_matches(re_patterns: Iterable[str], show_where: bool = True) -> li
 
     total_matches = [0] * len(re_patterns)
 
-    for task in tqdm(tasks):
+    for task in tasks:
         width, height = extract_height_width_from_task(task)
         img = mother_pil_image(width=width, height=height, color=(255, 0, 255))
 
