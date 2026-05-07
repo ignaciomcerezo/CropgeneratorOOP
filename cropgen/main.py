@@ -42,7 +42,7 @@ def generate(
     )
 
 
-def convert(paths: PathBundle) -> tuple[Dataset, Dataset]:
+def convert(paths: PathBundle) -> tuple[Dataset, Dataset, Dataset, Dataset]:
     pdi = PairsDataInterface(paths)
     dataset_train, dataset_test = get_datasets(pdi, [1])
 
