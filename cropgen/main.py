@@ -35,7 +35,7 @@ def generate(
         paths,
         tasks_only=None,
         orders_to_consider=[1, 2, 3],
-        generate_full_pages=False,
+        generate_full_pages=True,
         generate_paragraphs=True,
         lsi=lsi,
     )
