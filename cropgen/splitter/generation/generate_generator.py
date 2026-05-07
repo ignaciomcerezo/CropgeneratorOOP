@@ -1,25 +1,24 @@
-from datasets import Dataset, Features, Value, Sequence, Image as ImageFeature
+from typing import Callable, Generator, Any
+
+import numpy as np
+import pandas as pd
+from datasets import Features, Value, Sequence, Image as ImageFeature
+
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
-import numpy as np
-from typing import Callable, Generator, Any
-import pandas as pd
-from pathlib import Path
 
 raw_features = Features(
     {
-        "image": ImageFeature(),  # HF manejará la carga "perezosa" (Lazy Loading)
+        "image": ImageFeature(),
         "text": Value("string"),
+        "context": Value("string"),
         "page": Value("string"),
         "ann_id": Value("int32"),
         "order": Value("string"),
-        "augment": Value("bool"),  # Flag para saber si aplicar transformaciones
-        "resize_scale": Value("float32"),  # Factor de escala
+        "is_letter": Value("bool"),
         "avg_color": Sequence(
             Value("int32"), length=3
         ),  # RGB promedio de la página completa
-        "context": Value("string"),
-        "is_letter": Value("bool"),
     }
 )
 
@@ -27,7 +26,7 @@ raw_features = Features(
 # un generador (debemos pasárselo usando este sistema a Dataset.from_generator).
 # que, a partir de un dataframe, nos da el generador de las muestras
 def generate_generator(
-    pdi: PairsDataInterface, augment=True, resize_scale=0.5
+    pdi: PairsDataInterface,
 ) -> Callable[[pd.DataFrame], Generator[dict[str, Any], None, None]]:
     """
     Toma como entrada un PairsDataInterface, un booleano y un factor de escala 0...1.
@@ -65,11 +64,7 @@ def generate_generator(
                 "page": row_page,
                 "order": order,
                 "is_letter": is_letter,
-                "augment": augment,  # pasamos el flag para usarlo luego
-                "resize_scale": resize_scale,  # pasamos el factor para usarlo luego
-                "avg_color": np.array(
-                    avg_color, dtype=np.int32
-                ),  # color promedio, para luego usarlo
+                "avg_color": np.array(avg_color, dtype=np.int32),
             }
 
     return raw_data_generator

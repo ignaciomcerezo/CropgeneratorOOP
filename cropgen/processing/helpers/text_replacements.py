@@ -76,6 +76,7 @@ replacements = [
     ("N.B", "NB"),
     ("NB.", "NB"),
     (" ...", "..."),
+    (r"\text{catégoriel U}", r"\mathcal{U}"),
     # Regularizaciones de unicode
     ("‑", "-"),
     ("’", "'"),
@@ -146,6 +147,8 @@ regex_replacements = [
     (r"\\cal", r"\\mathcal"),
     (r"\{\\frak\s*", r"\\mathfrak{"),
     (r"\\frak", r"\\mathfrak"),
+    (rf"\\textrm({bracketed_block})", r"\\text\1"),
+    (rf"\\operatorname({bracketed_block})", r"\\text\1"),
     (r"\s{2,}", " "),
     # (rf"\\overset({bracketed_block})({bracketed_block})", r"\2^\1"),
 ]

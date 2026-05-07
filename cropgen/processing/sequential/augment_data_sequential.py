@@ -262,10 +262,10 @@ def _process_orders_to_consider(
     if not ((orders_to_consider == "all") or (orders_to_consider is None)):
         assert isinstance(
             orders_to_consider, list
-        ), 'orders_to_consider debe ser una lista, NoneType, tupla o "all"'
+        ), 'orders_to_split_with debe ser una lista, NoneType, tupla o "all"'
         assert all(
             [isinstance(x, int) for x in orders_to_consider]
-        ), "Si orders_to_consider viene dado como una lista, debe ser una lista de ints."
+        ), "Si orders_to_split_with viene dado como una lista, debe ser una lista de ints."
 
     # Filtrado solo por tasks
     task_only_set = set(str(x) for x in task_only) if task_only else None
