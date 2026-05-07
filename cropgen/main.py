@@ -37,7 +37,6 @@ def generate(
         orders_to_consider=[1, 2, 3],
         generate_full_pages=False,
         generate_paragraphs=True,
-        num_processes=6,
         lsi=lsi,
     )
 
