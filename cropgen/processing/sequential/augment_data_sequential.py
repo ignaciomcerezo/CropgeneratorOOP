@@ -21,7 +21,6 @@ def augment_data_sequential(
     generate_full_paragraphs: bool = True,
     tasks_only: list[int] | None = None,
     is_parallel: bool = False,
-    additive_json: bool = False,
     orders_to_consider: list[int] | str = "all",
     lsi: LabelStudioInterface | None = None,
     worker_id: int | None = None,
@@ -46,13 +45,6 @@ def augment_data_sequential(
     tasks: list[SimplifiedTask] = lsi.simplified_tasks
 
     new_rows_data = []
-
-    if jsonl_filepath.exists() and additive_json:
-        print(
-            f"Archivo JSONL existente detectado: {jsonl_filepath} (se añadirán los datos)"
-        )
-    else:
-        print(f"Creando archivo jsonl: {jsonl_filepath}")
 
     total_saved = 0
 
