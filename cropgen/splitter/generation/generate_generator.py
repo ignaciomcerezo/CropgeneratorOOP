@@ -19,6 +19,7 @@ raw_features = Features(
         "avg_color": Sequence(
             Value("int32"), length=3
         ),  # RGB promedio de la página completa
+        "avg_rotation": Value("float32"),
     }
 )
 
@@ -46,6 +47,7 @@ def generate_generator(
             row_ann_id = int(row.id)
             is_letter = row.is_letter
             avg_color = tuple(row.background_color)
+            rotation = float(row.average_rotation)
 
             order = str(row.order)
 
@@ -65,6 +67,7 @@ def generate_generator(
                 "order": order,
                 "is_letter": is_letter,
                 "avg_color": np.array(avg_color, dtype=np.int32),
+                "avg_rotation": row.average_rotation,
             }
 
     return raw_data_generator
