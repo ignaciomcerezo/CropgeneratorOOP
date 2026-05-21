@@ -207,33 +207,23 @@ def augment_data_sequential(
     # guardamos en JSONL con la correspondencia
     new_df = pd.DataFrame(new_rows_data)
 
-    # comprobamos si hay que unirlo con un dataset anterior (JSONL)
-    if jsonl_filepath.exists() and additive_json:
-        try:
-            existing_df = pd.read_json(jsonl_filepath, encoding="utf-8")
-            # concatenamos los dataframes
-            final_df = pd.concat([existing_df, new_df], ignore_index=True)
-        except Exception as e:
-            print(f"Error leyendo el archivo jsonl existente, lo sobreescribimos: {e}")
-            final_df = new_df
+    if new_df.empty:
+        final_df = pd.DataFrame(
+            columns=[
+                "task",
+                "page",
+                "id",
+                "order",
+                "paragraph",
+                "sindex",
+                "text",
+                "crop_file",
+                "background_color",
+                "average_rotation",
+            ]
+        )
     else:
-        if new_df.empty:
-            final_df = pd.DataFrame(
-                columns=[
-                    "task",
-                    "page",
-                    "id",
-                    "order",
-                    "paragraph",
-                    "sindex",
-                    "text",
-                    "crop_file",
-                    "background_color",
-                    "average_rotation",
-                ]
-            )
-        else:
-            final_df = new_df
+        final_df = new_df
 
     # lo guardamos a un JSONL (one-record-per-line)
     try:

@@ -10,7 +10,6 @@ page_only: list[int] | None = None
 task_only: list[int] | None = None
 time_limit = 10
 is_parallel = False
-additive_json = False
 
 # parámetros para la generación del dataset
 min_context_chars = 50
