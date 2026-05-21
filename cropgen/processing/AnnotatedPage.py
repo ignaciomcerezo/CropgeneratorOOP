@@ -322,33 +322,37 @@ class AnnotatedPage:
             if isinstance(r, (SimplifiedTextCorrectionResult, TextRegionResult)):
                 # teóricamente esto debería ser únicamente un elemento, pero no realizamos suposiciones
                 # innecesarias
+                text_res_list = r.value.text
 
-                text_res = r.value.text
+                for i in range(len(text_res_list)):
+                    text_res_list[i] = self._correct_text(
+                        text_res_list[i], self.task_id
+                    )
 
-                for i in range(len(text_res)):
-                    text = text_res[i]
-                    for old, new in replacements:
-                        newtext = text.replace(
-                            old, new
-                        )  # hacemos todos los cambios indicados
-                        text = newtext
-
-                    for beg, end in replacements_envs:
-                        text = reemplazar_latex_espaciado(text, beg, end)
-
-                    for pattern, substitution in regex_replacements:
-                        text = re.sub(pattern, substitution, text)
-
-                    for pattern, substitution in task_specific_regex_replacements.get(
-                        self.task_id, []
-                    ):
-                        text = re.sub(pattern=pattern, subs=substitution, string=text)
-
-                    text_res[i] = text
-
-                r.value.text = text_res  # lo sustituímos
+                r.value.text = text_res_list  # lo sustituímos
 
         return results
+
+    @staticmethod
+    def _correct_text(text_of_result: str, task_id: int):
+        for old, new in replacements:
+            newtext = text_of_result.replace(
+                old, new
+            )  # hacemos todos los cambios indicados
+            text_of_result = newtext
+
+        for beg, end in replacements_envs:
+            text_of_result = reemplazar_latex_espaciado(text_of_result, beg, end)
+
+        for pattern, substitution in regex_replacements:
+            text_of_result = re.sub(pattern, substitution, text_of_result)
+
+        for pattern, substitution in task_specific_regex_replacements.get(task_id, []):
+            text_of_result = re.sub(
+                pattern=pattern, subs=substitution, string=text_of_result
+            )
+
+        return text_of_result
 
     def generate_collage(
         self,
