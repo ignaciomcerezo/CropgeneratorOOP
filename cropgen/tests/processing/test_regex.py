@@ -107,3 +107,6 @@ def _str_trimmed(value: str, k: int = 20):
     if len(value) > k:
         return value[: k // 2 + k % 2] + value[-(k // 2) :]
     return value
+
+
+number_of_matches(r"&")

@@ -1,4 +1,4 @@
-replacements = [
+replacements: list[tuple[str, str]] = [
     (r"\'e", "é"),
     (r"\^e", "ê"),
     (r"\`e", "è"),
@@ -92,7 +92,7 @@ replacements = [
     ("á", "à"),
     ("ó", "ò"),
 ]
-replacements_envs = [
+replacements_envs: list[tuple[str, str]] = [
     # la sintaxis es (apertura, cierre) del entorno, se quita t0do menos lo de dentro
     (r"{\bf", "}"),
     (r"{ \bf", "}"),
@@ -122,7 +122,7 @@ for _ in range(10):
     bracketed_block = r"\{(?:" + text_nobracket_p + r"|" + bracketed_block + r")*\}"
 scriptable_block = rf"({cmm_p}|\w|{bracketed_block})"
 
-regex_replacements = [
+regex_replacements: list[tuple[str, str]] = [
     # (pattern, replacement)
     # en la parte de replacement solamente se formatean raro las barras invertidas \, que tienen que ir como \\
     # para diferenciarlas de los grupos de captura que se van a sustituir (\1, \2, etc.).
@@ -158,7 +158,11 @@ regex_replacements = [
     # (rf"\\overset({bracketed_block})({bracketed_block})", r"\2^\1"),
 ]
 
-task_specific_regex_replacements: dict[int, list[str]] = {}
+task_specific_regex_replacements: dict[int, list[tuple[str, str]]] = {
+    438: [
+        (r"\{\\ U\\\}", r"{U}"),
+    ],
+}
 
 french_latex_characters: list[str] = [
     # letras, dígitos

@@ -345,11 +345,13 @@ class AnnotatedPage:
             text_of_result = reemplazar_latex_espaciado(text_of_result, beg, end)
 
         for pattern, substitution in regex_replacements:
-            text_of_result = re.sub(pattern, substitution, text_of_result)
+            text_of_result = re.sub(
+                pattern=pattern, repl=substitution, string=text_of_result
+            )
 
         for pattern, substitution in task_specific_regex_replacements.get(task_id, []):
             text_of_result = re.sub(
-                pattern=pattern, subs=substitution, string=text_of_result
+                pattern=pattern, repl=substitution, string=text_of_result
             )
 
         return text_of_result
