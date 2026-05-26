@@ -7,7 +7,7 @@ name = "cropgen"
 version = "0.1.0"
 description = "First step in the generation of the dataset for fine-tuning an LLM in vision tasks, other training helpers (collators, loggers, etc.)"
 requires-python = ">=3.10"
-dependencies = [s
+dependencies = [
     "numpy>=2.2.0",
     "scipy>=1.14.0",
     "python-levenshtein>=0.27.3",
