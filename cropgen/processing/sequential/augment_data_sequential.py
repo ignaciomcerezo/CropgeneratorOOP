@@ -174,7 +174,9 @@ def augment_data_sequential(
                         order
                     ):
 
-                        sequence_pseudohash = box_id_sequence[0] + box_id_sequence[-1]
+                        sequence_pseudohash = (
+                            box_id_sequence[0] + "-" + box_id_sequence[-1]
+                        )
 
                         filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{sequence_pseudohash}.png"
 

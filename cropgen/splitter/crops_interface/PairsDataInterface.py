@@ -11,6 +11,7 @@ from cropgen.shared.default_parameters import (
 )
 from cropgen.splitter.crops_interface.helpers import (
     get_split_separate_laloma_and_letters,
+    greedy_page_split_df,
 )
 
 
@@ -70,7 +71,6 @@ class PairsDataInterface:
 
         self._build_mappings()
         self.paths = paths
-
         self.df["is_letter"] = self.df.page.apply(
             lambda x: not (isinstance(x, int) or str(x).isdigit())
         )
@@ -179,7 +179,25 @@ class PairsDataInterface:
         """Genera el split train/test, usando un algoritmo greedy sobre cada subconjunto con
         igual proporción deseada: primero LoLoMa y luego las cartas, para asegurar homogeneidad
         en ese respecto."""
-        return get_split_separate_laloma_and_letters(self.df, p, orders_to_consider)
+        train_pages_laloma, test_pages_laloma = greedy_page_split_df(
+            self.df[~self.df["is_letter"]], p, orders=orders_to_consider
+        )
+
+        train_pages_letters, test_pages_letters = greedy_page_split_df(
+            self.df[self.df["is_letter"]], p, orders=orders_to_consider
+        )
+
+        # dividimos de forma homogénea el train y el test
+
+        train_pages = train_pages_laloma.union(train_pages_letters)
+        test_pages = test_pages_laloma.union(test_pages_letters)
+
+        train = self.df[self.df["page"].isin(train_pages)]
+        test = self.df[self.df["page"].isin(test_pages)]
+
+        print(f"Split total de {len(train)/(len(train)+len(test))}")
+
+        return train, test
 
     @staticmethod
     def _has_enough_context_words(row: pd.Series, threshold: int | None = None) -> bool:

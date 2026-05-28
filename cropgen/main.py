@@ -66,6 +66,8 @@ def upload(
     samples_test: Dataset,
     samples_eval: Dataset,
 ):
+    dataset_train_pages = {"values": set(dataset_train["page"])}
+    dataset_test_pages = {"values": set(dataset_test["page"])}
 
     hub_name = os.environ["HUB_NAME"]
     complete_dataset = DatasetDict(
@@ -74,6 +76,8 @@ def upload(
             "test": dataset_test,
             "samples_eval": samples_eval,
             "sample_test": samples_test,
+            "pages_train": dataset_train_pages,
+            "pages_test": dataset_test_pages,
         }
     )
 
