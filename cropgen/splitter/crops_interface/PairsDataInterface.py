@@ -10,7 +10,6 @@ from cropgen.shared.default_parameters import (
     min_context_words as default_min_context_words,
 )
 from cropgen.splitter.crops_interface.helpers import (
-    get_split_separate_laloma_and_letters,
     greedy_page_split_df,
 )
 
