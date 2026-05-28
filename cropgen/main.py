@@ -66,8 +66,8 @@ def upload(
     samples_test: Dataset,
     samples_eval: Dataset,
 ):
-    dataset_train_pages = {"values": set(dataset_train["page"])}
-    dataset_test_pages = {"values": set(dataset_test["page"])}
+    dataset_train_pages = Dataset.from_dict({"values": set(dataset_train["page"])})
+    dataset_test_pages = Dataset.from_dict({"values": set(dataset_test["page"])})
 
     hub_name = os.environ["HUB_NAME"]
     complete_dataset = DatasetDict(
