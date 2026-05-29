@@ -66,8 +66,6 @@ def upload(
     samples_test: Dataset,
     samples_eval: Dataset,
 ):
-    dataset_train_pages = Dataset.from_dict({"values": set(dataset_train["page"])})
-    dataset_test_pages = Dataset.from_dict({"values": set(dataset_test["page"])})
 
     hub_name = os.environ["HUB_NAME"]
     complete_dataset = DatasetDict(
@@ -76,12 +74,31 @@ def upload(
             "test": dataset_test,
             "samples_eval": samples_eval,
             "sample_test": samples_test,
-            "pages_train": dataset_train_pages,
-            "pages_test": dataset_test_pages,
         }
     )
-
     complete_dataset.push_to_hub(hub_name, private=True, token=True)
+
+    split_data = {
+        "pages_train": sorted(list(set(dataset_train["page"]))),
+        "pages_test": sorted(list(set(dataset_test["page"]))),
+    }
+
+    split_data_path = "page_splits_abcdefg.json"
+
+    with open(split_data_path, "w", encoding="utf-8") as f:
+        json.dump(split_data, f, indent=4, ensure_ascii=False)
+
+    api = HfApi()
+    api.upload_file(
+        path_or_fileobj=split_data_path,
+        path_in_repo="page_splits.json",
+        repo_id=hub_name,
+        repo_type="dataset",
+        token=True,
+    )
+
+    if os.path.exists(split_data_path):
+        os.remove(split_data_path)
 
     print(f"Subido a https://huggingface.co/datasets/{hub_name}")
 
