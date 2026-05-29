@@ -5,6 +5,7 @@ import numpy as np
 from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 import json
+from huggingface_hub import HfApi
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
