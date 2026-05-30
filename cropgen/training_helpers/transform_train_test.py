@@ -198,6 +198,8 @@ def get_configured_transforms(
         context_probability=transform_params.context_probability,
         max_escala=transform_params.max_escala,
         instruction_text=transform_params.instruction_text,
+        min_rot=transform_params.min_rot,
+        max_rot=transform_params.max_rot,
     )
 
     transform_eval_configured = lambda batch: transform_train(
@@ -213,6 +215,8 @@ def get_configured_transforms(
         context_probability=transform_params.context_probability,
         max_escala=transform_params.max_escala,
         instruction_text=transform_params.instruction_text,
+        min_rot=transform_params.min_rot,
+        max_rot=transform_params.max_rot,
     )
 
     return transform_train_configured, transform_eval_configured
