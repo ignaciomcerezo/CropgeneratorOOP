@@ -35,7 +35,7 @@ def extract_collator_markers(tokenizer) -> tuple[str, str]:
 
     linebreak = "\n"
     backslash_n = "\\n"
-    print(f"Instruction part: {instruction_part}")
+    print(f"Instruction part: {instruction_part.replace(linebreak, backslash_n)}")
     print(f"Response part: {response_part.replace(linebreak, backslash_n)}")
 
     return instruction_part, response_part
