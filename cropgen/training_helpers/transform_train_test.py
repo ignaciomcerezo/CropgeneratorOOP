@@ -1,7 +1,7 @@
 import torchvision.transforms as tvt
 from PIL.Image import Image
 import numpy as np
-from training_helpers.parameters.transform_parameters import TransformParameters
+from cropgen.training_helpers.parameters.transform_parameters import TransformParameters
 
 
 def _choose_rotation_interval_simple(added_rotation) -> tuple[float, float]:
@@ -176,9 +176,14 @@ def transform_train(
     return {"messages": formatted_messages}
 
 
-def get_configured_transforms(transform_params: TransformParameters):
+def get_configured_transforms(
+    transform_params: TransformParameters,
+) -> tuple[callable, callable]:
     """
-    Devuelve las funciones de transformación configuradas según los transform_params
+    Devuelve las funciones de transformación configuradas según los transform_params:
+        transform_train
+        transform_eval
+    Nótese que es EVAL, no TEST!
     """
     transform_train_configured = lambda batch: transform_train(
         batch,
@@ -195,9 +200,19 @@ def get_configured_transforms(transform_params: TransformParameters):
         instruction_text=transform_params.instruction_text,
     )
 
-    transform_test_configured = lambda batch: transform_test(
+    transform_eval_configured = lambda batch: transform_train(
         batch,
+        augment=transform_params.augment_eval,
+        straighten=transform_params.straighten_eval,
+        use_complex_rotation_interval=transform_params.use_complex_rotation_interval_eval,
+        contextualize=transform_params.contextualize,
+        maxdist=transform_params.maxdist,
+        global_resize_scale=transform_params.global_resize_scale,
+        shift_prop=transform_params.shift_prop,
         max_dim=transform_params.max_dim,
+        context_probability=transform_params.context_probability,
+        max_escala=transform_params.max_escala,
+        instruction_text=transform_params.instruction_text,
     )
 
-    return transform_train_configured, transform_test_configured
+    return transform_train_configured, transform_eval_configured
