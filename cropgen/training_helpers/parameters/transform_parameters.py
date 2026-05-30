@@ -6,33 +6,35 @@ from typing import Any
 class TransformParameters:
     # transform_train args
 
-    instruction_text: str
+    instruction_text: str = (
+        r"Extract all text from this image in the original French. Do not translate. Format all math, equations, and variables in standard LaTeX enclosed in '$' (e.g., $G$, $\pi_1$). Output ONLY the transcribed text without any conversational filler or introductions.",
+    )
 
-    global_resize_scale: float  # 0.5
-    max_dim: int  # 1024
+    global_resize_scale: float = 0.5
+    max_dim: int = 1024
 
-    contextualize: bool
-    context_probability: float  # redundant if contextualize = False
-    max_context_chars: int  # 50
+    contextualize: bool = False
+    context_probability: float = 0  # redundant if contextualize = False
+    max_context_chars: int = 50  # 50
 
-    min_rot: int | float  # 2
-    max_rot: int | float  # 3
+    min_rot: int | float = 2  # 2
+    max_rot: int | float = 3  # 3
 
-    shift_prop: float
-    max_escala: float
-    maxdist: float | int
+    shift_prop: float = 0.01
+    max_escala: float = 0.02
+    maxdist: float | int = 2
 
     # TRAIN DATASET - configured_transform_train args
 
-    augment_train: bool
-    straighten_train: bool
-    use_complex_rotation_interval_train: bool
+    augment_train: bool = True
+    straighten_train: bool = False
+    use_complex_rotation_interval_train: bool = False
 
     # EVAL DATASET - configured_transform_train args
 
-    augment_eval: bool
-    straighten_eval: bool
-    use_complex_rotation_interval_eval: bool
+    augment_eval: bool = False
+    straighten_eval: bool = False
+    use_complex_rotation_interval_eval: bool = False
 
     def _get_att_from_names(self, att_names: list[str]) -> dict[str, Any]:
         return {att_name: getattr(self, att_name) for att_name in att_names}
@@ -71,30 +73,3 @@ class TransformParameters:
             "use_complex_rotation_interval_train",
         ]
         return self._get_att_from_names(train_transform_parameter_names)
-
-
-session_transform_parameters = TransformParameters(
-    instruction_text=r"Extract all text from this image in the original French. Do not translate. Format all math, equations, and variables in standard LaTeX enclosed in '$' (e.g., $G$, $\pi_1$). Output ONLY the transcribed text without any conversational filler or introductions.",
-    global_resize_scale=0.5,
-    max_dim=1024,
-    contextualize=False,
-    context_probability=0,  # redundant if contextualize = False btw
-    max_context_chars=50,
-    min_rot=2,
-    max_rot=3,
-    shift_prop=0.01,
-    max_escala=0.02,
-    maxdist=2,
-    # TRAIN DATASET - configured_transform_train args
-    augment_train=True,
-    straighten_train=False,
-    use_complex_rotation_interval_train=False,
-    # EVAL DATASET - configured_transform_train args
-    augment_eval=False,
-    straighten_eval=False,
-    use_complex_rotation_interval_eval=False,
-)
-
-print(session_transform_parameters.common_transform_parameters)
-print(session_transform_parameters.eval_transform_parameters)
-print(session_transform_parameters.train_transform_parameters)

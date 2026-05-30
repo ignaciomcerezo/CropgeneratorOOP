@@ -1,20 +1,7 @@
 import torchvision.transforms as tvt
 from PIL.Image import Image
 import numpy as np
-from training_helpers.parameters.transform_parameters import (
-    session_transform_parameters,
-)
-
-contextualize = session_transform_parameters.contextualize
-maxdist = session_transform_parameters.maxdist
-global_resize_scale = session_transform_parameters.global_resize_scale
-shift_prop = session_transform_parameters.shift_prop
-max_dim = session_transform_parameters.max_dim
-context_probability = session_transform_parameters.context_probability
-max_escala = session_transform_parameters.max_escala
-instruction_text = session_transform_parameters.instruction_text
-min_rot = session_transform_parameters.min_rot
-max_rot = session_transform_parameters.max_rot
+from training_helpers.parameters.transform_parameters import TransformParameters
 
 
 def _choose_rotation_interval_simple(added_rotation) -> tuple[float, float]:
@@ -46,7 +33,7 @@ def _choose_rotation_interval_complex(
             return -2 * max_added_rotation, 0
 
 
-def transform_test(batch):
+def transform_test(batch, max_dim: int = 1024):
     """Transforma una muestra del dataset en algo que pueda procesar la función de
     error CER que definimos más abajo"""
     resized_images = []
@@ -72,16 +59,16 @@ def transform_train(
     augment: bool,
     straighten: bool,
     use_complex_rotation_interval: bool,
-    contextualize: bool = contextualize,
-    maxdist: float = maxdist,
-    global_resize_scale: float = global_resize_scale,
-    shift_prop: float = shift_prop,
-    max_dim: int | float = max_dim,
-    context_probability: float = context_probability,
-    max_escala: float = max_escala,
-    instruction_text: str = instruction_text,
-    min_rot: float = min_rot,
-    max_rot: float = max_rot,
+    contextualize: bool,
+    maxdist: float,
+    global_resize_scale: float,
+    shift_prop: float,
+    max_dim: int | float,
+    context_probability: float,
+    max_escala: float,
+    instruction_text: str,
+    min_rot: float,
+    max_rot: float,
 ):
     """
     Esta función recibe un 'batch' (ej. 4 muestras) durante el entrenamiento.
@@ -189,16 +176,28 @@ def transform_train(
     return {"messages": formatted_messages}
 
 
-transform_train_configured = lambda batch: transform_train(
-    batch,
-    augment=session_transform_parameters.augment_train,
-    straighten=session_transform_parameters.straighten_train,
-    use_complex_rotation_interval=session_transform_parameters.use_complex_rotation_interval_train,
-)
+def get_configured_transforms(transform_params: TransformParameters):
+    """
+    Devuelve las funciones de transformación configuradas según los transform_params
+    """
+    transform_train_configured = lambda batch: transform_train(
+        batch,
+        augment=transform_params.augment_train,
+        straighten=transform_params.straighten_train,
+        use_complex_rotation_interval=transform_params.use_complex_rotation_interval_train,
+        contextualize=transform_params.contextualize,
+        maxdist=transform_params.maxdist,
+        global_resize_scale=transform_params.global_resize_scale,
+        shift_prop=transform_params.shift_prop,
+        max_dim=transform_params.max_dim,
+        context_probability=transform_params.context_probability,
+        max_escala=transform_params.max_escala,
+        instruction_text=transform_params.instruction_text,
+    )
 
-transform_eval_configured = lambda batch: transform_train(
-    batch,
-    augment=session_transform_parameters.augment_eval,
-    straighten=session_transform_parameters.straighten_eval,
-    use_complex_rotation_interval=session_transform_parameters.use_complex_rotation_interval_eval,
-)
+    transform_test_configured = lambda batch: transform_test(
+        batch,
+        max_dim=transform_params.max_dim,
+    )
+
+    return transform_train_configured, transform_test_configured
