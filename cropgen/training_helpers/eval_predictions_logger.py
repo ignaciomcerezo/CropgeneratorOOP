@@ -1,44 +1,74 @@
-from dataclasses import dataclass
-from pathlib import Path
-
-tab = "\t"
-newline = "\n"
+import os
+import torch
+from transformers import TrainerCallback, TrainerState, TrainerControl
 
 
-@dataclass(kw_only=True, slots=True)
-class _TruthAndPredictionPair:
-    ground_truth: str
-    prediction: str
+class EvalPredictionLoggerCallback(TrainerCallback):
+    def __init__(self, eval_dataset, log_filepath="predicciones_eval.log"):
+        self.eval_dataset = eval_dataset
+        self.log_filepath = log_filepath
 
+        with open(self.log_filepath, "w", encoding="utf-8") as f:
+            f.write("=== LOG DE PREDICCIONES EN EVALUACIÓN ===\n\n")
 
-class EvalPredictionLogger:
-    def __init__(self, filepath: Path):
-        self.filepath = Path(filepath)
-        self.results: dict[int, list[_TruthAndPredictionPair]] = dict()
-        self._iteration_number: int = -1
+    def on_evaluate(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        model,
+        tokenizer,
+        **kwargs,
+    ):
+        iteration = state.global_step
 
-    @property
-    def current_iteration(self):
-        return self._iteration_number
+        model.eval()
 
-    @current_iteration.setter
-    def current_iteration(self, iteration_number):
-        if iteration_number in self.results:
-            raise ValueError(f"Ya se han guardado resultados para {iteration_number}.")
-        self.results[iteration_number] = []
-        self._iteration_number = iteration_number
+        with open(
+            self.log_filepath,
+            "append" if os.path.exists(self.log_filepath) else "w",
+            encoding="utf-8",
+        ) as f:
+            f.write(f"# Iteration {iteration}:\n\n")
 
-    def add_entry(self, ground_truth: str, prediction: str):
-        self.results[self.current_iteration].append(
-            _TruthAndPredictionPair(ground_truth=ground_truth, prediction=prediction)
-        )
+            with torch.no_grad():
+                for idx, item in enumerate(self.eval_dataset):
+                    page = item.get("page", f"{idx:03d}")
+                    ground_truth = item.get(
+                        "ground_truth", item.get("text", "N/A")
+                    ).strip()
 
-    def savefile(self):
-        output_str = ""
-        for round_number in sorted(list(self.results.keys())):
-            output_str += f"{newline} # Iteración {round_number}{newline}"
-            for result in self.results[round_number]:
-                output_str += f"{tab} Ground truth: {result.ground_truth}{newline}"
-                output_str += f"{tab}   Prediction: {result.prediction}{newline}"
+                    try:
+                        pixel_values = (
+                            item["pixel_values"].to("cuda").unsqueeze(0)
+                            if "pixel_values" in item
+                            else None
+                        )
+                        input_ids = (
+                            item["input_ids"].to("cuda").unsqueeze(0)
+                            if "input_ids" in item
+                            else None
+                        )
 
-        self.filepath.write_text(output_str)
+                        outputs = model.generate(
+                            input_ids=input_ids,
+                            pixel_values=pixel_values,
+                            max_new_tokens=256,
+                            use_cache=True,
+                        )
+
+                        prediction = tokenizer.decode(
+                            outputs[0], skip_special_tokens=True
+                        ).strip()
+                    except Exception as e:
+                        prediction = f"[ERROR DURANTE GENERACIÓN: {str(e)}]"
+
+                    f.write(f"[Página {page}]\n")
+                    f.write(f"\t      real: {ground_truth}\n")
+                    f.write(f"\tpredicción: {prediction}\n\n")
+
+            f.write("-" * 40 + "\n\n")
+
+        model.train()
+
+        torch.cuda.empty_cache()
