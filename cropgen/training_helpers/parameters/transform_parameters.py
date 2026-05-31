@@ -7,7 +7,7 @@ class TransformParameters:
     # transform_train args
 
     instruction_text: str = (
-        r"Extract all text from this image in the original French. Do not translate. Format all math, equations, and variables in standard LaTeX enclosed in '$' (e.g., $G$, $\pi_1$). Output ONLY the transcribed text without any conversational filler or introductions.",
+        r"Extract all text from this image in the original French. Do not translate. Format all math, equations, and variables in standard LaTeX enclosed in '$' (e.g., $G$, $\pi_1$). Output ONLY the transcribed text without any conversational filler or introductions."
     )
 
     global_resize_scale: float = 0.5
@@ -41,7 +41,7 @@ class TransformParameters:
 
     @property
     def common_transform_parameters(self) -> dict[str, Any]:
-        transform_global_parameter_names = [
+        transform_global_parameter_names: list[str] = [
             "instruction_text",
             "global_resize_scale",
             "max_dim",
@@ -58,7 +58,7 @@ class TransformParameters:
 
     @property
     def eval_transform_parameters(self) -> dict[str, Any]:
-        eval_transform_parameter_names = [
+        eval_transform_parameter_names: list[str] = [
             "augment_eval",
             "straighten_eval",
             "use_complex_rotation_interval_eval",
@@ -67,7 +67,7 @@ class TransformParameters:
 
     @property
     def train_transform_parameters(self) -> dict[str, Any]:
-        train_transform_parameter_names = [
+        train_transform_parameter_names: list[str] = [
             "augment_train",
             "straighten_train",
             "use_complex_rotation_interval_train",

@@ -1,7 +1,8 @@
-import torchvision.transforms as tvt
+import torchvision.transforms as tvt  # ty:ignore[unresolved-import]
 from PIL.Image import Image
 import numpy as np
 from cropgen.training_helpers.parameters.transform_parameters import TransformParameters
+from typing import Callable
 
 
 def _choose_rotation_interval_simple(added_rotation) -> tuple[float, float]:
@@ -44,8 +45,8 @@ def transform_test(batch, max_dim: int = 1024):
 
         w, h = img.size
         if w > max_dim or h > max_dim:
-            scale_down = max_dim / max(w, h)
-            img = img.resize((int(w * scale_down), int(h * scale_down)))
+            scale_down: float = max_dim / max(w, h)
+            img: Image = img.resize((int(w * scale_down), int(h * scale_down)))
 
         resized_images.append(img)
 
@@ -69,7 +70,7 @@ def transform_train(
     instruction_text: str,
     min_rot: float,
     max_rot: float,
-):
+) -> dict[str, list]:
     """
     Esta función recibe un 'batch' (ej. 4 muestras) durante el entrenamiento.
     HuggingFace ya ha cargado las imágenes en batch['image'] como objetos PIL.
@@ -132,7 +133,7 @@ def transform_train(
                 ]
             )
 
-            image = current_transforms(image)
+            image: Image = current_transforms(image)
 
         w, h = image.size
         if w > max_dim or h > max_dim:
@@ -178,7 +179,7 @@ def transform_train(
 
 def get_configured_transforms(
     transform_params: TransformParameters,
-) -> tuple[callable, callable]:
+) -> tuple[Callable, Callable]:
     """
     Devuelve las funciones de transformación configuradas según los transform_params:
         transform_train

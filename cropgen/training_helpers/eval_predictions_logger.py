@@ -1,6 +1,10 @@
 import os
-import torch
-from transformers import TrainerCallback, TrainerState, TrainerControl
+import torch  # ty:ignore[unresolved-import]
+from transformers import (  # ty:ignore[unresolved-import]
+    TrainerCallback,
+    TrainerState,
+    TrainerControl,
+)
 
 
 class EvalPredictionLoggerCallback(TrainerCallback):
