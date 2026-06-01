@@ -1,5 +1,4 @@
 import torch  # ty:ignore[unresolved-import]
-from cropgen.training_helpers.restrict_length import restrict_length
 from transformers import TrainerCallback  # ty:ignore[unresolved-import]
 from cropgen.training_helpers.parameters.curriculum_params import CurriculumParams
 import os
