@@ -51,17 +51,12 @@ def calculate_total_curriculum_steps(
     total_batch_size = per_device_batch_size * grad_accum * world_size
     total_steps = 0
 
-    original_transform = full_dataset.format["transform"]
-    full_dataset.set_transform(None)
-
-    raw_orders = full_dataset["order"]
+    raw_orders = full_dataset.data["order"].to_pylist()
     orders_str = [str(o) for o in raw_orders]
 
-    full_dataset.set_transform(original_transform)
-
+    # Calculate steps across your curriculum schedule
     for lengths in schedule:
         acceptable_set = set(str(x) for x in lengths)
-
         num_samples = sum(1 for o in orders_str if o in acceptable_set)
 
         num_batches = num_samples // total_batch_size
