@@ -9,7 +9,6 @@ tab = "\t"
 
 
 class CurriculumDatasetInterface(torch.utils.data.Dataset):
-
     def __init__(
         self, full_dataset, CurriculumParams, restrict_length_fn, transform_func
     ):
@@ -47,17 +46,24 @@ class CurriculumDatasetInterface(torch.utils.data.Dataset):
 
 
 def calculate_total_curriculum_steps(
-    full_dataset, schedule, restrict_length_fn, per_device_batch_size, grad_accum
+    full_dataset, schedule, per_device_batch_size, grad_accum
 ):
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     total_batch_size = per_device_batch_size * grad_accum * world_size
     total_steps = 0
 
+    original_transform = full_dataset.format["transform"]
+    full_dataset.set_transform(None)
+
+    raw_orders = full_dataset["order"]
+    orders_str = [str(o) for o in raw_orders]
+
+    full_dataset.set_transform(original_transform)
+
     for lengths in schedule:
-        sub = restrict_length_fn(
-            full_dataset, acceptable_lengths=lengths, transform_func=lambda x: x
-        )
-        num_samples = len(sub)
+        acceptable_set = set(str(x) for x in lengths)
+
+        num_samples = sum(1 for o in orders_str if o in acceptable_set)
 
         num_batches = num_samples // total_batch_size
         total_steps += num_batches
