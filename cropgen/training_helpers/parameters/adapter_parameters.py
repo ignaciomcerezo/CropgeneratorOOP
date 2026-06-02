@@ -5,6 +5,10 @@ from typing import Any
 
 @dataclass(kw_only=True, slots=True, frozen=True)
 class AdapterParameters:
+    """
+    Parámetros para el adaptador de LoRA
+    """
+
     model: Any
     finetune_vision_layers: bool = False  # False if not finetuning vision layers
     finetune_language_layers: bool = True  # False if not finetuning language layers
@@ -19,6 +23,9 @@ class AdapterParameters:
     loftq_config: Any = None  # And LoftQ
 
     def to_dict(self) -> dict:
+        """
+        Convierte a un diccionario serializable para poder subirlo con el dataset.
+        """
         result = {}
         for field in fields(self):
             value = getattr(self, field.name)

@@ -64,9 +64,6 @@ def prepare_data(paths, obi, ls_url, ls_token):
     # paths.remove_all_files()
 
 
-# TODO: implement a too_much_connectivity test (connectivity of a node > 0.3) for example
-
-
 @pytest.fixture
 def five_letter_task_numbers() -> list[int]:
     return [280, 293, 298, 305]

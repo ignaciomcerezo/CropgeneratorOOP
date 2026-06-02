@@ -4,6 +4,7 @@ import gc
 
 
 class AdaptiveCleanupCallback(TrainerCallback):
+    """"""
     def __init__(self, danger_limit_gb=39.0):
         self.danger_limit_bytes = danger_limit_gb * 1024**3
 

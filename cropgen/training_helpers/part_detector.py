@@ -1,4 +1,7 @@
-def extract_collator_markers(tokenizer) -> tuple[str, str]:
+def extract_collator_markers(tokenizer, verbose=False) -> tuple[str, str]:
+    """
+    Extrae los marcadores de asistente y usuario del tokenizador de forma automática.
+    """
     # Buscando la parte de instrucción y de respuesta de un tokenizer y modelo automáticamente
     u1, a1, u2 = "USUARIO_1_EJEMPLO", "MODELO_1_EJEMPLO", "USUARIO_2_EJEMPLO"
 
@@ -33,9 +36,10 @@ def extract_collator_markers(tokenizer) -> tuple[str, str]:
         between[len(asst_closer) :] if between.startswith(asst_closer) else between
     )
 
-    linebreak = "\n"
-    backslash_n = "\\n"
-    print(f"Instruction part: {instruction_part.replace(linebreak, backslash_n)}")
-    print(f"Response part: {response_part.replace(linebreak, backslash_n)}")
+    if verbose:
+        ln = "\n"
+        backslash_n = "\\n"
+        print(f"Instruction part: {instruction_part.replace(ln, backslash_n)}")
+        print(f"Response part: {response_part.replace(ln, backslash_n)}")
 
     return instruction_part, response_part

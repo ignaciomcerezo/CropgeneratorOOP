@@ -4,6 +4,10 @@ from typing import Any
 
 @dataclass(kw_only=True, slots=True, frozen=True)
 class TransformParameters:
+    """
+    Argumentos usados por las transformaciones aplicadas al dataset como dataloader.
+    """
+
     # transform_train args
 
     instruction_text: str = (

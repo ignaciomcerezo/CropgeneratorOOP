@@ -1,3 +1,4 @@
+from ty_extensions import Unknown
 from typing import Callable
 import torch  # ty:ignore[unresolved-import]
 from transformers import TrainerCallback  # ty:ignore[unresolved-import]
@@ -10,13 +11,25 @@ tab = "\t"
 
 
 class CurriculumDatasetInterface(torch.utils.data.Dataset):
+    """
+    Interfaz con el dataset que gestiona automáticamente el entrenamiento por currículum. Requiere:
+        - Un dataset
+        - Una instancia de CurriculumParam
+        - Una función de filtrado para restringir el dataset completo.
+        - La transformación que se aplica a cada subdataset.
+    """
+
     def __init__(
-        self, full_dataset, CurriculumParams, restrict_length_fn, transform_func
+        self,
+        full_dataset: Dataset,
+        CurriculumParams: CurriculumParams,
+        restrict_length_fn: Callable,
+        transform_func: Callable,
     ):
-        self.full_dataset: Dataset = full_dataset
-        self.orders_per_epoch: list[list[int | str]] = CurriculumParams.orders_per_epoch
-        self.restrict_length_fn: Callable = restrict_length_fn
-        self.transform_func: Callable = transform_func
+        self.full_dataset = full_dataset
+        self.orders_per_epoch = CurriculumParams.orders_per_epoch
+        self.restrict_length_fn = restrict_length_fn
+        self.transform_func = transform_func
         self.current_stage_idx: int = 0
         self.active_dataset: Dataset | None = None
 
@@ -49,29 +62,36 @@ class CurriculumDatasetInterface(torch.utils.data.Dataset):
 
         return getattr(self.active_dataset, name)
 
+    def calculate_total_curriculum_steps(
+        self, per_device_batch_size: int, grad_accum: int
+    ):
+        """
+        Calcula el número total de iteraciones necesarias para realizar el entrenamiento por currículum.
+        """
+        full_dataset: Dataset = self.full_dataset
+        orders_per_epoch = self.orders_per_epoch
 
-def calculate_total_curriculum_steps(
-    full_dataset, schedule, per_device_batch_size, grad_accum
-):
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    total_batch_size = per_device_batch_size * grad_accum * world_size
-    total_steps = 0
+        total_batch_size = per_device_batch_size * grad_accum
+        total_steps = 0
 
-    raw_orders: list[str | int] = full_dataset.data["order"].to_pylist()
-    orders_str: list[str] = [str(o) for o in raw_orders]
+        raw_orders: list[str | int] = full_dataset.data["order"].to_pylist()
+        orders_str: list[str] = [str(o) for o in raw_orders]
 
-    # Calculate steps across your curriculum schedule
-    for lengths in schedule:
-        acceptable_set = set(str(x) for x in lengths)
-        num_samples = sum(1 for o in orders_str if o in acceptable_set)
+        for lengths in orders_per_epoch:
+            acceptable_set = set(str(x) for x in lengths)
+            num_samples = sum(1 for o in orders_str if o in acceptable_set)
 
-        num_batches: int = num_samples // total_batch_size
-        total_steps += num_batches
+            num_batches: int = num_samples // total_batch_size
+            total_steps += num_batches
 
-    return total_steps
+        return total_steps
 
 
 class CurriculumCallback(TrainerCallback):
+    """
+    Callback que actualiza el dataset según la interfaz de currículum al final de cada época.
+    """
+
     def __init__(self, curriculum_dataset_interface: CurriculumDatasetInterface):
         self.curriculum_dataset_interface = curriculum_dataset_interface
 

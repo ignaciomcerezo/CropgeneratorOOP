@@ -1,3 +1,4 @@
+from cropgen.training_helpers.part_detector import extract_collator_markers
 import jiwer
 import os
 
@@ -8,11 +9,15 @@ def preprocess_logits_for_metrics(logits, labels):
     return logits.argmax(dim=-1)
 
 
-def get_compute_metrics_function_from_tokenizer(tokenizer):
+def get_compute_metrics_function_from_tokenizer(
+    tokenizer, assistant_marker: str | None = None
+):
+
+    if assistant_marker is None:
+        _, assistant_marker = extract_collator_markers(tokenizer)
 
     def compute_metrics(eval_preds):
         logits_argmax, labels = eval_preds
-        assistant_marker = "assistant\n"
         log_filepath = "predicciones_eval.log"
         compute_metrics.iteration_count: int
 
