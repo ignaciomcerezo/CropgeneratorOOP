@@ -57,7 +57,7 @@ def convert(paths: PathBundle) -> tuple[Dataset, Dataset, Dataset, Dataset]:
     evals_index = np.random.choice(len(dataset_test), n_samples, replace=False).tolist()
 
     samples_test = dataset_test.select(samples_index)
-    samples_eval = dataset_test.select(samples_index)
+    samples_eval = dataset_test.select(evals_index)
 
     return dataset_train, dataset_test, samples_test, samples_eval
 
