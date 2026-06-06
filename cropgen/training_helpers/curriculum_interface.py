@@ -1,4 +1,3 @@
-from ty_extensions import Unknown
 from typing import Callable
 import torch  # ty:ignore[unresolved-import]
 from transformers import TrainerCallback  # ty:ignore[unresolved-import]
