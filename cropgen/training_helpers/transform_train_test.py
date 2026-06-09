@@ -1,7 +1,6 @@
 import torchvision.transforms as tvt  # ty:ignore[unresolved-import]
 from PIL.Image import Image
 import numpy as np
-from cropgen.training_helpers.parameters.transform_parameters import TransformParameters
 from typing import Callable, Literal
 
 
