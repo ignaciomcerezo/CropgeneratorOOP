@@ -415,7 +415,9 @@ class AnnotatedPage:
         self.__graph = adj_graph
 
     def cluster_reading_order(
-        self, box_ids: list["str"]
+        self,
+        box_ids: list["str"],
+        line_separator: str = " ",
     ) -> tuple[Image.Image, str, int]:
         """
         Dada una lista de IDs de cajas-imagen, devuelve:
@@ -428,9 +430,11 @@ class AnnotatedPage:
 
         fragments = [self.image_boxes[box_id].fragment for box_id in box_ids]
         # usando .starting_index estamos usando el mismo orden de lectura de image_boxes
-        fragments = sorted(fragments, key=lambda x: x.starting_index)
+        fragments: list[TextFragment] = sorted(
+            fragments, key=lambda x: x.starting_index
+        )
 
-        transcription = " ".join([fragment.text for fragment in fragments])
+        transcription = line_separator.join([fragment.text for fragment in fragments])
         if not fragments:
             raise ValueError(
                 f"No se puede llamar cluster_reading_order si no hay fragmentos asociados ({self.task_id}) -> {box_ids=}"
