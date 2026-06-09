@@ -2,7 +2,7 @@ import torchvision.transforms as tvt  # ty:ignore[unresolved-import]
 from PIL.Image import Image
 import numpy as np
 from cropgen.training_helpers.parameters.transform_parameters import TransformParameters
-from typing import Callable
+from typing import Callable, Literal
 
 
 def _choose_rotation_interval_simple(added_rotation) -> tuple[float, float]:
@@ -70,21 +70,23 @@ def transform_train(
     instruction_text: str,
     min_rot: float,
     max_rot: float,
+    context_mode: Literal["both", "probabilistic"],
+    min_context: int,
+    max_context: int,
 ) -> dict[str, list]:
     """
-    Esta función recibe un 'batch' (ej. 4 muestras) durante el entrenamiento.
-    HuggingFace ya ha cargado las imágenes en batch['image'] como objetos PIL.
-    Aquí aplicamos resize, augment y formateamos a chat.
+    Recibe un batch de muestras durante el entrenamiento o evaluación.
+    Aplica transformaciones de imagen y le da formato a los datos
+    en base al modo de contexto configurado.
     """
     formatted_messages = []
-    # Iteramos sobre las muestras del batch actual
+
     for i in range(len(batch["image"])):
         image: Image = batch["image"][i]
         text: str = batch["text"][i]
-        # color promedio
         avg_col_tuple: tuple[int, int, int] = tuple(batch["avg_color"][i])
         average_rotation: float = batch["avg_rotation"][i]
-        context: str = batch["context"][i]
+        context: str = batch.get("context", [""] * len(batch["image"]))[i]
 
         image = image.convert("RGB")
 
@@ -111,113 +113,81 @@ def transform_train(
                 rotation_interval = _choose_rotation_interval_simple(
                     added_rotation=min_rot
                 )
+
             current_transforms = tvt.Compose(
                 [
                     tvt.RandomRotation(
                         degrees=rotation_interval,
                         expand=False,
-                        fill=avg_col_tuple,  # pyright: ignore[reportArgumentType]
+                        fill=avg_col_tuple,
                     ),
                     tvt.RandomAffine(
                         degrees=0,
                         translate=(shift_prop, shift_prop),
                         scale=(1 - max_escala, 1 + max_escala),
                         shear=maxdist,
-                        fill=avg_col_tuple,  # pyright: ignore[reportArgumentType]
+                        fill=avg_col_tuple,
                     ),
                     tvt.RandomPerspective(
                         distortion_scale=0.05,
                         p=0.3,
-                        fill=avg_col_tuple,  # pyright: ignore[reportArgumentType]
+                        fill=avg_col_tuple,
                     ),
                 ]
             )
-
-            image: Image = current_transforms(image)
+            image = current_transforms(image)
 
         w, h = image.size
         if w > max_dim or h > max_dim:
             scale_down = max_dim / max(w, h)
             image = image.resize((int(w * scale_down), int(h * scale_down)))
 
-        if (
+        is_context_valid = (
             contextualize
-            and (0 < context_probability)
-            and (len(context) > 0)
-            and (np.random.rand() < context_probability)
-        ):  # adición del contexto
-            conversation = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": instruction_text},
-                        {"type": "image", "image": image},
-                        {
-                            "type": "text",
-                            "text": f"For reference, here is the previous text: {context}",
-                        },
-                    ],
-                },
-                {"role": "assistant", "content": [{"type": "text", "text": text}]},
-            ]
+            and (context is not None)
+            and (min_context <= len(context) <= max_context)
+        )
+
+        no_context_conv = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": instruction_text},
+                    {"type": "image", "image": image},
+                ],
+            },
+            {"role": "assistant", "content": [{"type": "text", "text": text}]},
+        ]
+
+        with_context_conv = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": instruction_text},
+                    {"type": "image", "image": image},
+                    {
+                        "type": "text",
+                        "text": f"For reference, here is the previous text: {context}",
+                    },
+                ],
+            },
+            {"role": "assistant", "content": [{"type": "text", "text": text}]},
+        ]
+        if context_mode == "both":
+            formatted_messages.append(no_context_conv)
+
+            if is_context_valid:
+                formatted_messages.append(with_context_conv)
+            else:
+                formatted_messages.append(no_context_conv)
+
+        elif context_mode == "probabilistic" and is_context_valid:
+            if np.random.rand() < context_probability:
+                formatted_messages.append(with_context_conv)
+            else:
+                formatted_messages.append(no_context_conv)
+
         else:
-            conversation = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": instruction_text},
-                        {"type": "image", "image": image},
-                    ],
-                },
-                {"role": "assistant", "content": [{"type": "text", "text": text}]},
-            ]
-        formatted_messages.append(conversation)
+            formatted_messages.append(no_context_conv)
 
-    # devolvemos las cosas en el formato que espera el trainer
     return {"messages": formatted_messages}
-
-
-def get_configured_transforms(
-    transform_params: TransformParameters,
-) -> tuple[Callable, Callable]:
-    """
-    Devuelve las funciones de transformación configuradas según los transform_params:
-        transform_train
-        transform_eval
-    Nótese que es EVAL, no TEST!
-    """
-    transform_train_configured = lambda batch: transform_train(
-        batch,
-        augment=transform_params.augment_train,
-        straighten=transform_params.straighten_train,
-        use_complex_rotation_interval=transform_params.use_complex_rotation_interval_train,
-        contextualize=transform_params.contextualize,
-        maxdist=transform_params.maxdist,
-        global_resize_scale=transform_params.global_resize_scale,
-        shift_prop=transform_params.shift_prop,
-        max_dim=transform_params.max_dim,
-        context_probability=transform_params.context_probability,
-        max_escala=transform_params.max_escala,
-        instruction_text=transform_params.instruction_text,
-        min_rot=transform_params.min_rot,
-        max_rot=transform_params.max_rot,
-    )
-
-    transform_eval_configured = lambda batch: transform_train(
-        batch,
-        augment=transform_params.augment_eval,
-        straighten=transform_params.straighten_eval,
-        use_complex_rotation_interval=transform_params.use_complex_rotation_interval_eval,
-        contextualize=transform_params.contextualize,
-        maxdist=transform_params.maxdist,
-        global_resize_scale=transform_params.global_resize_scale,
-        shift_prop=transform_params.shift_prop,
-        max_dim=transform_params.max_dim,
-        context_probability=transform_params.context_probability,
-        max_escala=transform_params.max_escala,
-        instruction_text=transform_params.instruction_text,
-        min_rot=transform_params.min_rot,
-        max_rot=transform_params.max_rot,
-    )
-
-    return transform_train_configured, transform_eval_configured

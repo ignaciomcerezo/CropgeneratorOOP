@@ -12,17 +12,15 @@ def preprocess_logits_for_metrics(logits, labels):
 def get_compute_metrics_function_from_tokenizer(
     tokenizer, assistant_marker: str | None = None
 ):
-
     if assistant_marker is None:
         _, assistant_marker = extract_collator_markers(tokenizer)
 
     def compute_metrics(eval_preds):
         logits_argmax, labels = eval_preds
         log_filepath = "predicciones_eval.log"
-        compute_metrics.iteration_count: int
 
         if not hasattr(compute_metrics, "iteration_count"):
-            compute_metrics.iteration_count: int = 1
+            compute_metrics.iteration_count = 1
             with open(log_filepath, "w", encoding="utf-8") as f:
                 f.write("=== LOG DE PREDICCIONES EN EVALUACIÓN ===\n\n")
         else:
@@ -39,6 +37,7 @@ def get_compute_metrics_function_from_tokenizer(
             p_text = tokenizer.decode(p_ids, skip_special_tokens=True)
             l_text = tokenizer.decode(l_ids, skip_special_tokens=True)
 
+            # Your explicit marker cleaning logic (Preserved!)
             if assistant_marker in p_text.lower():
                 p_text = p_text.lower().split(assistant_marker)[-1].strip()
             if assistant_marker in l_text.lower():
@@ -57,13 +56,27 @@ def get_compute_metrics_function_from_tokenizer(
 
         with open(log_filepath, "a", encoding="utf-8") as f:
             f.write(f"# Iteration {compute_metrics.iteration_count}:\n\n")
-            for idx, (clean, pred) in enumerate(zip(cleaned_labels, cleaned_preds)):
-                f.write(f"[Página {idx:03d}]\n")
-                f.write(f"\t      real: {clean}\n")
-                f.write(f"\tpredicción: {pred}\n\n")
+            for pair_idx in range(0, len(cleaned_labels), 2):
+                orig_idx = pair_idx // 2
+                f.write(f"[Muestra {orig_idx:03d}]\n")
+                f.write(f"\t            real: {cleaned_labels[pair_idx]}\n")
+                f.write(f"\tpredicción s/ctx: {cleaned_preds[pair_idx]}\n")
+                f.write(f"\tpredicción c/ctx:  {cleaned_preds[pair_idx+1]}\n\n")
             f.write("-" * 40 + "\n\n")
 
-        cer_score = jiwer.cer(cleaned_labels, cleaned_preds)
-        return {"cer": cer_score}
+        preds_no_context = cleaned_preds[0::2]
+        labels_no_context = cleaned_labels[0::2]
+
+        preds_with_context = cleaned_preds[1::2]
+        labels_with_context = cleaned_labels[1::2]
+
+        cer_no_context = jiwer.cer(labels_no_context, preds_no_context)
+        cer_with_context = jiwer.cer(labels_with_context, preds_with_context)
+
+        return {
+            "eval_cer_no_context": cer_no_context,
+            "eval_cer_with_context": cer_with_context,
+            "eval_cer_combined": (cer_no_context + cer_with_context) / 2,
+        }
 
     return compute_metrics
