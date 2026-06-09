@@ -64,7 +64,8 @@ class TransformParameters:
             "shift_prop",
             "max_escala",
             "maxdist",
-            "min_context" "max_context",
+            "min_context",
+            "max_context",
         ]
         return self._get_att_from_names(transform_global_parameter_names)
 
