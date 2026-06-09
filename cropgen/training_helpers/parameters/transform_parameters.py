@@ -77,7 +77,7 @@ class TransformParameters:
             "use_complex_rotation_interval_eval",
             "context_mode_eval",
         ]
-        return self._get_att_from_names(eval_transform_parameter_names)
+        return self._get_att_from_names(eval_transform_parameter_na es)
 
     @property
     def train_transform_parameters(self) -> dict[str, Any]:
@@ -85,7 +85,6 @@ class TransformParameters:
             "augment_train",
             "straighten_train",
             "use_complex_rotation_interval_train",
-            "context_mode_train",
         ]
         return self._get_att_from_names(train_transform_parameter_names)
 
