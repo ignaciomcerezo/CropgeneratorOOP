@@ -74,7 +74,6 @@ class TransformParameters:
             "augment_eval",
             "straighten_eval",
             "use_complex_rotation_interval_eval",
-            "context_mode_eval",
         ]
         return self._get_att_from_names(eval_transform_parameter_names)
 
