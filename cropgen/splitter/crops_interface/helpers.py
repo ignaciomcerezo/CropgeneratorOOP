@@ -1,43 +1,49 @@
-def greedy_page_split_df(
-    df, p=0.8, orders: list[int] | tuple[int] = (1,)
+import numpy as np
+
+
+def montecarlo_page_split_df(
+    df, p=0.95, orders: list[int] | tuple[int] = (1,), n_trials: int = 300
 ) -> tuple[set[str], set[str]]:
     """
-    Divide las páginas en dos grupos (que serán train y test), de forma que la relación
-    #f(a)/(#f(a) + #f(b)) sea aproximadamente p, donde f(a) es el conjunto de archivos (muestras) en
-    el grupo de páginas train.
-    Emplea un algoritmo greedy, que no es óptimo, pero es suficientemente bueno (al fin y al cabo
-    las particiones en 80-20 o cualquier otra cantidad son esencialmente arbitrarias). Emplea para la
-    partición solamente las longitudes indicadas
+    Emplea el método de monte carlo para dividir las páginas en train y test,
+    empleando n_trials como máximo de intentos
     """
 
-    df_p = df[df.order.isin(orders)]  # solamente los archivos que queremos considerar
+    df_p = df[df.order.isin(orders)]
 
-    total = df_p.count().iloc[0]
+    page_counts = df_p.groupby("page").size()
+    pages = page_counts.index.to_numpy()
+    counts = page_counts.to_numpy()
 
-    target_cardfa = int(total * p)  # número de archivos buscado
+    total_lines = counts.sum()
+    target_a = total_lines * p
 
-    a = []
-    b = []
+    best_error = float("inf")
+    best_split_idx = 0
+    best_pages = pages
 
-    fa_card = 0
+    # usamos ahora un método de monte carlo para encontrar una partición válida
+    # Método de Monte Carlo para encontrar la permutación con el mejor punto de corte
+    for _ in range(n_trials):
+        # creamos un orden aleatorio de las páginas.
+        idx = np.random.permutation(len(pages))
+        shuffled_pages = pages[idx]
+        shuffled_counts = counts[idx]
 
-    count_boxes = lambda page: len(df_p[df_p["page"] == page])
+        # calculamos la proporción de líneas que iría si cortamos en cada índice
+        cum_lines = np.cumsum(shuffled_counts)
 
-    pageandfilecount = [(page, count_boxes(page)) for page in df_p["page"].unique()]
+        # encontramos el índice que se asemeja más a p
+        errors = np.abs(cum_lines - target_a)
+        min_err_idx = np.argmin(errors)
 
-    for page, file_count in sorted(pageandfilecount, key=lambda x: x[1]):
+        if errors[min_err_idx] < best_error:
+            best_error = errors[min_err_idx]
+            best_split_idx = min_err_idx
+            best_pages = shuffled_pages
 
-        # comprueba si añadir la página nos acerca o nos aleja del objetivo
+    # dividimos usando el mejor índice
+    a = set(best_pages[: best_split_idx + 1])
+    b = set(best_pages[best_split_idx + 1 :])
 
-        diff_if_add = abs((fa_card + file_count) - target_cardfa)
-        diff_if_skip = abs(fa_card - target_cardfa)
-
-        if diff_if_add < diff_if_skip:
-            # si nos acerca, la metemos en A
-            a.append(page)
-            fa_card += file_count
-        else:
-            # si nos aleja, la metemos en B
-            b.append(page)
-
-    return set(a), set(b)
+    return a, b

@@ -18,8 +18,7 @@ class TransformParameters:
     global_resize_scale: float = 0.5
     max_dim: int = 1024
 
-    contextualize: bool = False
-    context_probability: float = 0  # redundant if contextualize = False
+    context_probability: float = 0
     max_context_chars: int = 50  # 50
 
     min_rot: int | float = 2  # 2
@@ -55,7 +54,6 @@ class TransformParameters:
             "instruction_text",
             "global_resize_scale",
             "max_dim",
-            "contextualize",
             "context_probability",
             "max_context_chars",
             "min_rot",
@@ -92,7 +90,6 @@ class TransformParameters:
             augment=self.augment_train,
             straighten=self.straighten_train,
             use_complex_rotation_interval=self.use_complex_rotation_interval_train,
-            contextualize=self.contextualize,
             maxdist=self.maxdist,
             global_resize_scale=self.global_resize_scale,
             shift_prop=self.shift_prop,
@@ -115,7 +112,6 @@ class TransformParameters:
             augment=self.augment_eval,
             straighten=self.straighten_eval,
             use_complex_rotation_interval=self.use_complex_rotation_interval_eval,
-            contextualize=self.contextualize,
             maxdist=self.maxdist,
             global_resize_scale=self.global_resize_scale,
             shift_prop=self.shift_prop,
@@ -138,7 +134,6 @@ class TransformParameters:
             augment=self.augment_eval,
             straighten=self.straighten_eval,
             use_complex_rotation_interval=self.use_complex_rotation_interval_eval,
-            contextualize=self.contextualize,
             maxdist=self.maxdist,
             global_resize_scale=self.global_resize_scale,
             shift_prop=self.shift_prop,

@@ -10,7 +10,7 @@ from cropgen.shared.default_parameters import (
     min_context_words as default_min_context_words,
 )
 from cropgen.splitter.crops_interface.helpers import (
-    greedy_page_split_df,
+    montecarlo_page_split_df,
 )
 
 
@@ -178,11 +178,11 @@ class PairsDataInterface:
         """Genera el split train/test, usando un algoritmo greedy sobre cada subconjunto con
         igual proporción deseada: primero LoLoMa y luego las cartas, para asegurar homogeneidad
         en ese respecto."""
-        train_pages_laloma, test_pages_laloma = greedy_page_split_df(
+        train_pages_laloma, test_pages_laloma = montecarlo_page_split_df(
             self.df[~self.df["is_letter"]], p, orders=orders_to_consider
         )
 
-        train_pages_letters, test_pages_letters = greedy_page_split_df(
+        train_pages_letters, test_pages_letters = montecarlo_page_split_df(
             self.df[self.df["is_letter"]], p, orders=orders_to_consider
         )
 

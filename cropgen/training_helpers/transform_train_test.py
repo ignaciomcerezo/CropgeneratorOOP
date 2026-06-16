@@ -59,7 +59,6 @@ def transform_train(
     augment: bool,
     straighten: bool,
     use_complex_rotation_interval: bool,
-    contextualize: bool,
     maxdist: float,
     global_resize_scale: float,
     shift_prop: float,
@@ -141,9 +140,7 @@ def transform_train(
             scale_down = max_dim / max(w, h)
             image = image.resize((int(w * scale_down), int(h * scale_down)))
 
-        is_context_valid = (
-            contextualize and (context is not None) and (min_context <= len(context))
-        )
+        is_context_valid = (context is not None) and (min_context <= len(context))
 
         context_length = np.random.randint(min_context, max_context)
 
