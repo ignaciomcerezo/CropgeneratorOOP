@@ -69,7 +69,7 @@ def transform_train(
     instruction_text: str,
     min_rot: float,
     max_rot: float,
-    context_mode: Literal["both", "probabilistic"],
+    context_mode: Literal["never", "always", "probabilistic"],
     min_context: int,
     max_context: int,
 ) -> dict[str, list]:
@@ -142,10 +142,13 @@ def transform_train(
             image = image.resize((int(w * scale_down), int(h * scale_down)))
 
         is_context_valid = (
-            contextualize
-            and (context is not None)
-            and (min_context <= len(context) <= max_context)
+            contextualize and (context is not None) and (min_context <= len(context))
         )
+
+        context_length = np.random.randint(min_context, max_context)
+
+        # aleatorizamos la cantidad de contexto añadida también
+        context = context[:context_length]
 
         no_context_conv = [
             {
@@ -172,21 +175,19 @@ def transform_train(
             },
             {"role": "assistant", "content": [{"type": "text", "text": text}]},
         ]
-        if context_mode == "both":
+
+        if context_mode == "never":
             formatted_messages.append(no_context_conv)
 
-            if is_context_valid:
+        elif context_mode == "always":
+            formatted_messages.append(
+                with_context_conv if is_context_valid else no_context_conv
+            )
+
+        elif context_mode == "probabilistic":
+            if is_context_valid and np.random.rand() < context_probability:
                 formatted_messages.append(with_context_conv)
             else:
                 formatted_messages.append(no_context_conv)
-
-        elif context_mode == "probabilistic" and is_context_valid:
-            if np.random.rand() < context_probability:
-                formatted_messages.append(with_context_conv)
-            else:
-                formatted_messages.append(no_context_conv)
-
-        else:
-            formatted_messages.append(no_context_conv)
 
     return {"messages": formatted_messages}

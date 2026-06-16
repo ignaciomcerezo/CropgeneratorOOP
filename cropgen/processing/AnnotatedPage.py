@@ -1,3 +1,4 @@
+from typing import Literal
 import re
 from collections.abc import Iterable
 
@@ -509,6 +510,7 @@ class AnnotatedPage:
     def represent_by_ids(
         self,
         image_box_ids: list[str],
+        represent_polygon: bool = True,
         represent_mbr: bool = False,
         polygon_color: tuple[int, int, int] | tuple[int, int, int, int] = (255, 0, 0),
         mbr_color: tuple[int, int, int] | tuple[int, int, int, int] = (0, 255, 0),
@@ -516,6 +518,8 @@ class AnnotatedPage:
             tuple[int, int, int] | tuple[int, int, int, int] | None
         ) = None,
         line_width: int = 2,
+        use_full_page: bool | Literal["OnlyBoxed"] = False,
+        full_page: Image.Image | None = None,
     ) -> Image.Image:
         """
         Genera un collage con las cajas seleccionadas y dibuja sus polígonos encima.
@@ -528,29 +532,53 @@ class AnnotatedPage:
             )
 
         selected_boxes = [self.image_boxes[box_id] for box_id in selected_ids]
-        collage = compose_collage(
-            selected_boxes,
-            background_color if background_color is not None else self.background_color,
+        fill_background = (
+            background_color if background_color is not None else self.background_color
         )
 
-        # Usamos el mismo anclaje que compose_collage para convertir coordenadas globales a locales.
-        min_x = int(min(box.polygon.bounds[0] for box in selected_boxes))
-        min_y = int(min(box.polygon.bounds[1] for box in selected_boxes))
+        if use_full_page == "OnlyBoxes":
+            background = compose_collage(
+                list(self.image_boxes.values()), fill_background
+            )
+            origin_x = int(
+                min(box.polygon.bounds[0] for box in self.image_boxes.values())
+            )
+            origin_y = int(
+                min(box.polygon.bounds[1] for box in self.image_boxes.values())
+            )
+        elif use_full_page:
+            if full_page is None:
+                raise ValueError(
+                    "Si se quiere usar la página completa como fondo, se debe pasar como argumento en full_page."
+                )
+            background = full_page.convert("RGB")
 
-        draw = ImageDraw.Draw(collage)
+            origin_x = 0
+            origin_y = 0
+
+        else:
+            # solamente la región que tiene cajas
+            background = compose_collage(selected_boxes, fill_background)
+            origin_x = int(min(box.polygon.bounds[0] for box in selected_boxes))
+            origin_y = int(min(box.polygon.bounds[1] for box in selected_boxes))
+
+        # Usamos el mismo anclaje que compose_collage para convertir coordenadas globales a locales.
+
+        draw = ImageDraw.Draw(background)
 
         for box in selected_boxes:
-            polygon_points = [
-                (float(x - min_x), float(y - min_y))
-                for x, y in box.polygon.exterior.coords
-            ]
-            draw.line(polygon_points, fill=polygon_color, width=line_width)
+            if represent_polygon:
+                polygon_points = [
+                    (float(x - origin_x), float(y - origin_y))
+                    for x, y in box.polygon.exterior.coords
+                ]
+                draw.line(polygon_points, fill=polygon_color, width=line_width)
 
             if represent_mbr:
                 mbr_points = [
-                    (float(x - min_x), float(y - min_y))
+                    (float(x - origin_x), float(y - origin_y))
                     for x, y in box.polygon.minimum_rotated_rectangle.exterior.coords
                 ]
                 draw.line(mbr_points, fill=mbr_color, width=line_width)
 
-        return collage
+        return background

@@ -45,7 +45,6 @@ class TransformParameters:
     augment_eval: bool = False
     straighten_eval: bool = False
     use_complex_rotation_interval_eval: bool = False
-    context_mode_eval: Literal["probabilistic", "both"]
 
     def _get_att_from_names(self, att_names: list[str]) -> dict[str, Any]:
         return {att_name: getattr(self, att_name) for att_name in att_names}
@@ -110,7 +109,30 @@ class TransformParameters:
         )
         return transform_train_configured
 
-    def get_configured_eval_transform(self):
+    def get_configured_eval_transform_without_context(self):
+
+        transform_eval_configured_without_context = lambda batch: transform_train(
+            batch,
+            augment=self.augment_eval,
+            straighten=self.straighten_eval,
+            use_complex_rotation_interval=self.use_complex_rotation_interval_eval,
+            contextualize=self.contextualize,
+            maxdist=self.maxdist,
+            global_resize_scale=self.global_resize_scale,
+            shift_prop=self.shift_prop,
+            max_dim=self.max_dim,
+            context_probability=self.context_probability,
+            max_escala=self.max_escala,
+            instruction_text=self.instruction_text,
+            min_rot=self.min_rot,
+            max_rot=self.max_rot,
+            context_mode="never",
+            max_context=self.max_context_chars,
+            min_context=self.min_context_chars,
+        )
+        return transform_eval_configured_without_context
+
+    def get_configured_eval_transform_with_context(self):
 
         transform_eval_configured = lambda batch: transform_train(
             batch,
@@ -127,7 +149,7 @@ class TransformParameters:
             instruction_text=self.instruction_text,
             min_rot=self.min_rot,
             max_rot=self.max_rot,
-            context_mode=self.context_mode_eval,
+            context_mode="always",
             max_context=self.max_context_chars,
             min_context=self.min_context_chars,
         )

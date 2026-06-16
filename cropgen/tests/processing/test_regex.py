@@ -2,12 +2,13 @@ import os
 import re
 from pathlib import Path
 from typing import Iterable
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 
 from dotenv import load_dotenv
 
 from cropgen.processing.helpers.text_replacements import french_latex_characters
 from cropgen.tests.tests_helper import extract_height_width_from_task
-from object_mothers import mother_pil_image
+from cropgen.tests.object_mothers import mother_pil_image
 
 load_dotenv()
 
@@ -44,7 +45,9 @@ def test_undesirable_matches(re_patterns: Iterable[str] = _PATTERNS) -> None:
 
 
 def number_of_matches(
-    re_patterns: Iterable[str] | str, show_where: bool = True
+    re_patterns: Iterable[str] | str,
+    show_where: bool = True,
+    filters: dict[str, list] = {},
 ) -> list[int]:
     """
     Devuelve el número de ocurrencias de un patrón de regex concreto en las cajas-imagen selccionadas.
@@ -59,6 +62,8 @@ def number_of_matches(
         re.compile(re_pattern) for re_pattern in re_patterns
     ]
 
+    filters = {x: list(str(y) for y in filters[x]) for x in filters.keys()}
+
     tasks = lsi.simplified_tasks
 
     AnnotatedPage.min_nodes_for_big_box_removal = 500
@@ -68,6 +73,16 @@ def number_of_matches(
     for task in tasks:
         width, height = extract_height_width_from_task(task)
         img = mother_pil_image(width=width, height=height, color=(255, 0, 255))
+
+        task: SimplifiedTask
+
+        if "id" in filters and (task.id not in filters["id"]):
+            continue
+
+        page = paths.get_image_path_from_task(task).stem
+
+        if "page" in filters and (page not in filters["page"]):
+            continue
 
         for k, ann in enumerate(task.annotations):
 
@@ -109,4 +124,4 @@ def _str_trimmed(value: str, k: int = 20):
     return value
 
 
-number_of_matches(r"&")
+# number_of_matches(r"&")

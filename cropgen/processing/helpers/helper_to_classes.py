@@ -431,7 +431,7 @@ def get_connected_components(adj: dict[str, set]):
 def compose_collage(
     image_boxes: list["ImageBox"],
     fill_color: tuple[int, int, int] | tuple[int, int, int, int],
-):
+) -> Image.Image:
     # calculamos la región mínima de la imagen que contiene todas las cajas
     x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
 

@@ -9,6 +9,10 @@ from cropgen.shared.PathBundle import PathBundle
 from cropgen.tests.object_mothers import mother_pil_image
 
 
+def task_from_task_id(lsi: LabelStudioInterface, task_id: int | str) -> LabelStudioTask:
+    return [task for task in lsi.raw_tasks if task.id == int(task_id)][0]
+
+
 def load_ann(
     paths: PathBundle,
     task_id: int,
@@ -16,6 +20,7 @@ def load_ann(
     lsi: LabelStudioInterface | None = None,
     reload_lsi=False,
     fake_image: bool = False,
+    unrotate: bool = False,
 ) -> AnnotatedPage:
     """
     Carga la anotación annotation_number_in_task-ésima de la tarea task_id, y la devuelve como una instancia
@@ -29,9 +34,9 @@ def load_ann(
 
         lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
 
-    tsk = lsi[task_id][annotation_number_in_task]
+    simplified_ls_ann = lsi[task_id][annotation_number_in_task]
 
-    task = [task for task in lsi.raw_tasks if task.id == int(task_id)][0]
+    task = task_from_task_id(lsi, task_id)
 
     if not fake_image:
         img_path = paths.get_image_path_from_task(task)
@@ -41,13 +46,12 @@ def load_ann(
         width, height = extract_height_width_from_task(task)
         img = mother_pil_image(width=width, height=height, color=(255, 0, 255))
 
-    ann = AnnotatedPage(
-        tsk,
-        img,
-        False,
+    return AnnotatedPage(
+        ann=simplified_ls_ann,
+        img=img,
+        unrotate=unrotate,
         usernames_labelstudio=lsi.usernames,
     )
-    return ann
 
 
 def extract_height_width_from_task(
