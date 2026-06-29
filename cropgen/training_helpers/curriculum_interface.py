@@ -61,6 +61,16 @@ class CurriculumDatasetInterface(torch.utils.data.Dataset):
 
         return getattr(self.active_dataset, name)
 
+    def update_for_orders(self, acceptable_lengths: list[int | str]):
+        self.active_dataset = self.restrict_length_fn(
+            self.full_dataset,
+            acceptable_lengths=acceptable_lengths,
+            transform_func=self.transform_func,
+        )
+        print(
+            f"[Curriculum] Phase parameters updated.\n\tDataset size: {len(self.active_dataset)} samples\n\tOrders: {acceptable_lengths}"
+        )
+
     def calculate_total_curriculum_steps(
         self, per_device_batch_size: int, grad_accum: int
     ):
