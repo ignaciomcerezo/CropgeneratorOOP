@@ -19,6 +19,9 @@ def generate(
     paths: PathBundle | None = None,
     obi: OracleBucketInterface | None = None,
     lsi: LabelStudioInterface | None = None,
+    orders_to_consider=[1, 2, 3],
+    generate_full_pages=True,
+    generate_paragraphs=True,
 ):
     # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
     load_dotenv()
@@ -36,36 +39,35 @@ def generate(
     augment_data_parallel(
         paths,
         tasks_only=None,
-        orders_to_consider=[1, 2, 3],
-        generate_full_pages=True,
-        generate_paragraphs=True,
+        orders_to_consider=orders_to_consider,
+        generate_full_pages=generate_full_pages,
+        generate_paragraphs=generate_paragraphs,
         lsi=lsi,
     )
 
 
-def convert(paths: PathBundle) -> tuple[Dataset, Dataset, Dataset, Dataset]:
+def convert(
+    paths: PathBundle,
+    p: float = 0.95,
+    orders_to_split_with: list[int] = [1],
+    n_samples_eval=300,
+) -> tuple[Dataset, Dataset, Dataset]:
     pdi = PairsDataInterface(paths)
-    dataset_train, dataset_test = get_datasets(pdi, [1])
+    dataset_train, dataset_test = get_datasets(pdi, orders_to_split_with, p)
 
-    n_samples = 100  # número de muestras
     np.random.seed(42)
-
-    # seleccionamos los índices aleatorios
-    samples_index = np.random.choice(
-        len(dataset_test), n_samples, replace=False
+    evals_index = np.random.choice(
+        len(dataset_test), n_samples_eval, replace=False
     ).tolist()
-    evals_index = np.random.choice(len(dataset_test), n_samples, replace=False).tolist()
 
-    samples_test = dataset_test.select(samples_index)
     samples_eval = dataset_test.select(evals_index)
 
-    return dataset_train, dataset_test, samples_test, samples_eval
+    return dataset_train, dataset_test, samples_eval
 
 
 def upload(
     dataset_train: Dataset,
     dataset_test: Dataset,
-    samples_test: Dataset,
     samples_eval: Dataset,
 ):
 
@@ -75,7 +77,6 @@ def upload(
             "train": dataset_train,
             "test": dataset_test,
             "samples_eval": samples_eval,
-            "sample_test": samples_test,
         }
     )
     complete_dataset.push_to_hub(hub_name, private=True, token=True)
@@ -103,9 +104,3 @@ def upload(
         os.remove(split_data_path)
 
     print(f"Subido a https://huggingface.co/datasets/{hub_name}")
-
-
-if __name__ == "__main__":
-    generate()
-    dataset_train, dataset_test, samples_test, samples_eval = convert()
-    upload()

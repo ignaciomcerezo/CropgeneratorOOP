@@ -2,12 +2,14 @@ import numpy as np
 
 
 def montecarlo_page_split_df(
-    df, p=0.95, orders: list[int] | tuple[int] = (1,), n_trials: int = 300
+    df, p=0.95, orders: list[int] | tuple[int] = (1,), n_trials: int = 1000
 ) -> tuple[set[str], set[str]]:
     """
     Emplea el método de monte carlo para dividir las páginas en train y test,
     empleando n_trials como máximo de intentos
     """
+
+    print(f"Performing Montecarlo page split with {n_trials} trials")
 
     df_p = df[df.order.isin(orders)]
 
