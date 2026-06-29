@@ -84,19 +84,3 @@ class CurriculumDatasetInterface(torch.utils.data.Dataset):
             total_steps += num_batches
 
         return total_steps
-
-
-class CurriculumCallback(TrainerCallback):
-    """
-    Callback que actualiza el dataset según la interfaz de currículum al final de cada época.
-    """
-
-    def __init__(self, curriculum_dataset_interface: CurriculumDatasetInterface):
-        self.curriculum_dataset_interface = curriculum_dataset_interface
-
-    def on_epoch_end(self, args, state, control, **kwargs):
-        next_stage: int = self.curriculum_dataset_interface.current_stage_idx + 1
-        if next_stage < len(self.curriculum_dataset_interface.orders_per_epoch):
-            self.curriculum_dataset_interface.update_for_stage(next_stage)
-        else:
-            print(f"{ln}[Currículum] Etapa final.")
