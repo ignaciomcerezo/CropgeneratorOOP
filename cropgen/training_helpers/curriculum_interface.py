@@ -34,20 +34,6 @@ class CurriculumDatasetInterface(torch.utils.data.Dataset):
 
         self.update_for_stage(0)
 
-    def update_for_stage(self, stage_idx: int):
-        if stage_idx < len(self.orders_per_epoch):
-            self.current_stage_idx = stage_idx
-            acceptable_lengths: list[int | str] = self.orders_per_epoch[stage_idx]
-
-            self.active_dataset: Dataset = self.restrict_length_fn(
-                self.full_dataset,
-                acceptable_lengths=acceptable_lengths,
-                transform_func=self.transform_func,
-            )
-            print(
-                f"[Curriculum] Paso {stage_idx}:{ln}{tab}Tamaño del dataset: {len(self.active_dataset)} muestras{ln}{tab}Ordenes: {acceptable_lengths}"
-            )
-
     def __len__(self):
         return len(self.active_dataset)
 
@@ -61,12 +47,51 @@ class CurriculumDatasetInterface(torch.utils.data.Dataset):
 
         return getattr(self.active_dataset, name)
 
+    def update_for_stage(self, stage_idx: int):
+        if stage_idx < len(self.orders_per_epoch):
+            self.current_stage_idx = stage_idx
+            acceptable_lengths: list[int | str] = self.orders_per_epoch[stage_idx]
+
+            if (
+                getattr(self, "_current_acceptable_lengths", None) == acceptable_lengths
+                and self.active_dataset is not None
+            ):
+                print(
+                    f"[Curriculum] Paso {stage_idx}:{ln}{tab}Órdenes idénticas ({acceptable_lengths}). Omitiendo el filtrado."
+                )
+                return
+
+            self.active_dataset: Dataset = self.restrict_length_fn(
+                self.full_dataset,
+                acceptable_lengths=acceptable_lengths,
+                transform_func=self.transform_func,
+            )
+
+            self._current_acceptable_lengths = acceptable_lengths
+
+            print(
+                f"[Curriculum] Paso {stage_idx}:{ln}{tab}Tamaño del dataset: {len(self.active_dataset)} muestras{ln}{tab}Ordenes: {acceptable_lengths}"
+            )
+
     def update_for_orders(self, acceptable_lengths: list[int | str]):
+
+        if (
+            getattr(self, "_current_acceptable_lengths", None) == acceptable_lengths
+            and self.active_dataset is not None
+        ):
+            print(
+                f"[Curriculum] Phase parameters unchanged ({acceptable_lengths}). Skipping expensive filtering step."
+            )
+            return
+
         self.active_dataset = self.restrict_length_fn(
             self.full_dataset,
             acceptable_lengths=acceptable_lengths,
             transform_func=self.transform_func,
         )
+
+        self._current_acceptable_lengths = acceptable_lengths
+
         print(
             f"[Curriculum] Phase parameters updated.\n\tDataset size: {len(self.active_dataset)} samples\n\tOrders: {acceptable_lengths}"
         )
