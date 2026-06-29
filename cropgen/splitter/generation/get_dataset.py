@@ -10,7 +10,7 @@ from cropgen.splitter.generation.generate_generator import (
 def get_datasets(
     pdi: PairsDataInterface,
     orders_to_split_with: list[int],
-    p: float = 0.97,
+    p: float = 0.95,
     augment=True,
 ) -> tuple[Dataset, Dataset]:
     """
