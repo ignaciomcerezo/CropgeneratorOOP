@@ -10,8 +10,7 @@ from cropgen.splitter.generation.generate_generator import (
 def get_datasets(
     pdi: PairsDataInterface,
     orders_to_split_with: list[int],
-    p: float = 0.97,
-    augment=True,
+    p: float = 0.95,
 ) -> tuple[Dataset, Dataset]:
     """
     A partir de las longitudes a considerar genera los dataframes con los datos y traduce
@@ -22,7 +21,7 @@ def get_datasets(
     df_train, df_test = pdi.split(p, orders_to_split_with)
 
     generator_fn = generate_generator(pdi)
-    print(f"Creando dataset de train ({augment=}...", end=" ")
+    print(f"Creando dataset de train...", end=" ")
     dataset_train = Dataset.from_generator(
         generator_fn,
         gen_kwargs={"df": df_train},
@@ -30,7 +29,7 @@ def get_datasets(
     )
     print(f"Creadas {len(dataset_train)} muestras de entrenamiento")
 
-    print("Creando datset de test (sin aumentar)...", end=" ")
+    print("Creando datset de test...", end=" ")
     dataset_test = Dataset.from_generator(
         generator_fn,
         gen_kwargs={"df": df_test},
