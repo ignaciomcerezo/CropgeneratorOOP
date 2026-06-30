@@ -102,7 +102,7 @@ class TransformParameters:
             context_mode="probabilistic",
             max_context=self.max_context_chars,
             min_context=self.min_context_chars,
-            randomize_context_length=False,
+            randomize_context_length=True,
         )
         return transform_train_configured
 
@@ -123,9 +123,9 @@ class TransformParameters:
             min_rot=self.min_rot,
             max_rot=self.max_rot,
             context_mode="never",
-            max_context=self.max_context_chars,
-            min_context=self.max_context_chars,
-            randomize_context_length=True,
+            max_context=0,  # irrelevante (en virtud de context_mode = "never")
+            min_context=0,  # ídem
+            randomize_context_length=False,
         )
         return transform_eval_configured_without_context
 
@@ -146,8 +146,8 @@ class TransformParameters:
             min_rot=self.min_rot,
             max_rot=self.max_rot,
             context_mode="always",
-            max_context=self.max_context_chars,
-            min_context=self.max_context_chars,
+            max_context=self.min_context_chars,
+            min_context=0,  # irrelevante (en virtud de randomize_context_length = False)
             randomize_context_length=False,
         )
         return transform_eval_configured
