@@ -26,7 +26,7 @@ class AdaptiveCleanupCallback(TrainerCallback):
 
 
 class ProactiveCleanupCallback(TrainerCallback):
-    def __init__(self, danger_limit_gb=42.0, safety_buffer_gb=6.0, alpha=0.3):
+    def __init__(self, danger_limit_gb=42.0, safety_buffer_gb=8.0, alpha=0.3):
         """
         Callback para resolver (parcialmente) el problema de fragmentación de memoria.
         Emplea estructuras más inteligentes que AdaptiveCleanupCallback, pues tiene en cuenta el currículum.
