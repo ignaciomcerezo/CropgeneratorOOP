@@ -1,4 +1,5 @@
 replacements: list[tuple[str, str]] = [
+    ("\n", " "),
     (r"\'e", "é"),
     (r"\^e", "ê"),
     (r"\`e", "è"),
