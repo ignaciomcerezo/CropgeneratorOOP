@@ -7,3 +7,4 @@ cropgen.egg-info/
 build/
 .venv/
 .env
+.ipynb
