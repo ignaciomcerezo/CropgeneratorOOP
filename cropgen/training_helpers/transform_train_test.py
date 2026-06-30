@@ -71,6 +71,7 @@ def transform_train(
     context_mode: Literal["never", "always", "probabilistic"],
     min_context: int,
     max_context: int,
+    always_use_max_context: bool,
 ) -> dict[str, list]:
     """
     Recibe un batch de muestras durante el entrenamiento o evaluación.
@@ -142,10 +143,12 @@ def transform_train(
 
         is_context_valid = (context is not None) and (min_context <= len(context))
 
-        context_length = np.random.randint(min_context, max_context)
-
-        # aleatorizamos la cantidad de contexto añadida también
-        context = context[:context_length]
+        if not always_use_max_context:
+            # aleatorizamos la cantidad de contexto añadida también
+            context_length = np.random.randint(min_context, max_context)
+            context = context[-context_length:]
+        else:
+            context = context[-max_context:]
 
         no_context_conv = [
             {

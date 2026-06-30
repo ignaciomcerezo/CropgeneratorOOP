@@ -123,7 +123,7 @@ class TransformParameters:
             max_rot=self.max_rot,
             context_mode="never",
             max_context=self.max_context_chars,
-            min_context=self.min_context_chars,
+            min_context=self.max_context_chars,
         )
         return transform_eval_configured_without_context
 
@@ -145,6 +145,6 @@ class TransformParameters:
             max_rot=self.max_rot,
             context_mode="always",
             max_context=self.max_context_chars,
-            min_context=self.min_context_chars,
+            min_context=self.max_context_chars,
         )
         return transform_eval_configured
