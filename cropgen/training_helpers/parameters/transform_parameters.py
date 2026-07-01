@@ -27,6 +27,7 @@ class TransformParameters:
     shift_prop: float = 0.01
     max_escala: float = 0.02
     maxdist: float | int = 2
+    distorsion_scale: float = 0.05
 
     # CONTEXT CONFIG
 
@@ -63,6 +64,7 @@ class TransformParameters:
             "maxdist",
             "min_context_chars",
             "max_context_chars",
+            "ditorsion_scale",
         ]
         return self._get_att_from_names(transform_global_parameter_names)
 
@@ -99,6 +101,7 @@ class TransformParameters:
             instruction_text=self.instruction_text,
             min_rot=self.min_rot,
             max_rot=self.max_rot,
+            distorsion_scale=self.distorsion_scale,
             context_mode="probabilistic",
             max_context=self.max_context_chars,
             min_context=self.min_context_chars,
@@ -122,6 +125,7 @@ class TransformParameters:
             instruction_text=self.instruction_text,
             min_rot=self.min_rot,
             max_rot=self.max_rot,
+            distorsion_scale=self.distorsion_scale,
             context_mode="never",
             max_context=0,  # irrelevante (en virtud de context_mode = "never")
             min_context=0,  # ídem
@@ -145,6 +149,7 @@ class TransformParameters:
             instruction_text=self.instruction_text,
             min_rot=self.min_rot,
             max_rot=self.max_rot,
+            distorsion_scale=self.distorsion_scale,
             context_mode="always",
             max_context=self.min_context_chars,
             min_context=0,  # irrelevante (en virtud de randomize_context_length = False)

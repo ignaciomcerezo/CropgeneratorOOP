@@ -68,6 +68,7 @@ def transform_train(
     instruction_text: str,
     min_rot: float,
     max_rot: float,
+    distorsion_scale: float,
     context_mode: Literal["never", "always", "probabilistic"],
     min_context: int,
     max_context: int,
@@ -117,7 +118,7 @@ def transform_train(
                 [
                     tvt.RandomRotation(
                         degrees=rotation_interval,
-                        expand=False,
+                        expand=True,
                         fill=avg_col_tuple,
                     ),
                     tvt.RandomAffine(
@@ -128,7 +129,7 @@ def transform_train(
                         fill=avg_col_tuple,
                     ),
                     tvt.RandomPerspective(
-                        distortion_scale=0.05,
+                        distortion_scale=distorsion_scale,
                         p=0.3,
                         fill=avg_col_tuple,
                     ),
@@ -149,6 +150,9 @@ def transform_train(
             context = context[-context_length:]
         else:
             context = context[-max_context:]
+
+        context = context.replace("\n", " ")
+        text = text.replace("\n", " ")
 
         no_context_conv = [
             {
