@@ -64,7 +64,7 @@ class TransformParameters:
             "maxdist",
             "min_context_chars",
             "max_context_chars",
-            "ditorsion_scale",
+            "distorsion_scale",
         ]
         return self._get_att_from_names(transform_global_parameter_names)
 
