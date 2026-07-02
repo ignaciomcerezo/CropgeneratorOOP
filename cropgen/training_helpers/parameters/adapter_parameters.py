@@ -44,7 +44,7 @@ class AdapterParameters:
         return result
 
     def get_adapted_model(self):
-        FastVisionModel.get_peft_model(
+        return FastVisionModel.get_peft_model(
             model=self.model,
             finetune_vision_layers=self.finetune_vision_layers,
             finetune_language_layers=self.finetune_language_layers,
