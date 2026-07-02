@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Any
+from unsloth import FastVisionModel
 
 
 @dataclass(kw_only=True, slots=True, frozen=True)
@@ -41,3 +42,19 @@ class AdapterParameters:
             else:
                 result[field.name] = value
         return result
+
+    def get_adapted_model(self):
+        FastVisionModel.get_peft_model(
+            model=self.model,
+            finetune_vision_layers=self.finetune_vision_layers,
+            finetune_language_layers=self.finetune_language_layers,
+            finetune_attention_modules=self.finetune_attention_modules,
+            finetune_mlp_modules=self.finetune_mlp_modules,
+            r=self.r,
+            lora_alpha=self.lora_alpha,
+            lora_dropout=self.lora_dropout,
+            bias=self.bias,
+            random_state=self.random_state,
+            use_rslora=self.use_rslora,
+            loftq_config=self.loftq_config,
+        )
