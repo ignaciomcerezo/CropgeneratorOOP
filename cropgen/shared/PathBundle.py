@@ -49,6 +49,9 @@ class PathBundle:
             )
         except Exception as e:
             raise Exception(f"Error al crear las carpetas necesarias: {e}")
+        
+        self.lsi = None
+        self.obi = None
 
     def __repr__(self):
         return str(f"<PathBundle con raíz {self.root}>")

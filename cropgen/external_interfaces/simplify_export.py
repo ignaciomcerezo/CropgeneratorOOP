@@ -150,7 +150,7 @@ def convert_result_simplified(
             raise ValueError('El diccionario no tiene ["type"] conocido')
 
 
-def simplify_export(raw_export_filepath: Path, simplified_filepath: Path) -> None:
+def simplify_and_save(raw_export_filepath: Path, simplified_filepath: Path) -> None:
     """
     Función de simplificación del export.json. Toma el archivo, y produce el archivo
     de salida.

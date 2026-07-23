@@ -3,7 +3,7 @@ import json
 import os
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.external_interfaces.simplify_export import (
-    simplify_export,
+    simplify_and_save,
     load_simplified_export,
 )
 from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
@@ -26,34 +26,44 @@ class LabelStudioInterface:
         "usernames",
         "raw_export_filepath",
         "simplified_export_filepath",
-        "__raw_tasks",
-        "__simplified_tasks",
+        "server_url",
+        "token"
+        "project_id"
     )
 
-    def __init__(self, paths: PathBundle):
+    def __init__(self, paths: PathBundle, server_url: str, token: str, project_id: int = 4, online: bool = True):
         """
         Inicializa la interfaz de Label Studio a partir de un PathBundle.
         Carga los exports locales (raw y simplified) y la lista de usuarios si existen.
-        Lanza un error si no existe el export raw local.
         """
         self.project = None
+        self.paths = paths
         self.raw_export_filepath = paths.raw_export_filepath
         self.simplified_export_filepath = paths.simplified_filepath
+        self.online = online
+        self.project_id = project_id
 
-        if not self.raw_export_filepath.exists():
-            raise FileNotFoundError(
-                f"No existe export local en {self.raw_export_filepath}. "
-                "Ejecuta primero LabelStudioInterface.update_conditional(paths)."
-            )
+        exists_raw = paths.raw_export_filepath.exists()
+        exists_sim = paths.simplified_filepath.exists()
 
-        self.__raw_tasks = self._load_raw_as_schema(self.raw_export_filepath)
+        if not online:
 
-        self.__raw_tasks.sort(key=lambda task: task.id)
+            if not exists_sim and not exists_raw:
+                print(f"No existe export local crudo ni simplificado, y se ha seleccionado online = False.")
+            
+            if not exists_raw and exists_sim:
+                print(f"No existe export crudo local en {paths.raw_export_filepath}, y online = False,"
+                f"empleando directamente el simplificado local en {paths.simplified_filepath}.")
 
-        if self.__raw_tasks:
-            self.local_last_update = max(task.updated_at for task in self.__raw_tasks)
-        else:
-            self.local_last_update = None
+            else:
+                simplify_and_save(paths.raw_export_filepath, paths.simplified_filepath)
+            
+            return 
+        
+        self.token= token
+        self.url = server_url
+        
+        self.fetch_and_simplify()
 
         # Cargar y convertir simplified_tasks a instancias de SimplifiedTask
         self.__simplified_tasks = self._load_simplified_as_schema(
@@ -67,6 +77,26 @@ class LabelStudioInterface:
             )
         else:
             self.usernames: list[str] = []
+    
+    @classmethod
+    def from_env(
+        cls,
+        paths: PathBundle,
+        online: bool = True,
+        project_id: int = 4,
+        token_env_var: str = "LS_TOKEN",
+        url_env_var: str = "LS_URL",
+    ) -> "LabelStudioInterface":
+        if token_env_var not in os.environ:
+            raise ValueError(f"{token_env_var} no está presente en las variables de entorno.")
+        elif url_env_var not in os.environ:
+            raise ValueError(f"{url_env_var} no está presente en las variables de entorno.")
+        
+        token = str(os.getenv(token_env_var))
+        url = str(os.getenv(url_env_var))
+
+        return cls(paths, url, token, project_id, online)
+
 
     def __repr__(self):
         return f"<LabelStudioInterface con REF = {self.raw_export_filepath} y SEF={self.simplified_export_filepath}.>"
@@ -76,48 +106,26 @@ class LabelStudioInterface:
         """
         Devuelve la fecha de la última actualización de una tarea en el proyecto de Label Studio.
         """
-        # most_recently_updated_task = LabelStudioTask.model_validate(
-        #     project.get_paginated_tasks(ordering=["-updated_at"], page=1, page_size=1)[
-        #         "tasks"
-        #     ][0]
-        # )
         updated_at = project.get_paginated_tasks(
             ordering=["-updated_at"], page=1, page_size=1
         )["tasks"][0]["updated_at"]
         return str(updated_at)
 
-    @staticmethod
-    def update_conditional(
-        paths: PathBundle,
-        ls_url: str | None = None,
-        token: str | None = None,
-        project_id: int = 4,
-        forced: bool = False,
+    def fetch_and_simplify(
+        self,
+        force_update: bool = False,
     ) -> bool:
         """
         Actualiza los archivos de exportación desde Label Studio si hay cambios o si se fuerza la actualización.
         Descarga los datos, los guarda y regenera el export simplificado.
         Devuelve True si se ha actualizado, False si ya estaba actualizado.
         """
+        if not self.online:
+            print(f"LSI configurado con online={self.online}, por tanto no se actualiza.")
+            return False
 
-        if not token:
-            if "LS_TOKEN" in os.environ:
-                token = os.getenv("LS_TOKEN")
-            else:
-                raise ValueError(
-                    "O bien se pasa un token o bien se añade como variable de entorno."
-                )
-
-        if not ls_url:
-            if "LS_URL" in os.environ:
-                ls_url = os.getenv("LS_URL")
-            else:
-                raise ValueError(
-                    "O bien se pasa un ls_url o bien se añade como variable de entorno."
-                )
-
-        ls_client = Client(url=ls_url, api_key=token)
-        project = ls_client.get_project(id=project_id)
+        ls_client = Client(url=self.url, api_key=self.token)
+        project = ls_client.get_project(id=self.project_id)
 
         users = ls_client.get_users()
         user_ids = [user.id for user in users]
@@ -130,23 +138,23 @@ class LabelStudioInterface:
                     )
                 else:
                     ordered_usernames.append(0)
-        paths.usernames_filepath.write_text(
+        self.paths.usernames_filepath.write_text(
             json.dumps(ordered_usernames), encoding="utf-8"
         )
 
         # comprobamos si hace falta actualizar
         latest_update = LabelStudioInterface._get_latest_update_of_project(project)
 
-        if paths.raw_export_filepath.exists() and not forced:
+        if self.paths.raw_export_filepath.exists() and not force_update:
             loaded_export = LabelStudioInterface._load_raw_as_schema(
-                paths.raw_export_filepath
+                self.paths.raw_export_filepath
             )
 
             if loaded_export:
                 local_last_update = max(task.updated_at for task in loaded_export)
                 if (
                     latest_update <= local_last_update
-                ) and paths.simplified_filepath.exists():
+                ) and self.paths.simplified_filepath.exists():
                     print("Export local ya actualizado. No se descarga nada.")
                     return False
 
@@ -159,15 +167,9 @@ class LabelStudioInterface:
         raw_tasks.sort(key=lambda task: task.id)
 
         dump_data = [task.model_dump(mode="json") for task in raw_tasks]
-        paths.raw_export_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
+        self.paths.raw_export_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
 
-        # regeneramos el simplified_tasks
-        simplify_export(paths.raw_export_filepath, paths.simplified_filepath)
-        # simplified_tasks: list[SimplifiedTask] = load_simplified_export(paths)
-        # paths.simplified_export_filepath.write_text(
-        #     json.dumps(simplified_tasks), encoding="utf-8"
-        # )
-
+        simplify_and_save(self.paths.raw_export_filepath, self.paths.simplified_filepath)
         return True
 
     @property
@@ -175,14 +177,22 @@ class LabelStudioInterface:
         """
         Devuelve la lista de tareas raw descargadas de Label Studio
         """
-        return self.__raw_tasks
+        raw_tasks = self._load_raw_as_schema(self.raw_export_filepath)
+
+        raw_tasks.sort(key=lambda task: task.id)
+
+        return raw_tasks
 
     @property
     def simplified_tasks(self) -> list[SimplifiedTask]:
         """
-        Devuelve la lista de tareas simplificadas a partir del raw export
+        Devuelve la lista de tareas raw descargadas de Label Studio
         """
-        return self.__simplified_tasks
+        simplified_tasks = self._load_simplified_as_schema(self.simplified_export_filepath)
+
+        simplified_tasks.sort(key=lambda task: task.id)
+
+        return simplified_tasks
 
     def users(self) -> list[str]:
         """
@@ -200,22 +210,6 @@ class LabelStudioInterface:
             for tsk in self.simplified_tasks
             for i in range(len(tsk.annotations))
         ]
-
-    def save_raw_export(self) -> None:
-        """
-        Guarda el export raw actual en disco, sobrescribiendo el archivo correspondiente.
-        """
-        dump_data = [task.model_dump(mode="json") for task in self.__raw_tasks]
-        self.raw_export_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
-
-    def save_simplified_export(self) -> None:
-        """
-        Guarda el export simplificado actual, sobrescribiendo el archivo correspondiente si hubiera había
-        """
-        dump_data = [task.model_dump(mode="json") for task in self.__simplified_tasks]
-        self.simplified_export_filepath.write_text(
-            json.dumps(dump_data), encoding="utf-8"
-        )
 
     def __getitem__(self, index: int | str) -> list[SimplifiedAnnotation]:
         """

@@ -216,7 +216,7 @@ class Paragraph:
         ):  # si no es un grafo camino, empleamos el orden de lectura dado por las proyecciones
             self.image_boxes = sorted(
                 self.image_boxes,
-                key=lambda box: (box.corrected_centroid[1], box.corrected_centroid[0]),
+                key=lambda box: (box.corrected_centroid[1], box.corrected_centroid[0]),  # ty:ignore[not-subscriptable]
             )
             return self.image_boxes
 
@@ -224,13 +224,13 @@ class Paragraph:
             return self.image_boxes
 
         terminal_vertices = [
-            box for box in self.image_boxes if len(self.subgraph[box.id]) == 1
+            box for box in self.image_boxes if len(self.subgraph[box.id]) == 1  # ty:ignore[not-subscriptable]
         ]
         assert len(terminal_vertices) == 2
 
         top_box = min(
             terminal_vertices,
-            key=lambda box: (box.corrected_centroid[1], box.corrected_centroid[0]),
+            key=lambda box: (box.corrected_centroid[1], box.corrected_centroid[0]),  # ty:ignore[not-subscriptable]
         )
 
         boxes_by_id = {box.id: box for box in self.image_boxes}
@@ -242,7 +242,7 @@ class Paragraph:
         while len(ordered_boxes) < len(self.image_boxes):
             next_candidates = [
                 neighbor_id
-                for neighbor_id in self.subgraph[current_id]
+                for neighbor_id in self.subgraph[current_id]  # ty:ignore[not-subscriptable]
                 if neighbor_id != previous_id and neighbor_id not in visited
             ]
             assert len(next_candidates) == 1

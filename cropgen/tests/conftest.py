@@ -57,7 +57,7 @@ def prepare_data(paths, obi, ls_url, ls_token):
     load_dotenv()
 
     obi.update()
-    LabelStudioInterface.update_conditional(paths, ls_url, ls_token)
+    LabelStudioInterface.fetch_and_simplify(paths, ls_url, ls_token)
 
     yield
 

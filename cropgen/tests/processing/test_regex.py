@@ -20,7 +20,7 @@ from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterf
 paths = PathBundle(Path(os.getcwd()).parents[2])
 obi = OracleBucketInterface(paths)
 obi.update()
-LabelStudioInterface.update_conditional(paths)
+LabelStudioInterface.fetch_and_simplify(paths)
 lsi = LabelStudioInterface(paths)
 
 cmm_p = r"\\[a-zA-Z]+"

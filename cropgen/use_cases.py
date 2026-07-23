@@ -15,26 +15,49 @@ from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterfa
 from cropgen.splitter.generation.get_dataset import get_datasets
 
 
-def generate(
-    paths: PathBundle | None = None,
+def setup(path: str | Path | None = None,
     obi: OracleBucketInterface | None = None,
     lsi: LabelStudioInterface | None = None,
-    orders_to_consider=[1, 2, 3],
-    generate_full_pages=True,
-    generate_paragraphs=True,
-):
-    # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
+    online: bool = True,
+    project_id: int = 4
+    ):
+    """
+    Descarga todos los archivos necesarios para crear el conjunto de datos, y genera sus respectivas interfaces.
+    """
     load_dotenv()
-    paths: PathBundle = PathBundle(Path(os.getcwd()).parent) if paths is None else paths
+    path: Path = Path(path) if path is not None else Path(os.getcwd()).parent
+    paths = PathBundle(path)
 
     obi: OracleBucketInterface = (
         OracleBucketInterface.from_env(paths) if obi is None else obi
     )
     obi.update()
-    has_updated = LabelStudioInterface.update_conditional(paths)
-    lsi: LabelStudioInterface = LabelStudioInterface(paths) if lsi is None else lsi
-    if has_updated:
-        lsi.save_simplified_export()
+
+    lsi = LabelStudioInterface.from_env(paths, online, project_id) if lsi is None else lsi
+
+    lsi.fetch_and_simplify()
+
+    paths.lsi = lsi
+    paths.obi = obi
+
+    return obi, lsi
+    
+
+
+
+def generate(
+    paths: PathBundle,
+    orders_to_consider=[1, 2, 3],
+    generate_full_pages=True,
+    generate_paragraphs=True,
+):
+    """
+    Genera los recortes.
+    """
+    # TODO: recuerda que los fragmentos que se eliminan del grafo tienen starting_index = -1
+
+    if paths.lsi is None:
+        raise ValueError("Ejecuta setup(paths, ...) primero.")
 
     augment_data_parallel(
         paths,
@@ -42,7 +65,7 @@ def generate(
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_paragraphs=generate_paragraphs,
-        lsi=lsi,
+        lsi=paths.lsi,
     )
 
 
@@ -52,6 +75,9 @@ def convert(
     orders_to_split_with: list[int] = [1],
     n_samples_eval=300,
 ) -> tuple[Dataset, Dataset, Dataset]:
+    """
+    Divide el conjunto de datos en train y test, y lo transforma ene un conjunto de datos de Huggingface
+    """
     pdi = PairsDataInterface(paths)
     dataset_train, dataset_test = get_datasets(pdi, orders_to_split_with, p)
 
@@ -69,9 +95,20 @@ def upload(
     dataset_train: Dataset,
     dataset_test: Dataset,
     samples_eval: Dataset,
+    hf_token: str | None = None,
+    hub_name: str | None = None,
 ):
+    if hub_name is None:
+        if "HUB_NAME" not in os.environ:
+            raise ValueError("Si no se pasa un hub_name, HUB_NAME debe ser una variable de entorno válida")
+        hub_name: str = str(os.getenv("HUB_NAME"))
+    if hf_token is None:
+        if "HF_TOKEN" not in os.environ:
+            raise ValueError("Si no se pasa un hf_token, HF_TOKEN debe ser una variable de entorno válida")
+        hf_token: str = str(os.getenv("HF_TOKEN"))
+    
+    
 
-    hub_name = os.environ["HUB_NAME"]
     complete_dataset = DatasetDict(
         {
             "train": dataset_train,
@@ -79,7 +116,7 @@ def upload(
             "samples_eval": samples_eval,
         }
     )
-    complete_dataset.push_to_hub(hub_name, private=True, token=True)
+    complete_dataset.push_to_hub(hub_name, private=True, token=hf_token)
 
     split_data = {
         "pages_train": sorted(list(set(dataset_train["page"]))),
@@ -91,13 +128,13 @@ def upload(
     with open(split_data_path, "w", encoding="utf-8") as f:
         json.dump(split_data, f, indent=4, ensure_ascii=False)
 
-    api = HfApi()
+    api = HfApi(token= hf_token)
     api.upload_file(
         path_or_fileobj=split_data_path,
         path_in_repo="page_splits.json",
         repo_id=hub_name,
         repo_type="dataset",
-        token=True,
+        token=hf_token,
     )
 
     if os.path.exists(split_data_path):

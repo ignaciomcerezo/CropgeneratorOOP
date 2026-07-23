@@ -22,6 +22,9 @@ class _PairInfo:
 
 
 class OracleBucketInterface:
+    """
+    Interfaz de descarga con el bucket de Oracle. Utiliza rutas proporcionadas por un PathBundle.
+    """
     def __init__(
         self,
         paths: PathBundle,

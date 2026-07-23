@@ -440,6 +440,10 @@ class AnnotatedPage:
             raise ValueError(
                 f"No se puede llamar cluster_reading_order si no hay fragmentos asociados ({self.task_id}) -> {box_ids=}"
             )
+        
+        if fragments[0].starting_index is None:
+            raise ValueError("Los fragmentos dados no tienen índices de inicio asignados.")
+
         sindex = int(fragments[0].starting_index)
 
         return collage, transcription, sindex
@@ -582,3 +586,74 @@ class AnnotatedPage:
                 draw.line(mbr_points, fill=mbr_color, width=line_width)
 
         return background
+    
+    @classmethod
+    def from_paragraphs(
+        cls,
+        paragraphs: list[Paragraph],
+        task_id: int,
+        background_color: tuple[int, int, int] | tuple[int, int, int, int],
+        last_update_time: str = "",
+        completer: str = "Combined",
+        updater: str = "Combined",
+        annotation_unique_id: int | str = -1,
+    ) -> "AnnotatedPage":
+        """
+        Construye una instancia de AnnotatedPage a partir de una lista de párrafos (de dos instancias ya generadas).
+        """
+        instance = cls.__new__(cls)
+
+        instance.task_id = task_id
+        instance.background_color = background_color
+        instance.last_update_time = last_update_time
+        instance.completer = completer
+        instance.updater = updater
+        instance.annotation_unique_id = annotation_unique_id
+
+        instance.paragraphs = paragraphs
+        instance.image_boxes = {}
+        instance.text_fragments = {}
+
+        sindex = 0
+        for paragraph_index, paragraph in enumerate(instance.paragraphs):
+            paragraph.index = paragraph_index
+            for box in paragraph.image_boxes:
+                instance.image_boxes[box.id] = box
+            for fragment in paragraph.text_fragments:
+                fragment.starting_index = sindex
+                sindex += len(fragment.text) + 1
+                instance.text_fragments[fragment.id] = fragment
+
+        instance.__graph = instance._build_intersection_graph()
+
+        return instance
+
+    @staticmethod
+    def combine_annotations(annA: "AnnotatedPage", annB: "AnnotatedPage") -> "AnnotatedPage":
+        """
+        Combina dos anotaciones de una misma tarea ordenando sus párrafos.
+        Emplean como orden de lectura de párrafos el dado por el pseudo-centroide.
+        """
+        if not (annA.task_id == annB.task_id):
+            raise ValueError(
+            f"No se pueden combinar anotaciones de tareas distintas: "
+            f"{annA.task_id} != {annB.task_id}."
+        )
+
+        combined_paragraphs = annA.paragraphs + annB.paragraphs
+        combined_paragraphs.sort(key=lambda p: (p.centroid[1], p.centroid[0]))
+
+        last_update_time = max(annA.last_update_time, annB.last_update_time)
+        completer = f"{annA.completer}+{annB.completer}"
+        updater = f"{annA.updater}+{annB.updater}"
+        annotation_id = f"{annA.annotation_unique_id}_{annB.annotation_unique_id}"
+
+        return AnnotatedPage.from_paragraphs(
+            paragraphs=combined_paragraphs,
+            task_id=annA.task_id,
+            background_color=annA.background_color,
+            last_update_time=last_update_time,
+            completer=completer,
+            updater=updater,
+            annotation_unique_id=annotation_id,
+        )

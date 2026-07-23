@@ -28,7 +28,7 @@ def load_ann(
     """
 
     if reload_lsi:
-        LabelStudioInterface.update_conditional(paths)
+        LabelStudioInterface.fetch_and_simplify(paths)
         lsi: LabelStudioInterface = LabelStudioInterface(paths)
     else:
 
