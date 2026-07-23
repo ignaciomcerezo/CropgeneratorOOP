@@ -17,15 +17,11 @@ from cropgen.processing.helpers.PairingErrors import (
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
-    reemplazar_latex_espaciado,
     compose_collage,
     subdictionary,
 )
-from cropgen.processing.helpers.text_replacements import (
-    replacements,
-    replacements_envs,
-    regex_replacements,
-    task_specific_regex_replacements,
+from cropgen.processing.helpers.text_regularization import (
+    regularize_text
 )
 from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
@@ -74,6 +70,7 @@ class AnnotatedPage:
         img: Image.Image,
         unrotate: bool = False,
         usernames_labelstudio: list[str] | None = None,
+        line_separtor:str = " "
     ):
 
         if unrotate and AnnotatedPage.warn_unrotate:
@@ -92,9 +89,7 @@ class AnnotatedPage:
 
         # corrige los resultados realizando las sustituciones
         self.task_id = int(ann.task)
-        results: list[SimplifiedResultItem] = self._correct_results(
-            ann.result,
-        )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
+        results: list[SimplifiedResultItem] = ann.result
 
         self.background_color = get_dominant_color(img)
 
@@ -166,9 +161,18 @@ class AnnotatedPage:
         # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
-            for fragment in paragraph.text_fragments:
+            separator = "@SEP@"
+            raw_separated_transcription = paragraph.transcription(separator)
+            regularized_transcriptions = regularize_text(raw_separated_transcription).split(separator)
+
+            assert len(regularized_transcriptions) == len(paragraph.text_fragments), (
+                "El número de transcripciones regularizadas y el número de líneas de texto no coinciden"
+                )
+            
+            for fragment, new_transcription in zip(paragraph.text_fragments, regularized_transcriptions):
+                fragment.text= new_transcription
                 fragment.starting_index = sindex
-                sindex += len(fragment.text) + 1
+                sindex += len(fragment.text) + len(line_separtor)
 
         self.last_update_time = " ".join(
             ann.updated_at.replace("Z", "").split("T")
@@ -309,53 +313,6 @@ class AnnotatedPage:
                     adj[box2.id].add(box1.id)
 
         return adj
-
-    def _correct_results(
-        self,
-        results: list[SimplifiedResultItem],
-    ) -> list[SimplifiedResultItem]:
-        """
-        Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
-        los resultados de una tarea (ambas son variables de clase).
-        """
-        for r in results:
-            # solamente hacemos las sustituciones en los fragmentos de texto:
-            if isinstance(r, (SimplifiedTextCorrectionResult, TextRegionResult)):
-                # teóricamente esto debería ser únicamente un elemento, pero no realizamos suposiciones
-                # innecesarias
-                text_res_list = r.value.text
-
-                for i in range(len(text_res_list)):
-                    text_res_list[i] = self._correct_text(
-                        text_res_list[i], self.task_id
-                    )
-
-                r.value.text = text_res_list  # lo sustituímos
-
-        return results
-
-    @staticmethod
-    def _correct_text(text_of_result: str, task_id: int):
-        for old, new in replacements:
-            newtext = text_of_result.replace(
-                old, new
-            )  # hacemos todos los cambios indicados
-            text_of_result = newtext
-
-        for beg, end in replacements_envs:
-            text_of_result = reemplazar_latex_espaciado(text_of_result, beg, end)
-
-        for pattern, substitution in regex_replacements:
-            text_of_result = re.sub(
-                pattern=pattern, repl=substitution, string=text_of_result
-            )
-
-        for pattern, substitution in task_specific_regex_replacements.get(task_id, []):
-            text_of_result = re.sub(
-                pattern=pattern, repl=substitution, string=text_of_result
-            )
-
-        return text_of_result
 
     def generate_collage(
         self,

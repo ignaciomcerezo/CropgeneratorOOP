@@ -84,8 +84,8 @@ class Paragraph:
     ):
         return compose_collage(self.image_boxes, fill_color)
 
-    def transcription(self):
-        return " ".join([fragment.text for fragment in self.text_fragments])
+    def transcription(self, separator: str = " "):
+        return separator.join([fragment.text for fragment in self.text_fragments])
 
     def cluster_reading_order(
         self,
