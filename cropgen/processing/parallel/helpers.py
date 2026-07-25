@@ -1,3 +1,4 @@
+from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 import os
 import re
 
@@ -7,17 +8,15 @@ from cropgen.processing.sequential.augment_data_sequential import (
     augment_data_sequential,
 )
 from cropgen.shared.PathBundle import PathBundle
-from cropgen.shared.default_parameters import (
-    orders_to_consider as default_orders_to_consider,
-)
 
 
 def run_chunk(
     chunk_args,
     paths: PathBundle,
-    orders_to_consider=default_orders_to_consider,
-    generate_full_pages=True,
-    generate_paragraphs=True,
+    orders_to_consider,
+    generate_full_pages: bool,
+    generate_paragraphs: bool,
+    save_images: bool,
 ):
     """
     Función de aumento de datos para un solo bloque.
@@ -32,8 +31,9 @@ def run_chunk(
         generate_full_pages=generate_full_pages,
         generate_full_paragraphs=generate_paragraphs,
         tasks_only=tasks_subset,
-        is_parallel=True,
+        in_parallel=True,
         worker_id=worker_id,
+        save_images = save_images,
     )
     return f"Tarea del trabajador {worker_id} terminada."
 

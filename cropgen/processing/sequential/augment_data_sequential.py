@@ -1,3 +1,4 @@
+import tqdm.asyncio
 from pathlib import Path
 
 import pandas as pd
@@ -20,13 +21,14 @@ def augment_data_sequential(
     generate_full_pages: bool = True,
     generate_full_paragraphs: bool = True,
     tasks_only: list[int] | None = None,
-    is_parallel: bool = False,
-    orders_to_consider: list[int] | str = "all",
-    lsi: LabelStudioInterface | None = None,
+    in_parallel: bool = False,
+    orders_to_consider: list[int] | None = None,
     worker_id: int | None = None,
+    save_images: bool = True,
 ):
     """Función principal para procesar las tareas y generar los recortes aumentados."""
-    lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
+
+    lsi: LabelStudioInterface = paths.lsi  # ty:ignore[invalid-assignment]
 
     paths.data_out_path.mkdir(parents=True, exist_ok=True)
     paths.crops_path.mkdir(parents=True, exist_ok=True)
@@ -34,8 +36,6 @@ def augment_data_sequential(
     task_only: list = (
         [str(x) for x in tasks_only] if isinstance(tasks_only, (list, tuple)) else []
     )
-
-    # print(f"Procesando {len(task_only)} tareas secuencialmente.")
 
     if worker_id is None:
         jsonl_filepath = Path(paths.data_out_path) / paths.json_filepath.stem
@@ -48,8 +48,6 @@ def augment_data_sequential(
 
     total_saved = 0
 
-    # TODO: implement better subgraph generation (accounting for graphs being isomorphic to disjoint unions of path graphs)
-
     task_only_set, filtering_active, progressbar = _process_orders_to_consider(
         orders_to_consider, task_only, len(tasks)
     )
@@ -57,7 +55,7 @@ def augment_data_sequential(
     for task_idx, task in enumerate(tasks, start=1):
         task_id = str(task.id)
 
-        if is_parallel:
+        if in_parallel:
             # cuando paralelizamos, los splits se hacen por tareas.
             if filtering_active and (task_id not in task_only_set):
                 continue
@@ -72,7 +70,7 @@ def augment_data_sequential(
 
         page_number = img_path.stem if img_path else "N/A"
 
-        if (not is_parallel) and filtering_active:
+        if (not in_parallel) and filtering_active:
             # Solo filtrar por task_only_set
             if task_id not in task_only_set:
                 continue
@@ -86,125 +84,136 @@ def augment_data_sequential(
             print(f"Error cargando {img_path}: {e}")
             continue
 
-        annotations = lsi[task_id]
-        if not annotations:
+        annotations = [
+            AnnotatedPage(
+                ann,
+                img,
+                unrotate=False,
+                usernames_labelstudio=lsi.usernames,
+                process_images=save_images,
+            )
+            for ann in lsi[task_id]
+        ]
+
+        if len(annotations) > 1:
+            Ann = AnnotatedPage.combine_annotations(*annotations)
+        elif len(annotations) == 1:
+            Ann = annotations[0]
+        else:
             print(
-                f"Aviso: task {task_id} no tiene anotaciones en lsi (lsi[{task_id}] = [])"
+                f"Aviso: La tarea {task_id} no tiene anotaciones en lsi (lsi[{task_id}] == [])"
             )
             continue
 
-        for Ann in (
-            AnnotatedPage(ann, img, unrotate=False, usernames_labelstudio=lsi.usernames)
-            for ann in annotations
-        ):
-            if generate_full_pages:
-                full_dir = paths.get_order_folder("full")
+        if generate_full_pages:
+            full_dir = paths.get_order_folder("full")
+
+            image, transcription, sindex = Ann.cluster_reading_order(
+                list(Ann.graph.keys())
+            )
+
+            if sindex:
+                raise ValueError(f"sindex != 0 for {Ann.task_id} ({sindex=})")
+
+            filename = f"pg_{page_number}_t{task_id}_h{get_deterministic_id(transcription)}.png"
+
+            filepath = full_dir / filename
+
+            if save_images:
+                image.save(filepath)
+
+            new_rows_data.append(
+                {  # nueva fila para el dataframe
+                    "task": task_id,
+                    "id": Ann.annotation_unique_id,
+                    "paragraph": "full",
+                    "order": "full",
+                    "sindex": 0,
+                    "text": transcription,
+                    "page": page_number,
+                    "crop_file": filename,
+                    "background_color": Ann.background_color,
+                    "average_rotation": Ann.get_average_rotation(Ann.graph.keys()),
+                }
+            )
+            total_saved += 1
+
+        for paragraph in Ann.paragraphs:
+            if generate_full_paragraphs and not (
+                Ann.is_single_paragraph and generate_full_pages
+            ):
+                paragraph_dir = paths.get_order_folder("paragraph")
 
                 image, transcription, sindex = Ann.cluster_reading_order(
-                    list(Ann.graph.keys())
+                    paragraph.image_boxes_ids
                 )
 
-                assert sindex == 0
+                filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
 
-                filename = f"pg_{page_number}_t{task_id}_h{get_deterministic_id(transcription)}.png"
-
-                filepath = full_dir / filename
-                image.save(filepath)
+                filepath = paragraph_dir / filename
+                if save_images:
+                    image.save(filepath)
 
                 new_rows_data.append(
                     {  # nueva fila para el dataframe
                         "task": task_id,
                         "id": Ann.annotation_unique_id,
-                        "paragraph": "full",
-                        "order": "full",
-                        "sindex": 0,
+                        "order": "paragraph",
+                        "paragraph": paragraph.index,
+                        "sindex": sindex,
                         "text": transcription,
                         "page": page_number,
                         "crop_file": filename,
                         "background_color": Ann.background_color,
-                        "average_rotation": Ann.get_average_rotation(Ann.graph.keys()),
+                        "average_rotation": Ann.get_average_rotation(
+                            (paragraph.subgraph.keys())
+                        ),
                     }
                 )
                 total_saved += 1
 
-            for paragraph in Ann.paragraphs:
-                if generate_full_paragraphs and not (
-                    Ann.is_single_paragraph and generate_full_pages
-                ):
-                    paragraph_dir = paths.get_order_folder("paragraph")
+            for order in range(
+                1, len(paragraph) - generate_full_paragraphs + 1
+            ):  # aquí ya forzamos que no se generen dos veces los párrafos completos. Sin embargo si
+                # generate_full_paragraphs = False, sí que los generamos si cumplen el orden (lo que no hacemos
+                # es repetir generación).
 
-                    image, transcription, sindex = Ann.cluster_reading_order(
-                        paragraph.image_boxes_ids
+                if order not in orders_to_consider:
+                    continue
+                order_folder = paths.get_order_folder(order)
+
+                for box_id_sequence in paragraph.generate_conntected_subgraphs(order):
+
+                    sequence_pseudohash = box_id_sequence[0] + "-" + box_id_sequence[-1]
+
+                    filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{sequence_pseudohash}.png"
+
+                    collage, transcripcion, sindex = Ann.cluster_reading_order(
+                        box_id_sequence
                     )
 
-                    filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_h{get_deterministic_id(transcription)}.png"
-
-                    filepath = paragraph_dir / filename
-                    image.save(filepath)
+                    filepath = order_folder / filename
+                    if save_images:
+                        collage.save(filepath)
 
                     new_rows_data.append(
                         {  # nueva fila para el dataframe
                             "task": task_id,
                             "id": Ann.annotation_unique_id,
-                            "order": "paragraph",
+                            "order": order,
                             "paragraph": paragraph.index,
                             "sindex": sindex,
-                            "text": transcription,
+                            "text": transcripcion,
                             "page": page_number,
                             "crop_file": filename,
                             "background_color": Ann.background_color,
                             "average_rotation": Ann.get_average_rotation(
-                                paragraph.subgraph.keys()
+                                box_id_sequence
                             ),
                         }
                     )
+
                     total_saved += 1
-
-                for order in range(
-                    1, len(paragraph) - generate_full_paragraphs + 1
-                ):  # aquí ya forzamos que no se generen dos veces los párrafos completos. Sin embargo si
-                    # generate_full_paragraphs = False, sí que los generamos si cumplen el orden (lo que no hacemos
-                    # es repetir generación).
-
-                    if order not in orders_to_consider:
-                        continue
-                    order_folder = paths.get_order_folder(order)
-
-                    for box_id_sequence in paragraph.generate_conntected_subgraphs(
-                        order
-                    ):
-
-                        sequence_pseudohash = (
-                            box_id_sequence[0] + "-" + box_id_sequence[-1]
-                        )
-
-                        filename = f"pg_{page_number}_t{task_id}_par{paragraph.index}_order{order}_h{sequence_pseudohash}.png"
-
-                        collage, transcripcion, sindex = Ann.cluster_reading_order(
-                            box_id_sequence
-                        )
-
-                        filepath = order_folder / filename
-                        collage.save(filepath)
-
-                        new_rows_data.append(
-                            {  # nueva fila para el dataframe
-                                "task": task_id,
-                                "id": Ann.annotation_unique_id,
-                                "order": order,
-                                "paragraph": paragraph.index,
-                                "sindex": sindex,
-                                "text": transcripcion,
-                                "page": page_number,
-                                "crop_file": filename,
-                                "background_color": Ann.background_color,
-                                "average_rotation": Ann.get_average_rotation(
-                                    box_id_sequence
-                                ),
-                            }
-                        )
-
-                        total_saved += 1
 
     # guardamos en JSONL con la correspondencia
     new_df = pd.DataFrame(new_rows_data)
@@ -222,7 +231,7 @@ def augment_data_sequential(
                 "crop_file",
                 "background_color",
                 "average_rotation",
-            ]
+            ]  # ty:ignore[invalid-argument-type]
         )
     else:
         final_df = new_df
@@ -239,11 +248,11 @@ def augment_data_sequential(
 
 
 def _process_orders_to_consider(
-    orders_to_consider: list[int] | str,
+    orders_to_consider: list[int] | None,
     task_only: list[str],
     len_tasks: int,
-):
-    if not ((orders_to_consider == "all") or (orders_to_consider is None)):
+) -> tuple[set[str] | None, bool, tqdm]:
+    if not (orders_to_consider is None):
         assert isinstance(
             orders_to_consider, list
         ), 'orders_to_split_with debe ser una lista, NoneType, tupla o "all"'

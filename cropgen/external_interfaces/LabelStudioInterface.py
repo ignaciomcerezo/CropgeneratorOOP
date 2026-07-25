@@ -65,12 +65,6 @@ class LabelStudioInterface:
         
         self.fetch_and_simplify()
 
-        # Cargar y convertir simplified_tasks a instancias de SimplifiedTask
-        self.__simplified_tasks = self._load_simplified_as_schema(
-            self.simplified_export_filepath
-        )
-        self.__simplified_tasks.sort(key=lambda task: task.id)
-
         if paths.usernames_filepath.exists():
             self.usernames: list[str] = list(
                 json.loads(paths.usernames_filepath.read_text(encoding="utf-8"))
@@ -146,10 +140,7 @@ class LabelStudioInterface:
         latest_update = LabelStudioInterface._get_latest_update_of_project(project)
 
         if self.paths.raw_export_filepath.exists() and not force_update:
-            loaded_export = LabelStudioInterface._load_raw_as_schema(
-                self.paths.raw_export_filepath
-            )
-
+            loaded_export = self.raw_tasks
             if loaded_export:
                 local_last_update = max(task.updated_at for task in loaded_export)
                 if (
@@ -177,7 +168,10 @@ class LabelStudioInterface:
         """
         Devuelve la lista de tareas raw descargadas de Label Studio
         """
-        raw_tasks = self._load_raw_as_schema(self.raw_export_filepath)
+        raw_tasks = [
+            LabelStudioTask.model_validate(task_dict)
+            for task_dict in json.loads(self.raw_export_filepath.read_text(encoding="utf-8"))
+        ]
 
         raw_tasks.sort(key=lambda task: task.id)
 
@@ -186,9 +180,12 @@ class LabelStudioInterface:
     @property
     def simplified_tasks(self) -> list[SimplifiedTask]:
         """
-        Devuelve la lista de tareas raw descargadas de Label Studio
+        Devuelve la lista de tareas simplificadas descargadas de Label Studio
         """
-        simplified_tasks = self._load_simplified_as_schema(self.simplified_export_filepath)
+        simplified_tasks = [
+            SimplifiedTask.model_validate(task_dict)
+            for task_dict in json.loads(self.simplified_export_filepath.read_text(encoding="utf-8"))
+        ]
 
         simplified_tasks.sort(key=lambda task: task.id)
 
@@ -222,23 +219,10 @@ class LabelStudioInterface:
             raise TypeError("El índice debe ser entero o string convertible a entero.")
 
         items: list[SimplifiedAnnotation] = []
-        for tsk in self.__simplified_tasks:
+        for tsk in self.simplified_tasks:
             if int(tsk.id) > index:
                 return items
             elif tsk.id == index:
                 items.extend(tsk.annotations)
         return items
 
-    @staticmethod
-    def _load_raw_as_schema(filepath: Path) -> list[LabelStudioTask]:
-        return [
-            LabelStudioTask.model_validate(task_dict)
-            for task_dict in json.loads(filepath.read_text(encoding="utf-8"))
-        ]
-
-    @staticmethod
-    def _load_simplified_as_schema(filepath: Path) -> list[SimplifiedTask]:
-        return [
-            SimplifiedTask.model_validate(task_dict)
-            for task_dict in json.loads(filepath.read_text(encoding="utf-8"))
-        ]
