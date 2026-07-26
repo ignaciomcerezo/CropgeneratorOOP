@@ -6,7 +6,6 @@ from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterfac
 from cropgen.processing.parallel.helpers import run_chunk, merge_jsonl_files
 
 
-
 def augment_data_parallel(
     paths: PathBundle,
     orders_to_consider: list[int],
@@ -39,7 +38,7 @@ def augment_data_parallel(
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_paragraphs=generate_paragraphs,
-        save_images = save_images,
+        save_images=save_images,
     )
 
     num_processes = (

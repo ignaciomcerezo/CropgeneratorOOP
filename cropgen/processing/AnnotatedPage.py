@@ -71,7 +71,7 @@ class AnnotatedPage:
         img: Image.Image,
         unrotate: bool = False,
         usernames_labelstudio: list[str] | None = None,
-        line_separtor: str = " ",
+        line_separtor: str = "\n",
         process_images: bool = True,
     ):
 
@@ -142,9 +142,6 @@ class AnnotatedPage:
             self._build_intersection_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
 
-        if self.order > AnnotatedPage.min_nodes_for_big_box_removal:
-            self.trim_star_nodes()
-
         # colocamos las componentes conexas siguiendo el orden de lectura.
 
         connected_components = get_connected_components(self.__graph)
@@ -170,7 +167,7 @@ class AnnotatedPage:
         )
 
         # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
-        self._set_sindices()
+        self._correct_text_and_set_sindices()
 
         self.last_update_time = " ".join(
             ann.updated_at.replace("Z", "").split("T")
@@ -264,7 +261,7 @@ class AnnotatedPage:
                 image_box.associate_fragment(text_fragment)
                 text_fragment.associate_box(image_box)
 
-    def _set_sindices(self):
+    def _correct_text_and_set_sindices(self):
         sindex = 0  # índices de inicio de cada fragmento de texto
         # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
         for paragraph_index, paragraph in enumerate(self.paragraphs):
@@ -368,37 +365,37 @@ class AnnotatedPage:
             ),
         )
 
-    def trim_star_nodes(
-        self,
-        relative_threshold: float = big_box_threshold,
-    ) -> None:
-        """
-        Elimina los nodos con una conectividad mayor a relative_threshold
-        """
+    # def trim_star_nodes(
+    #     self,
+    #     relative_threshold: float = big_box_threshold,
+    # ) -> None:
+    #     """
+    #     Elimina los nodos con una conectividad mayor a relative_threshold
+    #     """
 
-        adj_graph = self.__graph.copy()
-        nodes_to_remove = []
+    #     adj_graph = self.__graph.copy()
+    #     nodes_to_remove = []
 
-        for rid, neighbors in adj_graph.items():
-            if (
-                len(neighbors) / (len(adj_graph) - 1) > relative_threshold
-            ):  # si pasa el umbral
-                nodes_to_remove.append(rid)
+    #     for rid, neighbors in adj_graph.items():
+    #         if (
+    #             len(neighbors) / (len(adj_graph) - 1) > relative_threshold
+    #         ):  # si pasa el umbral
+    #             nodes_to_remove.append(rid)
 
-        if len(nodes_to_remove) > 0:
-            print(
-                f"Eliminando {len(nodes_to_remove)} nodos estrellados de la tarea {self.task_id}."
-            )
+    #     if len(nodes_to_remove) > 0:
+    #         print(
+    #             f"Eliminando {len(nodes_to_remove)} nodos estrellados de la tarea {self.task_id}."
+    #         )
 
-        for rid in nodes_to_remove:
-            self.image_boxes[rid].fragment.starting_index = -1
+    #     for rid in nodes_to_remove:
+    #         self.image_boxes[rid].fragment.starting_index = -1
 
-            del adj_graph[rid]  # quitamos el nodo en forma de estrella
+    #         del adj_graph[rid]  # quitamos el nodo en forma de estrella
 
-            for other in adj_graph:  # eliminamos todas sus referencias
-                adj_graph[other].discard(rid)
+    #         for other in adj_graph:  # eliminamos todas sus referencias
+    #             adj_graph[other].discard(rid)
 
-        self.__graph = adj_graph
+    #     self.__graph = adj_graph
 
     def cluster_reading_order(
         self,
@@ -472,7 +469,9 @@ class AnnotatedPage:
         """
         Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
             1. Son fragmentos aislados del resto durante las anotaciones.
-            2. Son fragmentos que tenían una conectividad muy alta y se han desconectado usando trim_star_nodes
+        Anteriormente podían ser fragmentos de conectividad alta desconectados usando trim_star_nodes,
+        pero, a partir del cambio de paradigma hacia lecturas puramente lineales (grafos de los párrafos
+        de tipo P_k) se eliminó esta dinámica.
         """
         in_paragraph = []
         out_paragraph = []
@@ -528,7 +527,7 @@ class AnnotatedPage:
             background_color if background_color is not None else self.background_color
         )
 
-        if use_full_page == "OnlyBoxes":
+        if use_full_page == "OnlyBoxed":
             background = compose_collage(
                 list(self.image_boxes.values()), fill_background
             )
@@ -624,7 +623,7 @@ class AnnotatedPage:
     def combine_annotations(*annotations: "AnnotatedPage") -> "AnnotatedPage":
         """
         Combina dos anotaciones de una misma tarea ordenando sus párrafos.
-        Emplean como orden de lectura de párrafos el dado por el pseudo-centroide.
+        Emplean como orden de lectura de párrafos el dado por el centroide de su primera línea.
         """
 
         if not annotations:
@@ -642,21 +641,19 @@ class AnnotatedPage:
                 f" {set(ann.line_separator for ann in annotations)}"
             )
 
-        print(
-            f"Combinando {len(annotations)} anotaciones de tarea {annotations[0].task_id} "
-            f"con {[len(ann.paragraphs) for ann in annotations]} párrafos y "
-            f"{[len(ann.image_boxes) for ann in annotations]} líneas cada una."
-        )
-
         combined_paragraphs = sum((ann.paragraphs for ann in annotations), start=[])
-        combined_paragraphs.sort(key=lambda p: (p.centroid[1], p.centroid[0]))
+
+        def _topmost_order(paragraph: Paragraph) -> tuple[float, float]:
+            topmost_box = paragraph.image_boxes[0]
+            c = topmost_box.centroid()
+            return (c[1], c[0])
+
+        combined_paragraphs.sort(key=_topmost_order)
         last_update_time = max(ann.last_update_time for ann in annotations)
 
         completer = "+".join(set(ann.completer for ann in annotations))
         updater = "+".join(set(ann.updater for ann in annotations))
-        annotation_id = int(
-            "000".join(set(str(ann.annotation_unique_id) for ann in annotations))
-        )
+        annotation_id = int("000".join(str(ann.task_id) for ann in annotations))
         process_images = all(ann.process_images for ann in annotations)
         line_separator = annotations[0].line_separator
 
@@ -671,10 +668,5 @@ class AnnotatedPage:
             process_images=process_images,
             line_separator=line_separator,
         )
-        combined_ann._set_sindices()
-
-        print(
-            f"Combinadas en una sola tarea con {len(combined_ann.paragraphs)} párrafos y {len(combined_ann.image_boxes)} líneas"
-        )
-
+        combined_ann._correct_text_and_set_sindices()
         return combined_ann
