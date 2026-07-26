@@ -17,15 +17,12 @@ from cropgen.processing.helpers.PairingErrors import (
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
     get_dominant_color,
-    reemplazar_latex_espaciado,
     compose_collage,
     subdictionary,
 )
-from cropgen.processing.helpers.text_replacements import (
-    replacements,
-    replacements_envs,
-    regex_replacements,
-    task_specific_regex_replacements,
+from cropgen.processing.helpers.text_regularization import (
+    regularize_text,
+    regularize_line,
 )
 from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
@@ -54,6 +51,7 @@ class AnnotatedPage:
 
     n_annotation_errors = 0
     warn_unrotate = True
+    warn_process_images = True
     min_nodes_for_big_box_removal = min_nodes_for_big_box_removal
     __slots__ = (
         "background_color",
@@ -66,6 +64,8 @@ class AnnotatedPage:
         "updater",
         "paragraphs",
         "annotation_unique_id",
+        "process_images",
+        "line_separator",
     )
 
     def __init__(
@@ -74,6 +74,8 @@ class AnnotatedPage:
         img: Image.Image,
         unrotate: bool = False,
         usernames_labelstudio: list[str] | None = None,
+        line_separtor: str = "\n",
+        process_images: bool = True,
     ):
 
         if unrotate and AnnotatedPage.warn_unrotate:
@@ -86,15 +88,21 @@ class AnnotatedPage:
                 "Úsese solamente en caso de revisión manual de las imágenes, y NO para el código de "
                 "generación del dataset."
             )
+            AnnotatedPage.warn_unrotate = False
+
+        if not (process_images) and AnnotatedPage.warn_process_images:
+            print(
+                "[!!!] Usar fake_images = True evita usar las imágenes y produce recortes vacíos.\n"
+                "Úsese solo en caso de testeo y NO para el código de generación del dataset."
+            )
+            AnnotatedPage.warn_process_images = False
         assert (
             usernames_labelstudio is not None
         ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
 
         # corrige los resultados realizando las sustituciones
         self.task_id = int(ann.task)
-        results: list[SimplifiedResultItem] = self._correct_results(
-            ann.result,
-        )  # resultados de la anotación (diccionario muy grande con un poco de toodo)
+        results: list[SimplifiedResultItem] = ann.result
 
         self.background_color = get_dominant_color(img)
 
@@ -124,6 +132,9 @@ class AnnotatedPage:
             for txt_result in txt_results_list
         }
 
+        self.process_images = process_images
+        self.line_separator = line_separtor
+
         self._setup_mappings(
             results
         )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de external_interfaces
@@ -133,9 +144,6 @@ class AnnotatedPage:
         self.__graph: dict[str, set[str]] = (
             self._build_intersection_graph()
         )  # construimos el grafo de intersecciones entre cajas-imagen
-
-        if self.order > AnnotatedPage.min_nodes_for_big_box_removal:
-            self.trim_star_nodes()
 
         # colocamos las componentes conexas siguiendo el orden de lectura.
 
@@ -161,14 +169,8 @@ class AnnotatedPage:
             ]
         )
 
-        sindex = 0  # índices de inicio de cada fragmento de texto
-
         # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
-        for paragraph_index, paragraph in enumerate(self.paragraphs):
-            paragraph.index = paragraph_index
-            for fragment in paragraph.text_fragments:
-                fragment.starting_index = sindex
-                sindex += len(fragment.text) + 1
+        self._correct_text_and_set_sindices()
 
         self.last_update_time = " ".join(
             ann.updated_at.replace("Z", "").split("T")
@@ -262,6 +264,31 @@ class AnnotatedPage:
                 image_box.associate_fragment(text_fragment)
                 text_fragment.associate_box(image_box)
 
+    def _correct_text_and_set_sindices(self):
+        sindex = 0  # índices de inicio de cada fragmento de texto
+        # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
+        for paragraph_index, paragraph in enumerate(self.paragraphs):
+            paragraph.index = paragraph_index
+            temporary_separator = "\n\x00\n"
+            raw_separated_transcription = paragraph.transcription(temporary_separator)
+            regularized_transcriptions = regularize_text(
+                raw_separated_transcription
+            ).split(temporary_separator)
+
+            assert len(regularized_transcriptions) == len(paragraph.text_fragments), (
+                "El número de transcripciones regularizadas y el número de líneas de texto no coinciden: "
+                f"hay {len(regularized_transcriptions)} l.reg. y {len(paragraph.text_fragments)} l. normales.\n"
+                f" RAW_SEPARATED_TRANSCRIPTION:\n {raw_separated_transcription}\n\n\n"
+                f"Paragraph lines:\n{temporary_separator.join([p.text for p in paragraph.text_fragments])}"
+            )
+
+            for fragment, new_transcription in zip(
+                paragraph.text_fragments, regularized_transcriptions
+            ):
+                fragment.text = regularize_line(new_transcription)
+                fragment.starting_index = sindex
+                sindex += len(fragment.text) + len(self.line_separator)
+
     def assert_pairing(self):
         """
         Compruba que todas las cajas están asociadas a un único texto, y viceversa
@@ -310,53 +337,6 @@ class AnnotatedPage:
 
         return adj
 
-    def _correct_results(
-        self,
-        results: list[SimplifiedResultItem],
-    ) -> list[SimplifiedResultItem]:
-        """
-        Realiza las sustituciones especificadas en 'replacements', 'replacements_envs' y 'replacements_regex' en
-        los resultados de una tarea (ambas son variables de clase).
-        """
-        for r in results:
-            # solamente hacemos las sustituciones en los fragmentos de texto:
-            if isinstance(r, (SimplifiedTextCorrectionResult, TextRegionResult)):
-                # teóricamente esto debería ser únicamente un elemento, pero no realizamos suposiciones
-                # innecesarias
-                text_res_list = r.value.text
-
-                for i in range(len(text_res_list)):
-                    text_res_list[i] = self._correct_text(
-                        text_res_list[i], self.task_id
-                    )
-
-                r.value.text = text_res_list  # lo sustituímos
-
-        return results
-
-    @staticmethod
-    def _correct_text(text_of_result: str, task_id: int):
-        for old, new in replacements:
-            newtext = text_of_result.replace(
-                old, new
-            )  # hacemos todos los cambios indicados
-            text_of_result = newtext
-
-        for beg, end in replacements_envs:
-            text_of_result = reemplazar_latex_espaciado(text_of_result, beg, end)
-
-        for pattern, substitution in regex_replacements:
-            text_of_result = re.sub(
-                pattern=pattern, repl=substitution, string=text_of_result
-            )
-
-        for pattern, substitution in task_specific_regex_replacements.get(task_id, []):
-            text_of_result = re.sub(
-                pattern=pattern, repl=substitution, string=text_of_result
-            )
-
-        return text_of_result
-
     def generate_collage(
         self,
         box_id_sequence: set[str] | list[str],
@@ -369,6 +349,9 @@ class AnnotatedPage:
         la página original los recortes, rellenando el resto con el color promedio de la imagen y recortando la imagen
         al tamaño mínimo que contiene todos los recortes colocados.
         """
+        if not self.process_images:
+            return Image.Image()
+
         if not isinstance(box_id_sequence, set):
             if len(box_id_sequence) != len(set(box_id_sequence)):
                 raise ValueError("Hay cajas-imagen repetidas en generate_collage()")
@@ -388,37 +371,41 @@ class AnnotatedPage:
             ),
         )
 
-    def trim_star_nodes(
-        self,
-        relative_threshold: float = big_box_threshold,
-    ) -> None:
-        """
-        Elimina los nodos con una conectividad mayor a relative_threshold
-        """
+    # def trim_star_nodes(
+    #     self,
+    #     relative_threshold: float = big_box_threshold,
+    # ) -> None:
+    #     """
+    #     Elimina los nodos con una conectividad mayor a relative_threshold
+    #     """
 
-        adj_graph = self.__graph.copy()
-        nodes_to_remove = []
+    #     adj_graph = self.__graph.copy()
+    #     nodes_to_remove = []
 
-        for rid, neighbors in adj_graph.items():
-            if (
-                len(neighbors) / (len(adj_graph) - 1) > relative_threshold
-            ):  # si pasa el umbral
-                nodes_to_remove.append(rid)
+    #     for rid, neighbors in adj_graph.items():
+    #         if (
+    #             len(neighbors) / (len(adj_graph) - 1) > relative_threshold
+    #         ):  # si pasa el umbral
+    #             nodes_to_remove.append(rid)
 
-        for rid in nodes_to_remove:
-            self.image_boxes[rid].fragment.starting_index = -1
+    #     if len(nodes_to_remove) > 0:
+    #         print(
+    #             f"Eliminando {len(nodes_to_remove)} nodos estrellados de la tarea {self.task_id}."
+    #         )
 
-            del adj_graph[rid]  # quitamos el nodo en forma de estrella
+    #     for rid in nodes_to_remove:
+    #         self.image_boxes[rid].fragment.starting_index = -1
 
-            for other in adj_graph:  # eliminamos todas sus referencias
-                adj_graph[other].discard(rid)
+    #         del adj_graph[rid]  # quitamos el nodo en forma de estrella
 
-        self.__graph = adj_graph
+    #         for other in adj_graph:  # eliminamos todas sus referencias
+    #             adj_graph[other].discard(rid)
+
+    #     self.__graph = adj_graph
 
     def cluster_reading_order(
         self,
         box_ids: list["str"],
-        line_separator: str = " ",
     ) -> tuple[Image.Image, str, int]:
         """
         Dada una lista de IDs de cajas-imagen, devuelve:
@@ -433,16 +420,20 @@ class AnnotatedPage:
         # usando .starting_index estamos usando el mismo orden de lectura de image_boxes
         fragments: list[TextFragment] = sorted(
             fragments, key=lambda x: x.starting_index
-        )
+        )  # ty:ignore[no-matching-overload]
 
-        transcription = line_separator.join([fragment.text for fragment in fragments])
+        transcription = self.line_separator.join(
+            [fragment.text for fragment in fragments]
+        )
         if not fragments:
             raise ValueError(
                 f"No se puede llamar cluster_reading_order si no hay fragmentos asociados ({self.task_id}) -> {box_ids=}"
             )
-        
+
         if fragments[0].starting_index is None:
-            raise ValueError("Los fragmentos dados no tienen índices de inicio asignados.")
+            raise ValueError(
+                "Los fragmentos dados no tienen índices de inicio asignados."
+            )
 
         sindex = int(fragments[0].starting_index)
 
@@ -484,7 +475,9 @@ class AnnotatedPage:
         """
         Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
             1. Son fragmentos aislados del resto durante las anotaciones.
-            2. Son fragmentos que tenían una conectividad muy alta y se han desconectado usando trim_star_nodes
+        Anteriormente podían ser fragmentos de conectividad alta desconectados usando trim_star_nodes,
+        pero, a partir del cambio de paradigma hacia lecturas puramente lineales (grafos de los párrafos
+        de tipo P_k) se eliminó esta dinámica.
         """
         in_paragraph = []
         out_paragraph = []
@@ -498,7 +491,7 @@ class AnnotatedPage:
                 out_paragraph.append(f.id)
         return [self.text_fragments[fragment_id] for fragment_id in out_paragraph]
 
-    def get_average_rotation(self, img_box_ids: Iterable[str]):
+    def get_average_rotation(self, img_box_ids: Iterable[str]) -> float:
         """
         Devuelve la rotación promedio de un grupo de cajas-imagen dados sus ids.
         """
@@ -540,7 +533,7 @@ class AnnotatedPage:
             background_color if background_color is not None else self.background_color
         )
 
-        if use_full_page == "OnlyBoxes":
+        if use_full_page == "OnlyBoxed":
             background = compose_collage(
                 list(self.image_boxes.values()), fill_background
             )
@@ -586,22 +579,24 @@ class AnnotatedPage:
                 draw.line(mbr_points, fill=mbr_color, width=line_width)
 
         return background
-    
+
     @classmethod
     def from_paragraphs(
         cls,
         paragraphs: list[Paragraph],
         task_id: int,
-        background_color: tuple[int, int, int] | tuple[int, int, int, int],
-        last_update_time: str = "",
-        completer: str = "Combined",
-        updater: str = "Combined",
-        annotation_unique_id: int | str = -1,
+        background_color: tuple[int, int, int],
+        last_update_time: str,
+        completer: str,
+        updater: str,
+        annotation_unique_id: int,
+        line_separator: str,
+        process_images: bool,
     ) -> "AnnotatedPage":
         """
         Construye una instancia de AnnotatedPage a partir de una lista de párrafos (de dos instancias ya generadas).
         """
-        instance = cls.__new__(cls)
+        instance: AnnotatedPage = cls.__new__(cls)
 
         instance.task_id = task_id
         instance.background_color = background_color
@@ -609,6 +604,8 @@ class AnnotatedPage:
         instance.completer = completer
         instance.updater = updater
         instance.annotation_unique_id = annotation_unique_id
+        instance.line_separator = line_separator
+        instance.process_images = process_images
 
         instance.paragraphs = paragraphs
         instance.image_boxes = {}
@@ -629,31 +626,53 @@ class AnnotatedPage:
         return instance
 
     @staticmethod
-    def combine_annotations(annA: "AnnotatedPage", annB: "AnnotatedPage") -> "AnnotatedPage":
+    def combine_annotations(*annotations: "AnnotatedPage") -> "AnnotatedPage":
         """
         Combina dos anotaciones de una misma tarea ordenando sus párrafos.
-        Emplean como orden de lectura de párrafos el dado por el pseudo-centroide.
+        Emplean como orden de lectura de párrafos el dado por el centroide de su primera línea.
         """
-        if not (annA.task_id == annB.task_id):
+
+        if not annotations:
+            raise ValueError("Debe pasarse alguna anotación para combinar.")
+
+        if not (len(set(ann.task_id for ann in annotations)) == 1):
             raise ValueError(
-            f"No se pueden combinar anotaciones de tareas distintas: "
-            f"{annA.task_id} != {annB.task_id}."
-        )
+                "No se pueden combinar anotaciones de tareas diferentes: "
+                f" {set(ann.task_id for ann in annotations)}"
+            )
 
-        combined_paragraphs = annA.paragraphs + annB.paragraphs
-        combined_paragraphs.sort(key=lambda p: (p.centroid[1], p.centroid[0]))
+        if not (len(set(ann.line_separator for ann in annotations)) == 1):
+            raise ValueError(
+                "No se pueden combinar anotaciones con separadores de línea diferentes: "
+                f" {set(ann.line_separator for ann in annotations)}"
+            )
 
-        last_update_time = max(annA.last_update_time, annB.last_update_time)
-        completer = f"{annA.completer}+{annB.completer}"
-        updater = f"{annA.updater}+{annB.updater}"
-        annotation_id = f"{annA.annotation_unique_id}_{annB.annotation_unique_id}"
+        combined_paragraphs = sum((ann.paragraphs for ann in annotations), start=[])
 
-        return AnnotatedPage.from_paragraphs(
+        def _topmost_order(paragraph: Paragraph) -> tuple[float, float]:
+            topmost_box = paragraph.image_boxes[0]
+            c = topmost_box.centroid()
+            return (c[1], c[0])
+
+        combined_paragraphs.sort(key=_topmost_order)
+        last_update_time = max(ann.last_update_time for ann in annotations)
+
+        completer = "+".join(set(ann.completer for ann in annotations))
+        updater = "+".join(set(ann.updater for ann in annotations))
+        annotation_id = int("000".join(str(ann.task_id) for ann in annotations))
+        process_images = all(ann.process_images for ann in annotations)
+        line_separator = annotations[0].line_separator
+
+        combined_ann = AnnotatedPage.from_paragraphs(
             paragraphs=combined_paragraphs,
-            task_id=annA.task_id,
-            background_color=annA.background_color,
+            task_id=annotations[0].task_id,
+            background_color=annotations[0].background_color,
             last_update_time=last_update_time,
             completer=completer,
             updater=updater,
             annotation_unique_id=annotation_id,
+            process_images=process_images,
+            line_separator=line_separator,
         )
+        combined_ann._correct_text_and_set_sindices()
+        return combined_ann

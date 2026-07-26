@@ -15,17 +15,18 @@ from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterfa
 from cropgen.splitter.generation.get_dataset import get_datasets
 
 
-def setup(path: str | Path | None = None,
+def setup(
+    path: str | Path | None = None,
     obi: OracleBucketInterface | None = None,
     lsi: LabelStudioInterface | None = None,
     online: bool = True,
-    project_id: int = 4
-    ):
+    project_id: int = 4,
+) -> PathBundle:
     """
     Descarga todos los archivos necesarios para crear el conjunto de datos, y genera sus respectivas interfaces.
     """
     load_dotenv()
-    path: Path = Path(path) if path is not None else Path(os.getcwd()).parent
+    path: Path = Path(path) if path is not None else Path(os.getcwd())
     paths = PathBundle(path)
 
     obi: OracleBucketInterface = (
@@ -33,16 +34,16 @@ def setup(path: str | Path | None = None,
     )
     obi.update()
 
-    lsi = LabelStudioInterface.from_env(paths, online, project_id) if lsi is None else lsi
+    lsi = (
+        LabelStudioInterface.from_env(paths, online, project_id) if lsi is None else lsi
+    )
 
     lsi.fetch_and_simplify()
 
     paths.lsi = lsi
     paths.obi = obi
 
-    return obi, lsi
-    
-
+    return paths
 
 
 def generate(
@@ -50,6 +51,7 @@ def generate(
     orders_to_consider=[1, 2, 3],
     generate_full_pages=True,
     generate_paragraphs=True,
+    save_images: bool = True,
 ):
     """
     Genera los recortes.
@@ -66,6 +68,7 @@ def generate(
         generate_full_pages=generate_full_pages,
         generate_paragraphs=generate_paragraphs,
         lsi=paths.lsi,
+        save_images=save_images,
     )
 
 
@@ -100,14 +103,16 @@ def upload(
 ):
     if hub_name is None:
         if "HUB_NAME" not in os.environ:
-            raise ValueError("Si no se pasa un hub_name, HUB_NAME debe ser una variable de entorno válida")
+            raise ValueError(
+                "Si no se pasa un hub_name, HUB_NAME debe ser una variable de entorno válida"
+            )
         hub_name: str = str(os.getenv("HUB_NAME"))
     if hf_token is None:
         if "HF_TOKEN" not in os.environ:
-            raise ValueError("Si no se pasa un hf_token, HF_TOKEN debe ser una variable de entorno válida")
+            raise ValueError(
+                "Si no se pasa un hf_token, HF_TOKEN debe ser una variable de entorno válida"
+            )
         hf_token: str = str(os.getenv("HF_TOKEN"))
-    
-    
 
     complete_dataset = DatasetDict(
         {
@@ -128,7 +133,7 @@ def upload(
     with open(split_data_path, "w", encoding="utf-8") as f:
         json.dump(split_data, f, indent=4, ensure_ascii=False)
 
-    api = HfApi(token= hf_token)
+    api = HfApi(token=hf_token)
     api.upload_file(
         path_or_fileobj=split_data_path,
         path_in_repo="page_splits.json",
@@ -141,3 +146,8 @@ def upload(
         os.remove(split_data_path)
 
     print(f"Subido a https://huggingface.co/datasets/{hub_name}")
+
+
+if __name__ == "__main__":
+    paths = setup()
+    generate(paths, save_images=False)

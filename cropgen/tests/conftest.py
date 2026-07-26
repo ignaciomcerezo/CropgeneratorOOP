@@ -43,7 +43,7 @@ def bucket_url() -> str:
 
 @pytest.fixture(scope="session")
 def lsi(paths, ls_token, ls_url) -> LabelStudioInterface:
-    return LabelStudioInterface(paths)
+    return LabelStudioInterface(paths, ls_url, ls_token)
 
 
 @pytest.fixture(scope="session")
@@ -53,11 +53,11 @@ def obi(paths, bucket_url):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def prepare_data(paths, obi, ls_url, ls_token):
+def prepare_data(paths, obi: OracleBucketInterface, lsi: LabelStudioInterface):
     load_dotenv()
 
     obi.update()
-    LabelStudioInterface.fetch_and_simplify(paths, ls_url, ls_token)
+    lsi.fetch_and_simplify()
 
     yield
 

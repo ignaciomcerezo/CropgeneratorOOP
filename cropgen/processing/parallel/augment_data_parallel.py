@@ -13,9 +13,9 @@ def augment_data_parallel(
     generate_paragraphs: bool,
     lsi: LabelStudioInterface,
     tasks_only: list[int] | None = None,
-    num_processes: int = None,
+    num_processes: int | None = None,
+    save_images: bool = True,
 ):
-    lsi = lsi if (lsi is not None) else LabelStudioInterface(paths)
 
     simplified_tasks = lsi.simplified_tasks
 
@@ -38,6 +38,7 @@ def augment_data_parallel(
         orders_to_consider=orders_to_consider,
         generate_full_pages=generate_full_pages,
         generate_paragraphs=generate_paragraphs,
+        save_images=save_images,
     )
 
     num_processes = (

@@ -129,8 +129,7 @@ class PathBundle:
         Devuelve la carpeta para guardar los crops de orden 'order'.
         """
         folder = self.crops_path / str(order)
-        if not folder.exists():
-            folder.mkdir()
+        folder.mkdir(exist_ok=True)
         return folder
 
     def remove_all_files(self) -> None:
