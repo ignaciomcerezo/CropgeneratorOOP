@@ -20,7 +20,10 @@ from cropgen.processing.helpers.helper_to_classes import (
     compose_collage,
     subdictionary,
 )
-from cropgen.processing.helpers.text_regularization import regularize_text
+from cropgen.processing.helpers.text_regularization import (
+    regularize_text,
+    regularize_line,
+)
 from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
     PolygonResult,
@@ -266,20 +269,23 @@ class AnnotatedPage:
         # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
-            separator = "@SEP@"
-            raw_separated_transcription = paragraph.transcription(separator)
+            temporary_separator = "\n\x00\n"
+            raw_separated_transcription = paragraph.transcription(temporary_separator)
             regularized_transcriptions = regularize_text(
                 raw_separated_transcription
-            ).split(separator)
+            ).split(temporary_separator)
 
-            assert len(regularized_transcriptions) == len(
-                paragraph.text_fragments
-            ), "El número de transcripciones regularizadas y el número de líneas de texto no coinciden"
+            assert len(regularized_transcriptions) == len(paragraph.text_fragments), (
+                "El número de transcripciones regularizadas y el número de líneas de texto no coinciden: "
+                f"hay {len(regularized_transcriptions)} l.reg. y {len(paragraph.text_fragments)} l. normales.\n"
+                f" RAW_SEPARATED_TRANSCRIPTION:\n {raw_separated_transcription}\n\n\n"
+                f"Paragraph lines:\n{temporary_separator.join([p.text for p in paragraph.text_fragments])}"
+            )
 
             for fragment, new_transcription in zip(
                 paragraph.text_fragments, regularized_transcriptions
             ):
-                fragment.text = new_transcription
+                fragment.text = regularize_line(new_transcription)
                 fragment.starting_index = sindex
                 sindex += len(fragment.text) + len(self.line_separator)
 

@@ -1,22 +1,143 @@
 import re
 
 french_latex_characters: set[str] = {
-    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "ö",
-    "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "é", "à", "è", "ù", "â",
-    "ê", "î", "ô", "û", "ë", "ï", "ü", "ÿ", "ç", "œ", "æ", "A", "B", "C", "D", "E",
-    "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U",
-    "V", "W", "X", "Y", "Z", "É", "À", "È", "Ù", "Â", "Ê", "Î", "Ô", "Û", "Ë", "Ï",
-    "Ü", "Ÿ", "Ç", "Œ", "Æ", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    " ", "\t", "\n", "\r", ".", ",", ";", ":", "!", "?", "(", ")", "[", "]", "{",
-    "}", "-", "_", "/", "\\", "|", "@", "#", "$", "%", "^", "&", "*", "+", "=",
-    "<", ">", "'", '"'
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "ö",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "é",
+    "à",
+    "è",
+    "ù",
+    "â",
+    "ê",
+    "î",
+    "ô",
+    "û",
+    "ë",
+    "ï",
+    "ü",
+    "ÿ",
+    "ç",
+    "œ",
+    "æ",
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    "É",
+    "À",
+    "È",
+    "Ù",
+    "Â",
+    "Ê",
+    "Î",
+    "Ô",
+    "Û",
+    "Ë",
+    "Ï",
+    "Ü",
+    "Ÿ",
+    "Ç",
+    "Œ",
+    "Æ",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    " ",
+    "\t",
+    "\n",
+    "\r",
+    ".",
+    ",",
+    ";",
+    ":",
+    "!",
+    "?",
+    "(",
+    ")",
+    "[",
+    "]",
+    "{",
+    "}",
+    "-",
+    "_",
+    "/",
+    "\\",
+    "|",
+    "@",
+    "#",
+    "$",
+    "%",
+    "^",
+    "&",
+    "*",
+    "+",
+    "=",
+    "<",
+    ">",
+    "'",
+    '"',
 }
 
 MACRO_REPLACEMENTS: list[tuple[str, str]] = [
-    ("\n", " "),
+    (r"\nexists", r"\not \exists"),
     (r"\smallskip", ""),
     (r"\medskip", ""),
     (r"\bigskip", ""),
+    (r"\break", ""),
     (r"\dots", "..."),
     (r"\ldots", "..."),
     (r"\colon", ":"),
@@ -25,8 +146,12 @@ MACRO_REPLACEMENTS: list[tuple[str, str]] = [
     (r"\{\mathcal{U}\}", r"\mathcal U"),
     (r"\rightarrow", r"\to"),
     (r"\widehat", r"\hat"),
-    (r"\left", ""),
-    (r"\right", ""),
+    (r"\left(", ")"),
+    (r"\right)", ")"),
+    (r"\left[", "["),
+    (r"\right]", "]"),
+    (r"\left\{", r"\{"),
+    (r"\right\{", r"\}"),
     (r"\operatorname", r"\mathrm"),
     (r"\mathop", r"\mathrm"),
     ("O.P.S.", "OPS"),
@@ -74,6 +199,7 @@ UNICODE_ARTIFACTS: list[tuple[str, str]] = [
 REPLACEMENTS_ENVS: list[tuple[tuple[str, str], tuple[str, str]]] = [
     ((r"{\bf", "}"), ("", "")),
     ((r"{ \bf", "}"), ("", "")),
+    ((r"{\sl", "}"), ("", "")),
     ((r"{\it", "}"), ("", "")),
     ((r"{ \it", "}"), ("", "")),
     ((r"{\sl", "}"), ("", "")),
@@ -97,29 +223,21 @@ for _ in range(10):
 scriptable_block = rf"({cmm_p}|\w|{bracketed_block})"
 
 
-REGEX_NEWLINES_AND_SPACING: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|atural|eg|earrow|warrow|abla|obreak|otag)(?![a-zA-Z]))"), " "),
-    (re.compile(r"\s*\\\,\s*"), " "),
-    (re.compile(r"\s*\\\;\s*"), " "),
-    (re.compile(r"\s*\\\s\s*"), " "),
-    (re.compile(r"\s*\\\:\s*"), " "),
-    (re.compile(r"\s*\\quad\s*"), " "),
-    (re.compile(r"\s*\\qquad\s*"), " "),
-    (re.compile(r"\s{2,}"), " "),
-]
-
 REGEX_MATH_MACROS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\\U\b"), r"\\mathcal U"),
     (re.compile(r"\\E\b"), r"\\mathcal E"),
-    (re.compile(r"\\mathcal\{\s*([a-zA-Z])\s*\}"), r"\\mathcal \1"),
-    (re.compile(r"\\mathfrak\{\s*([a-zA-Z])\s*\}"), r"\\mathfrak \1"),
-    (re.compile(r"\\mathbb\{\s*([a-zA-Z])\s*\}"), r"\\mathbb \1"),
-    (re.compile(rf"\{{\\rm\s+({bracketed_block}|{text_nobracket_p}+)\}}"), r"\\mathrm{\1}"),
+    (re.compile(r"\\mathcal\{ ([a-zA-Z]) *\}"), r"\\mathcal \1"),
+    (re.compile(r"\\mathfrak\{ *([a-zA-Z]) *\}"), r"\\mathfrak \1"),
+    (re.compile(r"\\mathbb\{ *([a-zA-Z]) *\}"), r"\\mathbb \1"),
+    (
+        re.compile(rf"\{{\\rm *({bracketed_block}|{text_nobracket_p}+)\}}"),
+        r"\\mathrm{\1}",
+    ),
     (re.compile(r"\\tag\{\d*\}"), ""),
-    (re.compile(r"\\not\s*="), r"\neq"),
-    (re.compile(r"\{\\cal\s*"), r"\\mathcal{"),
+    (re.compile(r"\\not *="), r"\neq"),
+    (re.compile(r"\{\\cal *"), r"\\mathcal{"),
     (re.compile(r"\\cal"), r"\\mathcal"),
-    (re.compile(r"\{\\frak\s*"), r"\\mathfrak{"),
+    (re.compile(r"\{\\frak *"), r"\\mathfrak{"),
     (re.compile(r"\\frak"), r"\\mathfrak"),
     (re.compile(rf"\\textrm({bracketed_block})"), r"\\text\1"),
     (re.compile(rf"\\operatorname({bracketed_block})"), r"\\text\1"),
@@ -127,14 +245,14 @@ REGEX_MATH_MACROS: list[tuple[re.Pattern, str]] = [
 
 REGEX_PUNCTUATION_CLEANUP: list[tuple[re.Pattern, str]] = [
     (re.compile(r"-{2,}"), "-"),
-    (re.compile(r"\s+:"), ":"),
-    (re.compile(r"\s+;"), ";"),
-    (re.compile(r"\(\s+"), r"("),
-    (re.compile(r"\s+\)"), r")"),
-    (re.compile(r"\[\s+"), r"["),
-    (re.compile(r"\s+\]"), r"]"),
-    (re.compile(r"\s+!"), "!"),
-    (re.compile(r"\s+\?"), "?"),
+    (re.compile(r" :"), ":"),
+    (re.compile(r" +;"), ";"),
+    (re.compile(r"\( +"), r"("),
+    (re.compile(r" +\)"), r")"),
+    (re.compile(r"\[ +"), r"["),
+    (re.compile(r" +\]"), r"]"),
+    (re.compile(r" +!"), "!"),
+    (re.compile(r" +\?"), "?"),
 ]
 
 TASK_SPECIFIC_REGEX_REPLACEMENTS: dict[int, list[tuple[re.Pattern, str]]] = {
@@ -142,11 +260,26 @@ TASK_SPECIFIC_REGEX_REPLACEMENTS: dict[int, list[tuple[re.Pattern, str]]] = {
 }
 
 accent_latex_mispellings = {
-    ("'", "a"): "á", ("`", "a"): "à", ("^", "a"): "â", ('"', "a"): "ä",
-    ("'", "e"): "é", ("`", "e"): "è", ("^", "e"): "ê", ('"', "e"): "ë",
-    ("'", "i"): "í", ("`", "i"): "ì", ("^", "i"): "î", ('"', "i"): "ï",
-    ("'", "o"): "ó", ("`", "o"): "ò", ("^", "o"): "ô", ('"', "o"): "ö",
-    ("'", "u"): "ú", ("`", "u"): "ù", ("^", "u"): "û", ('"', "u"): "ü",
+    ("'", "a"): "á",
+    ("`", "a"): "à",
+    ("^", "a"): "â",
+    ('"', "a"): "ä",
+    ("'", "e"): "é",
+    ("`", "e"): "è",
+    ("^", "e"): "ê",
+    ('"', "e"): "ë",
+    ("'", "i"): "í",
+    ("`", "i"): "ì",
+    ("^", "i"): "î",
+    ('"', "i"): "ï",
+    ("'", "o"): "ó",
+    ("`", "o"): "ò",
+    ("^", "o"): "ô",
+    ('"', "o"): "ö",
+    ("'", "u"): "ú",
+    ("`", "u"): "ù",
+    ("^", "u"): "û",
+    ('"', "u"): "ü",
     (",", "c"): "ç",
 }
 
@@ -165,6 +298,10 @@ MATH_ENVS_TO_DOLLAR = [
     (r"\end{equation}", r"$"),
     (r"\begin{equation*}", r"$"),
     (r"\end{equation*}", r"$"),
+    (r"\begin{align}", r"$"),
+    (r"\end{align}", r"$"),
+    (r"\begin{align*}", r"$"),
+    (r"\end{align*}", r"$"),
     (r"\(", r"$"),
     (r"\)", r"$"),
     (r"\[", r"$"),
@@ -172,10 +309,43 @@ MATH_ENVS_TO_DOLLAR = [
     (r"$$", r"$"),
 ]
 
+math_chars = r""
+
+REGEX_MATH_SPACING: list[tuple[re.Pattern, str]] = [
+    (
+        re.compile(r" *(\\[a-zA-Z]+(?![a-zA-Z{}^_])) *"),
+        r" \1 ",
+    ),  # "\mathbf{Text} $\abc\def\ghi\frac{a}{b}$" -> "\mathbf{Text} $ \abc \def \ghi \frac{a}{b}$"
+    (re.compile(r" *= *"), r" = "),  # "a=b" -> "a = b"
+    (
+        re.compile(
+            r"\{\s*([\\a-zA-Z_^()\[\]+/%-]+(?: +[\\a-zA-Z_^()\[\]+/%-]+)*)\s*\}"
+        ),
+        r"{\1}",
+    ),  # "\mathbf{Text} $ \abc \def \ghi \frac{a}{b}$" -> "\mathbf{ Text } $ \abc \def \ghi \frac{ a }{ b }$"
+]
+
+REGEX_NEWLINES_AND_SPACING: list[tuple[re.Pattern, str]] = [
+    (
+        re.compile(
+            r"\\n(?!(?:ot|ew|ode|u|eq|exists|ewpage|oindent|atural|eg|earrow|warrow|abla|obreak|otag)(?![a-zA-Z]))"
+        ),
+        " ",
+    ),
+    (re.compile(r" *\\\, *"), " "),
+    (re.compile(r" *\\\; *"), " "),
+    (re.compile(r" *\\\: *"), " "),
+    (re.compile(r" *\\quad *"), " "),
+    (re.compile(r" *\\qquad *"), " "),
+    (re.compile(r" {2,}"), " "),
+    (re.compile(r"(?<![ \t\n`'(\[{\~])(?=\$)"), " "),
+    (re.compile(r"(?<=\$)(?![ \t\n.,;:?!)\]}''-])"), " "),
+]
 
 
 def replace_latex_accents(text: str) -> str:
     """Converts LaTeX accent macros to their unicode equivalents."""
+
     def repl(match):
         accent = match.group(1)
         letter = match.group(2)
@@ -184,7 +354,13 @@ def replace_latex_accents(text: str) -> str:
     return accent_latex_mispellings_regex.sub(repl, text)
 
 
-def replace_env_balanced(text: str, opener: str, closer: str = "}", new_opener: str = "", new_closer: str = "") -> str:
+def replace_env_balanced(
+    text: str,
+    opener: str,
+    closer: str = "}",
+    new_opener: str = "",
+    new_closer: str = "",
+) -> str:
     """
     Safely strips or replaces environments in LaTeX, handling nested braces.
     """
@@ -196,16 +372,15 @@ def replace_env_balanced(text: str, opener: str, closer: str = "}", new_opener: 
             break
 
         idx_contenido = idx_inicio + len(opener)
-        balance = 1 
+        balance = 1
         idx_fin = -1
         i = idx_contenido
 
-
         while i < len(text):
             char = text[i]
-            if char == '{':
+            if char == "{":
                 balance += 1
-            elif char == '}':
+            elif char == "}":
                 balance -= 1
                 if balance == 0:
                     idx_fin = i
@@ -226,10 +401,15 @@ def replace_env_balanced(text: str, opener: str, closer: str = "}", new_opener: 
                 + new_opener
                 + contenido_interno
                 + new_closer
-                + text[idx_fin + len(closer):]
+                + text[idx_fin + len(closer) :]
             )
 
-            start_search_pos = len(parte_anterior) + len(new_opener) + len(contenido_interno) + len(new_closer)
+            start_search_pos = (
+                len(parte_anterior)
+                + len(new_opener)
+                + len(contenido_interno)
+                + len(new_closer)
+            )
         else:
             start_search_pos = idx_inicio + 1
 
@@ -248,7 +428,9 @@ def apply_string_replacements(text: str, replacements: list[tuple[str, str]]) ->
     return text
 
 
-def apply_regex_replacements(text: str, regex_list: list[tuple[re.Pattern, str]]) -> str:
+def apply_regex_replacements(
+    text: str, regex_list: list[tuple[re.Pattern, str]]
+) -> str:
     for pattern, replacement in regex_list:
         text = pattern.sub(replacement, text)
     return text
@@ -260,34 +442,38 @@ def normalize_math_envs_to_dollar(text: str) -> str:
     return text
 
 
-
 def regularize_text(text: str, task_id: int | None = None) -> str:
     text = apply_string_replacements(text, ENCODING_ARTIFACTS)
 
     text = apply_string_replacements(text, UNICODE_ARTIFACTS)
 
     text = replace_latex_accents(text)
-    
 
     text = strip_latex_environments(text)
-    
 
     text = apply_string_replacements(text, MACRO_REPLACEMENTS)
-    
 
     text = normalize_math_envs_to_dollar(text)
-    
 
     text = apply_regex_replacements(text, REGEX_MATH_MACROS)
-    
-
-    text = apply_regex_replacements(text, REGEX_NEWLINES_AND_SPACING)
-    
 
     text = apply_regex_replacements(text, REGEX_PUNCTUATION_CLEANUP)
-    
 
     if task_id is not None and task_id in TASK_SPECIFIC_REGEX_REPLACEMENTS:
         text = apply_regex_replacements(text, TASK_SPECIFIC_REGEX_REPLACEMENTS[task_id])
-        
+
+    text = apply_regex_replacements(text, REGEX_MATH_SPACING)
+
+    text = apply_regex_replacements(text, REGEX_NEWLINES_AND_SPACING)
+
+    return text
+
+
+MULTI_SPACE_REGEX = re.compile(r"\s+")
+
+
+def regularize_line(text: str) -> str:
+    text = text.strip()
+    text = text.replace("\n", " ")
+    text = re.sub(MULTI_SPACE_REGEX, " ", text)
     return text
