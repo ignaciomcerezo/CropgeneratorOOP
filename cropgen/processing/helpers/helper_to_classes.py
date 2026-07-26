@@ -56,7 +56,7 @@ def get_dominant_color(pil_img) -> tuple[int, int, int]:
 
         palette: list[int] = paletted.getpalette()
         start = dominant_index * 3
-        return (palette[start], palette[start+1], palette[start+2])
+        return (palette[start], palette[start + 1], palette[start + 2])
 
     except Exception as E:
         print(f"Error durante la cuantización de la imagen - {E}")
@@ -352,7 +352,14 @@ def get_connected_components(adj: dict[str, set]):
 def compose_collage(
     image_boxes: list["ImageBox"],
     fill_color: tuple[int, ...],
+    min_bounding_coordinates: list[tuple[float, float]] | None = None,
 ) -> Image.Image:
+    """
+    Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
+    If min_bounding_boxes is provided, each element is taken to be the coordinates where the leftmost
+    topmost point of the bounding box of each line will be placed. If not provided, it takes that
+    information from the image_box instances themselves.
+    """
     # calculamos la región mínima de la imagen que contiene todas las cajas
     x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
 
