@@ -1,6 +1,7 @@
+from cropgen.processing.layout_generator.InterparagraphTransforms.refresh import Refresh
 from cropgen.processing.Paragraph import Paragraph
 from cropgen.processing.AnnotatedPage import AnnotatedPage
-from cropgen.processing.layout_generator.layouts import (
+from cropgen.processing.layout_generator.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,
 )
@@ -12,35 +13,36 @@ class LayoutGenerator:
     def __init__(self, ann: AnnotatedPage):
         self.ann = ann
         self.paragraphs = deepcopy(ann.paragraphs)
-        self.intra_layouts: list[list[IntraparagraphTransform]] = [] * len(
-            self.paragraphs
-        )  # those layouts (to compose its own sequence for each paragraph) that will be applied to each paragraph
-        self.inter_layouts: list[
-            InterparagraphTransform
-        ]  # those layouts (to compose) that will be applied to each paragraph
 
-    # se podría dar con un replace...
+        # FIX: Use a list comprehension to create N empty lists
+        self.intra_transforms: list[list[IntraparagraphTransform]] = [
+            [] for _ in range(len(self.paragraphs))
+        ]
 
-    def intra_to_all(self, layout: IntraparagraphTransform):
+        self.inter_transforms: list[InterparagraphTransform] = []
 
-        for i in range(len(self.intra_layouts)):
-            self.intra_layouts[i].append(layout)
+    def add_intra_to_all(self, transform: IntraparagraphTransform):
+        for i in range(len(self.intra_transforms)):
+            self.intra_transforms[i].append(transform)
 
-    def intra_to_one(self, layout: IntraparagraphTransform, paragraph: Paragraph):
+    def add_intra_to_one(
+        self, transform: IntraparagraphTransform, paragraph: Paragraph
+    ):
 
-        self.intra_layouts[self.paragraphs.index(paragraph)].append(layout)
+        self.intra_transforms[self.paragraphs.index(paragraph)].append(transform)
 
-    def inter(self, layout: InterparagraphTransform):
-        self.inter_layouts.append(layout)
+    def add_inter(self, layout: InterparagraphTransform):
+        self.inter_transforms.append(layout)
 
     def apply(self) -> AnnotatedPage:
-
-        for p_layouts, paragraph in zip(self.intra_layouts, self.paragraphs):
+        for p_layouts, paragraph in zip(self.intra_transforms, self.paragraphs):
             for layout in p_layouts:
                 layout(paragraph)
 
-        for layout in self.inter_layouts:
+        for layout in self.inter_transforms:
             layout(*self.paragraphs)
+
+        Refresh()(*self.paragraphs)
 
         return AnnotatedPage.from_paragraphs(
             self.paragraphs,

@@ -1,16 +1,16 @@
 from cropgen.processing.Paragraph import Paragraph
-from cropgen.processing.layout_generator.layouts import (
+from cropgen.processing.layout_generator.transforms import (
     IntraparagraphTransform,
     _ParagraphInfo,
 )
 from shapely.affinity import translate
 
 
-class add_vertical_clearance(IntraparagraphTransform):
+class AddVerticalClearance(IntraparagraphTransform):
     def __init__(
         self,
-        absolute: float | None = None,
         relative: float | None = None,
+        absolute: float | None = None,
     ):
         if (absolute is not None) and (relative is not None):
             raise ValueError("Only one of 'absolute' or 'relative' can be provided.")
@@ -22,11 +22,12 @@ class add_vertical_clearance(IntraparagraphTransform):
 
     def __call__(self, paragraph: Paragraph) -> None:
         info = _ParagraphInfo(paragraph)
-        vertical_size = (
-            info.bounds[0][1] - info.bounds[-1][1]
+        vertical_size = abs(
+            info.box_bounds[0][1] - info.box_bounds[-1][1]
         )  # topmost's topmost to botmost's topmost
 
         if len(paragraph) < 2:
+            print("Paragraph too small.")
             return
 
         Delta: float = (

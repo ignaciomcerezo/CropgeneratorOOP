@@ -12,6 +12,8 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedAnnotation,
 )
 from pathlib import Path
+from cropgen.processing.AnnotatedPage import AnnotatedPage
+from PIL import Image, ImageOps
 
 
 class LabelStudioInterface:
@@ -27,11 +29,17 @@ class LabelStudioInterface:
         "raw_export_filepath",
         "simplified_export_filepath",
         "server_url",
-        "token"
-        "project_id"
+        "token" "project_id",
     )
 
-    def __init__(self, paths: PathBundle, server_url: str, token: str, project_id: int = 4, online: bool = True):
+    def __init__(
+        self,
+        paths: PathBundle,
+        server_url: str,
+        token: str,
+        project_id: int = 4,
+        online: bool = True,
+    ):
         """
         Inicializa la interfaz de Label Studio a partir de un PathBundle.
         Carga los exports locales (raw y simplified) y la lista de usuarios si existen.
@@ -49,20 +57,24 @@ class LabelStudioInterface:
         if not online:
 
             if not exists_sim and not exists_raw:
-                print(f"No existe export local crudo ni simplificado, y se ha seleccionado online = False.")
-            
+                print(
+                    f"No existe export local crudo ni simplificado, y se ha seleccionado online = False."
+                )
+
             if not exists_raw and exists_sim:
-                print(f"No existe export crudo local en {paths.raw_export_filepath}, y online = False,"
-                f"empleando directamente el simplificado local en {paths.simplified_filepath}.")
+                print(
+                    f"No existe export crudo local en {paths.raw_export_filepath}, y online = False,"
+                    f"empleando directamente el simplificado local en {paths.simplified_filepath}."
+                )
 
             else:
                 simplify_and_save(paths.raw_export_filepath, paths.simplified_filepath)
-            
-            return 
-        
-        self.token= token
+
+            return
+
+        self.token = token
         self.url = server_url
-        
+
         self.fetch_and_simplify()
 
         if paths.usernames_filepath.exists():
@@ -71,7 +83,7 @@ class LabelStudioInterface:
             )
         else:
             self.usernames: list[str] = []
-    
+
     @classmethod
     def from_env(
         cls,
@@ -82,15 +94,23 @@ class LabelStudioInterface:
         url_env_var: str = "LS_URL",
     ) -> "LabelStudioInterface":
         if token_env_var not in os.environ:
-            raise ValueError(f"{token_env_var} no está presente en las variables de entorno.")
+            raise ValueError(
+                f"{token_env_var} no está presente en las variables de entorno."
+            )
         elif url_env_var not in os.environ:
-            raise ValueError(f"{url_env_var} no está presente en las variables de entorno.")
-        
+            raise ValueError(
+                f"{url_env_var} no está presente en las variables de entorno."
+            )
+
         token = str(os.getenv(token_env_var))
         url = str(os.getenv(url_env_var))
 
-        return cls(paths, url, token, project_id, online)
+        obj = cls(paths, url, token, project_id, online)
 
+        obj.usernames = json.loads(
+            obj.paths.usernames_filepath.read_text(encoding="utf-8")
+        )
+        return obj
 
     def __repr__(self):
         return f"<LabelStudioInterface con REF = {self.raw_export_filepath} y SEF={self.simplified_export_filepath}.>"
@@ -115,7 +135,12 @@ class LabelStudioInterface:
         Devuelve True si se ha actualizado, False si ya estaba actualizado.
         """
         if not self.online:
-            print(f"LSI configurado con online={self.online}, por tanto no se actualiza.")
+            print(
+                f"LSI configurado con online={self.online}, por tanto no se actualiza."
+            )
+            self.usernames = json.loads(
+                self.paths.usernames_filepath.read_text(encoding="utf-8")
+            )
             return False
 
         ls_client = Client(url=self.url, api_key=self.token)
@@ -158,9 +183,13 @@ class LabelStudioInterface:
         raw_tasks.sort(key=lambda task: task.id)
 
         dump_data = [task.model_dump(mode="json") for task in raw_tasks]
-        self.paths.raw_export_filepath.write_text(json.dumps(dump_data), encoding="utf-8")
+        self.paths.raw_export_filepath.write_text(
+            json.dumps(dump_data), encoding="utf-8"
+        )
 
-        simplify_and_save(self.paths.raw_export_filepath, self.paths.simplified_filepath)
+        simplify_and_save(
+            self.paths.raw_export_filepath, self.paths.simplified_filepath
+        )
         return True
 
     @property
@@ -170,7 +199,9 @@ class LabelStudioInterface:
         """
         raw_tasks = [
             LabelStudioTask.model_validate(task_dict)
-            for task_dict in json.loads(self.raw_export_filepath.read_text(encoding="utf-8"))
+            for task_dict in json.loads(
+                self.raw_export_filepath.read_text(encoding="utf-8")
+            )
         ]
 
         raw_tasks.sort(key=lambda task: task.id)
@@ -184,7 +215,9 @@ class LabelStudioInterface:
         """
         simplified_tasks = [
             SimplifiedTask.model_validate(task_dict)
-            for task_dict in json.loads(self.simplified_export_filepath.read_text(encoding="utf-8"))
+            for task_dict in json.loads(
+                self.simplified_export_filepath.read_text(encoding="utf-8")
+            )
         ]
 
         simplified_tasks.sort(key=lambda task: task.id)
@@ -226,3 +259,69 @@ class LabelStudioInterface:
                 items.extend(tsk.annotations)
         return items
 
+    def get_annotated_page(self, index: int, subindex: int = 0) -> AnnotatedPage:
+        task = [task for task in self.simplified_tasks if int(task.id) == index][0]
+
+        if subindex >= len(task.annotations):
+            raise ValueError(
+                f"No enough annotations on this task: {len(task.annotations)=} <= {subindex=}"
+            )
+
+        annotation = task.annotations[subindex]
+
+        img_path = self.paths.get_image_path_from_task(task)
+
+        if img_path is None:
+            raise ValueError(f"No hay imagen para la tarea {task.id}")
+
+        try:
+            img = Image.open(img_path)
+            img = ImageOps.exif_transpose(img)
+        except Exception as e:
+            raise ValueError(f"Error cargando {img_path}: {e}")
+
+        return AnnotatedPage(
+            annotation,
+            img,
+            unrotate=False,
+            usernames_labelstudio=self.usernames,
+            process_images=True,
+        )
+
+    @property
+    def annotated_pages(self) -> list[AnnotatedPage]:
+
+        pages: list[AnnotatedPage] = []
+        for task in self.simplified_tasks:
+            img_path = self.paths.get_image_path_from_task(task)
+
+            if img_path is None:
+                print(f"No hay imagen para la tarea {task.id}")
+                continue
+
+            try:
+                img = Image.open(img_path)
+                img = ImageOps.exif_transpose(img)
+            except Exception as e:
+                print(f"Error cargando {img_path}: {e}")
+                continue
+
+            annotations = [
+                AnnotatedPage(
+                    ann,
+                    img,
+                    unrotate=False,
+                    usernames_labelstudio=self.usernames,
+                    process_images=True,
+                )
+                for ann in task.annotations
+            ]
+
+            if len(annotations) > 1:
+                pages.append(AnnotatedPage.combine_annotations(*annotations))
+            elif len(annotations) == 1:
+                pages.append(annotations[0])
+            else:
+                print(f"Aviso: La tarea {task.id} no tiene anotaciones.")
+
+        return pages

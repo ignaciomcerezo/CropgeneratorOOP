@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class ImageBox:
     """
     Contenedor de la información sobre las selecciones en la imagen hechas durante las anotaciones. Contiene información
-    sobre el polígono dibujado, la rotación del polígono
+    sobre el polígono dibujado, la rotación del polígono, el fragmentos asociado, el recorte correspondiente.
     """
 
     id: str

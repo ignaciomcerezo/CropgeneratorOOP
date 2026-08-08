@@ -30,15 +30,16 @@ def setup(
     paths = PathBundle(path)
 
     obi: OracleBucketInterface = (
-        OracleBucketInterface.from_env(paths) if obi is None else obi
+        OracleBucketInterface.from_env(paths, online=online) if obi is None else obi
     )
-    obi.update()
+    if online:
+        obi.update()
 
     lsi = (
         LabelStudioInterface.from_env(paths, online, project_id) if lsi is None else lsi
     )
-
-    lsi.fetch_and_simplify()
+    if online:
+        lsi.fetch_and_simplify()
 
     paths.lsi = lsi
     paths.obi = obi

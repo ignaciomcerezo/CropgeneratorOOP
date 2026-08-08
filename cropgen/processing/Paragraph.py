@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 from shapely import coverage_union_all
+from shapely import Polygon
 from shapely.affinity import affine_transform
 
 from cropgen.processing.ImageBox import ImageBox
@@ -60,7 +61,7 @@ class Paragraph:
         self.index: int | None = index
         self.subgraph: Optional[dict[str, set[str]]] = subgraph
 
-        self._calcualate_total_area_and_centroid()
+        self._calculate_total_area_and_centroid()
 
         self._sort_image_boxes_using_centroid_and_subgraph()
 
@@ -120,8 +121,7 @@ class Paragraph:
     def __repr__(self):
         return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
 
-    def union_polygon(self):
-        print("¡Recuerda que la y está invertida!")
+    def union_polygon(self) -> Polygon:
         return coverage_union_all([box.polygon for box in self.image_boxes])
 
     def corrected_polygon(self, box: ImageBox):
@@ -166,7 +166,7 @@ class Paragraph:
                 for i in range(len(self.image_boxes) - order + 1)
             ]
 
-    def _calcualate_total_area_and_centroid(self):
+    def _calculate_total_area_and_centroid(self):
         self.centroid: np.ndarray = np.zeros((2,))
         self.total_words: int = 0
         total_area = 0
@@ -209,7 +209,10 @@ class Paragraph:
             corrected_x = dx * cos_theta - dy * sin_theta + cx_para
             corrected_y = dx * sin_theta + dy * cos_theta + cy_para
 
-            image_box.corrected_centroid = (corrected_x, corrected_y)
+            image_box.corrected_centroid = (
+                corrected_x,
+                corrected_y,
+            )
 
         if (
             not self._subgraph_is_Pk()
