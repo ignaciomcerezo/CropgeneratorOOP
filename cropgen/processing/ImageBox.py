@@ -29,7 +29,7 @@ class ImageBox:
 
     id: str
     crop: Image.Image
-    residual_crop: Image.Image
+    stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
     unrotated: bool
@@ -98,20 +98,20 @@ class ImageBox:
         simplified_result_item: RectangleResult | PolygonResult,
         task_id: int,
         image: Image.Image,
-        residual: Image.Image,
+        stroke: Image.Image,
         unrotate: bool = False,
     ) -> "ImageBox":
         imgbox_id = simplified_result_item.id
 
         crop, residual_crop, polygon, rotation, true_rectangle, unrotated = (
-            ImageBox._rotatedregion(image, residual, simplified_result_item, unrotate)
+            ImageBox._rotatedregion(image, stroke, simplified_result_item, unrotate)
         )
 
         return ImageBox(
             id=imgbox_id,
             task_id=task_id,
             crop=crop,
-            residual_crop=residual_crop,
+            stroke_crop=residual_crop,
             polygon=polygon,
             rotation=rotation,
             true_rectangle=true_rectangle,

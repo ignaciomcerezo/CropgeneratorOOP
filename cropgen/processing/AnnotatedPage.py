@@ -19,9 +19,9 @@ from cropgen.processing.helpers.helper_to_classes import (
     compose_collage,
     subdictionary,
 )
-from cropgen.processing.helpers.image_processing import (
-    get_dominant_color,
-    get_background_and_residual,
+from cropgen.processing.helpers.image_processing import get_dominant_color
+from cropgen.processing.helpers.text_background_separator import (
+    separate_background_and_stroke,
 )
 from cropgen.processing.helpers.text_regularization import (
     regularize_text,
@@ -60,6 +60,7 @@ class AnnotatedPage:
         "image_boxes",
         "text_fragments",
         "background",
+        "stroke",
         "task_id",
         "__graph",
         "last_update_time",
@@ -107,7 +108,7 @@ class AnnotatedPage:
         self.task_id = int(ann.task)
         results: list[SimplifiedResultItem] = ann.result
 
-        self.background, residual = get_background_and_residual(img)
+        self.background, self.stroke = separate_background_and_stroke(img)
 
         img_results_list: list[RectangleResult | PolygonResult] = [
             r for r in results if isinstance(r, (RectangleResult, PolygonResult))
@@ -120,7 +121,7 @@ class AnnotatedPage:
         self.image_boxes: dict[str, ImageBox] = (
             {  # conjunto de cajas-imagen (instancias de ImageBox)
                 img_result.id: ImageBox.from_image_result(
-                    img_result, self.task_id, img, unrotate
+                    img_result, self.task_id, img, self.stroke, unrotate
                 )
                 for img_result in img_results_list
             }
@@ -347,6 +348,8 @@ class AnnotatedPage:
             tuple[int, int, int] | tuple[int, int, int, int] | None
         ) = None,
         background: Image.Image | None = None,
+        use_stroke: bool = True,
+        tight_layout: bool = True,
     ) -> Image.Image:
         """
         Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo), colocando en sus posiciones en
@@ -377,7 +380,12 @@ class AnnotatedPage:
                 "The background was not properly calculated for the given collage."
             )
 
-        return compose_collage(subgraph_image_boxes, background=background)
+        return compose_collage(
+            subgraph_image_boxes,
+            background=background,
+            use_stroke=use_stroke,
+            tight_layout=tight_layout,
+        )
 
     # def trim_star_nodes(
     #     self,

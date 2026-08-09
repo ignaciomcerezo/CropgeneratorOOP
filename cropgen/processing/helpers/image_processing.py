@@ -58,27 +58,22 @@ KERNELS = {
 
 KERNEL_TYPES = Literal["diamond", "circle", "cross", "rect"]
 
+# better version in text_background_separator.py
+# def get_background_and_residual(
+#     image: Image.Image, kernel_name="rect", diameter: int = 35
+# ) -> tuple[Image.Image, Image.Image]:
+#     """
+#     Extracts the low-frequency background and signed high-frequency residual
+#     """
+#     img_float = np.array(image, dtype=np.float32)
 
-import cv2
-import numpy as np
-from PIL import Image
+#     kernel = cv2.getStructuringElement(KERNELS[kernel_name], (diameter, diameter))
 
+#     bg_float = cv2.morphologyEx(img_float, cv2.MORPH_CLOSE, kernel)
 
-def get_background_and_residual(
-    image: Image.Image, kernel_name="diamond", diameter: int = 35
-) -> tuple[Image.Image, Image.Image]:
-    """
-    Extracts the low-frequency background and signed high-frequency residual
-    """
-    img_float = np.array(image, dtype=np.float32)
+#     signed_residual = img_float - bg_float
 
-    kernel = cv2.getStructuringElement(KERNELS[kernel_name], (diameter, diameter))
-
-    bg_float = cv2.morphologyEx(img_float, cv2.MORPH_CLOSE, kernel)
-
-    signed_residual = img_float - bg_float
-
-    return Image.fromarray(bg_float), Image.fromarray(signed_residual)
+#     return Image.fromarray(bg_float), Image.fromarray(signed_residual)
 
 
 def polygon2pts(polygon: Polygon):
@@ -87,7 +82,9 @@ def polygon2pts(polygon: Polygon):
     return [np.int32(coords)]
 
 
-def get_polygon_mask(image_shape: tuple[int, int], polygons: Collection[Polygon]):
+def get_polygon_mask(
+    image_shape: tuple[int, int], polygons: Collection[Polygon]
+) -> np.ndarray:
     mask = np.zeros(image_shape[:2], dtype=np.uint8)
     for poly in polygons:
         coords = np.array(poly.exterior.coords[:-1], dtype=np.int32)

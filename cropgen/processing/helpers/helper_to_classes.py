@@ -153,7 +153,7 @@ def get_rotated_region(
         crop_y2 = int(math.ceil(max_y))  # + pad
 
         if crop_x2 <= crop_x1 or crop_y2 <= crop_y1:
-            return None
+            raise ValueError("Crop width <= 0 or crop height <= 0.")
 
         # recorte rectangular básico
         box = (crop_x1, crop_y1, crop_x2, crop_y2)
@@ -187,9 +187,6 @@ def get_rotated_region(
     h_pct = val.height
     rotation = val.rotation
 
-    if None in (x_pct, y_pct, w_pct, h_pct):
-        return None
-
     # conversión a píxeles
     x = x_pct * page_width / 100.0
     y = y_pct * page_height / 100.0
@@ -208,9 +205,10 @@ def get_rotated_region(
         x2, y2 = min(page_width, x2), min(page_height, y2)
 
         box = (x1, y1, x2, y2)
-    final_image = img.crop(box)
-    residual_crop = residual.crop(box)
-    return final_image, residual_crop, poly, 0, False
+
+        final_image = img.crop(box)
+        residual_crop = residual.crop(box)
+        return final_image, residual_crop, poly, 0, False
 
     # si hay rotación, usamos los vértices calculados para definir la bounding box del recorte
     all_x = [p[0] for p in corners]
@@ -222,23 +220,21 @@ def get_rotated_region(
     crop_x2 = int(math.ceil(max(all_x))) + pad
     crop_y2 = int(math.ceil(max(all_y))) + pad
 
-    # Validaciones de límites
+    # comprobamos que el área del polígono no sea 0 ni negativa
     crop_x1 = max(0, crop_x1)
     crop_y1 = max(0, crop_y1)
-    crop_x2 = min(page_width, crop_x2)
-    crop_y2 = min(page_height, crop_y2)
+    crop_x2 = int(min(page_width, crop_x2))
+    crop_y2 = int(min(page_height, crop_y2))
 
     if crop_x2 <= crop_x1 or crop_y2 <= crop_y1:
-        return None
+        raise ValueError("Null height or width.")
 
-    # Recorte inicial
+    # recorte inicial
     box = (crop_x1, crop_y1, crop_x2, crop_y2)
-
-    # Creación de máscara
     mask = Image.new("L", (crop_x2 - crop_x1, crop_y2 - crop_y1), 0)
     draw = ImageDraw.Draw(mask)
 
-    # Convertir coordenadas globales a locales para la máscara
+    # convertimos a coordenadas locales para la máscara
     local_corners = [(p[0] - crop_x1, p[1] - crop_y1) for p in corners]
 
     draw.polygon(local_corners, fill=255)
@@ -325,7 +321,10 @@ def get_connected_components(adj: dict[str, set]):
 
 
 def compose_collage(
-    image_boxes: list["ImageBox"], background: Image.Image, tight_layout: bool = True
+    image_boxes: list["ImageBox"],
+    background: Image.Image,
+    tight_layout: bool = True,
+    use_stroke: bool = True,
 ) -> Image.Image:
     """
     Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
@@ -333,7 +332,7 @@ def compose_collage(
     topmost point of the bounding box of each line will be placed. If not provided, it takes that
     information from the image_box instances themselves.
     """
-    # TODO: use residual instead of original crop.
+
     if tight_layout:
         # calculamos la región mínima de la imagen que contiene todas las cajas
         x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
@@ -349,17 +348,32 @@ def compose_collage(
         x1 = 0
         y1 = 0
 
+    if use_stroke:
+        overlay: np.ndarray = np.full(np.asarray(collage).shape, 0)
+
     for box in image_boxes:
         box_x0, box_y0, _, _ = box.polygon.bounds
 
         # calculamos la posición relativa al nuevo lienzo
         paste_x, paste_y = int(box_x0 - x1), int(box_y0 - y1)
 
-        if box.crop.mode == "RGBA":
-            # usamos la propia imagen como máscara de transparencia
-            collage.paste(box.crop, (paste_x, paste_y), mask=box.crop)
+        crop = box.stroke_crop if use_stroke else box.crop
+        mask = box.crop if box.crop.mode == "RGBA" else None
+
+        if use_stroke:
+            overlay[
+                paste_y : paste_y + crop.height, paste_x : paste_x + crop.width
+            ] += np.array(crop.convert("L"), dtype=np.uint8)
         else:
-            collage.paste(box.crop, (paste_x, paste_y))
+            collage.paste(crop, box=(paste_x, paste_y), mask=mask)
+
+    if use_stroke:
+        # difference instead of addition as our strokes are reversed in intensity
+        collage = Image.fromarray(
+            np.clip(np.asarray(collage, dtype=np.float32) - overlay, 0, 255).astype(
+                np.uint8
+            )
+        )
 
     return collage
 
