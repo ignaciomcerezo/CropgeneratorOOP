@@ -4,6 +4,7 @@ from cropgen.processing.layout_generator.transforms import (
     _ParagraphInfo,
 )
 from shapely.affinity import translate
+import numpy as np
 
 
 class AddVerticalClearance(IntraparagraphTransform):
@@ -11,6 +12,7 @@ class AddVerticalClearance(IntraparagraphTransform):
         self,
         relative: float | None = None,
         absolute: float | None = None,
+        modulate_by_probability: bool = False,
     ):
         if (absolute is not None) and (relative is not None):
             raise ValueError("Only one of 'absolute' or 'relative' can be provided.")
@@ -19,6 +21,7 @@ class AddVerticalClearance(IntraparagraphTransform):
 
         self.__absolute = absolute
         self.__relative = relative
+        self.modulate_by_probability = modulate_by_probability
 
     def __call__(self, paragraph: Paragraph) -> None:
         info = _ParagraphInfo(paragraph)
@@ -40,6 +43,13 @@ class AddVerticalClearance(IntraparagraphTransform):
 
         for k, box in enumerate(paragraph.image_boxes, start=1):
             # -Delta moves upwards, as topmost vertex has the most negative y coordinate
-            displacement = -Delta / 2 + delta_i * (k - 1)
+
+            if k:
+                perturbation = (
+                    1 if not self.modulate_by_probability else np.random.rand()
+                )
+                displacement = -Delta / 2 + delta_i * (k + perturbation - 2)
+            else:
+                displacement = -Delta / 2
 
             box.polygon = translate(box.polygon, yoff=displacement)

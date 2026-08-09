@@ -132,7 +132,7 @@ def augment_data_sequential(
                     "text": transcription,
                     "page": page_number,
                     "crop_file": filename,
-                    "background_color": Ann.background_color,
+                    "background_color": Ann.background_color,  # TODO: cambiar a background...
                     "average_rotation": Ann.get_average_rotation(Ann.graph.keys()),
                 }
             )

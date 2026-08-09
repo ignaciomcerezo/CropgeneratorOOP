@@ -1,5 +1,12 @@
+from typing import Collection
 from cropgen.processing.Paragraph import Paragraph
 from abc import ABC, abstractmethod
+import shapely
+
+
+def Union(geometries: Collection[shapely.Geometry]):
+    snapped_geoms = [shapely.set_precision(g, grid_size=1e-6) for g in geometries]
+    result = shapely.unary_union(snapped_geoms)
 
 
 class _ParagraphInfo:
@@ -34,6 +41,7 @@ class _ParagraphInfo:
             self.box_bounds[i + 1][1] - self.box_bounds[i][1]
             for i in range(len(paragraph) - 1)
         ]
+        self.union_polygon = Union([box.polygon for box in paragraph.image_boxes])
 
         self.center = ((self.x0 + self.xf) / 2, (self.y0 + self.yf) / 2)
 

@@ -1,4 +1,8 @@
-from cropgen.processing.layout_generator.InterparagraphTransforms.refresh import Refresh
+from PIL import Image
+from cropgen.processing.helpers.helper_to_classes import get_union_rect
+from cropgen.processing.layout_generator.interparagraph_transforms.refresh import (
+    Refresh,
+)
 from cropgen.processing.Paragraph import Paragraph
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.processing.layout_generator.transforms import (
@@ -44,13 +48,26 @@ class LayoutGenerator:
 
         Refresh()(*self.paragraphs)
 
+        polygons = [box.polygon for box in self.ann.image_boxes.values()]
+        polygons.extend(paragraph.union_polygon() for paragraph in self.paragraphs)
+
+        x1, y1, x2, y2 = get_union_rect(polygons)
+
+        x1, y1 = int(x1), int(y1)
+        x2, y2 = int(x2) + 1, int(y2) + 1
+
+        w, h = max(1, x2 - x1), max(1, y2 - y1)
+        background = self.ann.background.resize(
+            size=(w, h), resample=Image.Resampling.BICUBIC
+        )
+
         return AnnotatedPage.from_paragraphs(
-            self.paragraphs,
-            self.ann.task_id,
-            self.ann.background_color,
-            self.ann.last_update_time,
-            self.ann.completer,
-            self.ann.updater,
+            paragraphs=self.paragraphs,
+            task_id=self.ann.task_id,
+            background=background,
+            completer=self.ann.completer,
+            last_update_time=self.ann.last_update_time,
+            updater=self.ann.updater,
             annotation_unique_id=hash(
                 " ".join(p.transcription() for p in self.paragraphs)
             ),

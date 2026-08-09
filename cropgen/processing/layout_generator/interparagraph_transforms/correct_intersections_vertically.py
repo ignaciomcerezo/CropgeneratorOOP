@@ -4,6 +4,18 @@ from cropgen.processing.layout_generator.transforms import (
     _ParagraphInfo,
 )
 from shapely.affinity import translate
+from shapely import Polygon
+
+
+def _iterunion(*geometries: Polygon) -> Polygon:
+    res = Polygon()
+    for geo in geometries:
+        res = res.union(geo)
+    return res
+
+
+def _get_polys(paragraph: Paragraph) -> list[Polygon]:
+    return [box.polygon for box in paragraph.image_boxes]
 
 
 class CorrectIntersectionsVertically(InterparagraphTransform):
@@ -19,10 +31,9 @@ class CorrectIntersectionsVertically(InterparagraphTransform):
         y_increases_downwards = infos[-1].center[1] > infos[0].center[1]
 
         for i in range(1, n):
-            prev_poly = infos[i - 1].union_polygon
-            curr_poly = infos[i].union_polygon
-            _, miny_prev, _, maxy_prev = prev_poly.bounds
-            _, miny_curr, _, maxy_curr = curr_poly.bounds
+
+            _, miny_prev, _, maxy_prev = infos[i - 1].union_bounds
+            _, miny_curr, _, maxy_curr = infos[i].union_bounds
 
             if y_increases_downwards:
                 bb_gap = miny_curr - maxy_prev
@@ -32,6 +43,9 @@ class CorrectIntersectionsVertically(InterparagraphTransform):
                 continue
 
             max_required_shift = self.clearance - bb_gap
+
+            prev_poly = _iterunion(*_get_polys(paragraphs[i - 1]))
+            curr_poly = _iterunion(*_get_polys(paragraphs[i]))
 
             if prev_poly.distance(curr_poly) >= self.clearance:
                 continue

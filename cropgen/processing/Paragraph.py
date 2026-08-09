@@ -8,9 +8,9 @@ from shapely.affinity import affine_transform
 
 from cropgen.processing.ImageBox import ImageBox
 from cropgen.processing.TextFragment import TextFragment
+from cropgen.processing.helpers.image_processing import unrotate_image
 from cropgen.processing.helpers.helper_to_classes import (
     compose_collage,
-    unrotate_image,
     is_path_graph,
 )
 

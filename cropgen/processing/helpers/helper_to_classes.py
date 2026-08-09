@@ -19,50 +19,6 @@ def get_deterministic_id(text, length: int = 8):
     return hash_object.hexdigest()[:length]
 
 
-def unrotate_image(img, rotation_degrees) -> Image.Image:
-    """
-    Des-rota una imagen, quitando también la máscara transparente.
-    """
-    unrotated = img.rotate(rotation_degrees, resample=Image.BICUBIC, expand=True)
-
-    bbox = unrotated.getbbox()  # solamente la parte no transparente
-
-    if bbox:
-        return unrotated.crop(bbox)
-
-    return unrotated
-
-
-def get_dominant_color(pil_img) -> tuple[int, int, int]:
-    """
-    Calcula el color dominante de una imagen. Realiza el siguiente proceso:
-    - Reduce la imagen para que quepa en 50 x 50 píxeles manteniendo las proporciones.
-    - Reduce la cantidad de colores a los 5 dominantes, cuantizándola.
-    - Devuelve el más común.
-    Se emplea para usar como color de fondo en recortes de forma rápida.
-    """
-    try:
-        img_copy = pil_img.copy()
-        img_copy.thumbnail((50, 50), resample=Image.Resampling.BICUBIC)
-
-        paletted = img_copy.quantize(colors=5)
-        colors = paletted.getcolors()
-
-        if not colors:
-            print("Error postcuantización de la imagen")
-            return 255, 255, 255
-
-        dominant_count, dominant_index = max(colors, key=lambda x: x[0])
-
-        palette: list[int] = paletted.getpalette()
-        start = dominant_index * 3
-        return (palette[start], palette[start + 1], palette[start + 2])
-
-    except Exception as E:
-        print(f"Error durante la cuantización de la imagen - {E}")
-        return 255, 255, 255
-
-
 def calculate_polygon(x, y, w, h, rotation):
     """
     Calcula los vértices del polígono rotado y devuelve el objeto polygon de shapely
@@ -144,14 +100,28 @@ def get_rotated_region(
     page_width: float | int,
     page_height: float | int,
     img: Image.Image,
-):
+    residual: Image.Image,
+) -> tuple[Image.Image, Image.Image, Polygon, float, bool]:
     """
     Extrae una imagen (sea rectángulo rotado o polígono arbitrario). Devuelve:
-    - crop: el recorte de imagen correspondiente.
+    - crop: el recorte de la imagen completa correspondiente.
+    - residual_crop: el recorte correspondiente del residuo.
     - polygon: el polígono que corresponde a la región.
     - rotation: rotación (en grados) de nuestra región. Si era un rectángulo, es la rotación manual, si no se calcula usando heurísticos.
     - polygon_tool: booleano que representa si la región se hizo usando la herramienta polígono (True) o no.
     """
+
+    def _crop_with_alpha(
+        source: Image.Image,
+        box: tuple[int, int, int, int],
+        mask: Image.Image | None = None,
+    ):
+        cropped = source.crop(box)
+        if mask is None:
+            return cropped
+        final_image = cropped.convert("RGBA")
+        final_image.putalpha(mask)
+        return final_image
 
     if isinstance(
         val, PolygonValue
@@ -186,11 +156,13 @@ def get_rotated_region(
             return None
 
         # recorte rectangular básico
-        raw_crop = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+        box = (crop_x1, crop_y1, crop_x2, crop_y2)
 
         # aplicar Máscara exacta del polígono
         # Creamos una imagen en blanco/negro del tamaño del recorte para usar de máscara alpha
-        mask = Image.new("L", raw_crop.size, 0)  # 0 = transparente
+        mask = Image.new(
+            "L", (crop_x2 - crop_x1, crop_y2 - crop_y1), 0
+        )  # 0 = transparente
         draw = ImageDraw.Draw(mask)
 
         # Ajustamos los puntos del polígono para que sean relativos al recorte (0,0 es la esquina del recorte)
@@ -200,10 +172,10 @@ def get_rotated_region(
         draw.polygon(local_points, fill=255)
         calculated_rotation = calculate_reading_angle(poly)
 
-        final_image = raw_crop.convert("RGBA")
-        final_image.putalpha(mask)
+        final_image = _crop_with_alpha(img, box, mask)
+        residual_crop = _crop_with_alpha(residual, box, mask)
 
-        return final_image, poly, calculated_rotation, True
+        return final_image, residual_crop, poly, calculated_rotation, True
 
     # hecho con la herramienta caja-imagen rectangular
 
@@ -235,7 +207,10 @@ def get_rotated_region(
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(page_width, x2), min(page_height, y2)
 
-        return img.crop((x1, y1, x2, y2)), poly, 0, False
+        box = (x1, y1, x2, y2)
+    final_image = img.crop(box)
+    residual_crop = residual.crop(box)
+    return final_image, residual_crop, poly, 0, False
 
     # si hay rotación, usamos los vértices calculados para definir la bounding box del recorte
     all_x = [p[0] for p in corners]
@@ -257,10 +232,10 @@ def get_rotated_region(
         return None
 
     # Recorte inicial
-    raw_crop = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+    box = (crop_x1, crop_y1, crop_x2, crop_y2)
 
     # Creación de máscara
-    mask = Image.new("L", raw_crop.size, 0)
+    mask = Image.new("L", (crop_x2 - crop_x1, crop_y2 - crop_y1), 0)
     draw = ImageDraw.Draw(mask)
 
     # Convertir coordenadas globales a locales para la máscara
@@ -268,10 +243,10 @@ def get_rotated_region(
 
     draw.polygon(local_corners, fill=255)
 
-    final_image = raw_crop.convert("RGBA")
-    final_image.putalpha(mask)
+    final_image = _crop_with_alpha(img, box, mask)
+    residual_crop = _crop_with_alpha(residual, box, mask)
 
-    return final_image, poly, rotation, False
+    return final_image, residual_crop, poly, rotation, False
 
 
 def calculate_reading_angle(polygon: Polygon) -> float:
@@ -350,9 +325,7 @@ def get_connected_components(adj: dict[str, set]):
 
 
 def compose_collage(
-    image_boxes: list["ImageBox"],
-    fill_color: tuple[int, ...],
-    min_bounding_coordinates: list[tuple[float, float]] | None = None,
+    image_boxes: list["ImageBox"], background: Image.Image, tight_layout: bool = True
 ) -> Image.Image:
     """
     Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
@@ -360,20 +333,21 @@ def compose_collage(
     topmost point of the bounding box of each line will be placed. If not provided, it takes that
     information from the image_box instances themselves.
     """
-    # calculamos la región mínima de la imagen que contiene todas las cajas
-    x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
+    # TODO: use residual instead of original crop.
+    if tight_layout:
+        # calculamos la región mínima de la imagen que contiene todas las cajas
+        x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
 
-    # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
-    x1, y1 = int(x1), int(y1)
-    x2, y2 = int(x2) + 1, int(y2) + 1
+        # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
+        x1, y1 = int(x1), int(y1)
+        x2, y2 = int(x2) + 1, int(y2) + 1
 
-    crop_width, crop_height = x2 - x1, y2 - y1
-
-    # creamos el collage
-    mode = (
-        "RGBA" if len(fill_color) == 4 else "RGB"
-    )  # si tiene transparencia, usamos RGBA
-    collage = Image.new(mode, (crop_width, crop_height), tuple(fill_color))
+        crop_width, crop_height = x2 - x1, y2 - y1
+        collage = background.crop((x1, y1, x2, y2))
+    else:
+        collage = background
+        x1 = 0
+        y1 = 0
 
     for box in image_boxes:
         box_x0, box_y0, _, _ = box.polygon.bounds

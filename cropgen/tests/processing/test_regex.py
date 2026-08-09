@@ -6,22 +6,22 @@ from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 
 from dotenv import load_dotenv
 
-from cropgen.processing.helpers.text_replacements import french_latex_characters
+from cropgen.processing.helpers.text_regularization import french_latex_characters
 from cropgen.tests.tests_helper import extract_height_width_from_task
 from cropgen.tests.object_mothers import mother_pil_image
 
-load_dotenv()
+# load_dotenv()
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.processing.AnnotatedPage import AnnotatedPage
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 
-paths = PathBundle(Path(os.getcwd()).parents[2])
-obi = OracleBucketInterface(paths)
-obi.update()
-LabelStudioInterface.fetch_and_simplify(paths)
-lsi = LabelStudioInterface(paths)
+# paths = PathBundle(Path(os.getcwd()).parents[2])
+# obi = OracleBucketInterface(paths)
+# obi.update()
+# LabelStudioInterface.fetch_and_simplify(paths)
+# lsi = LabelStudioInterface(paths)
 
 cmm_p = r"\\[a-zA-Z]+"
 wrd_p = r"\w+"
@@ -40,11 +40,14 @@ foreign_p = rf"[^{''.join([re.escape(char) for char in french_latex_characters])
 _PATTERNS = (r"[a-zA-Z]\d", r"[a-zA-Z]\w", r"\s\;", r"\s\:", r"\\rightarrow")
 
 
-def test_undesirable_matches(re_patterns: Iterable[str] = _PATTERNS) -> None:
-    assert sum(number_of_matches(re_patterns)) == 0
+def test_undesirable_matches(
+    paths: PathBundle, re_patterns: Iterable[str] = _PATTERNS
+) -> None:
+    assert sum(number_of_matches(paths, re_patterns)) == 0
 
 
 def number_of_matches(
+    paths: PathBundle,
     re_patterns: Iterable[str] | str,
     show_where: bool = True,
     filters: dict[str, list] = {},
@@ -64,7 +67,7 @@ def number_of_matches(
 
     filters = {x: list(str(y) for y in filters[x]) for x in filters.keys()}
 
-    tasks = lsi.simplified_tasks
+    tasks = paths.lsi.simplified_tasks
 
     AnnotatedPage.min_nodes_for_big_box_removal = 500
 
@@ -89,7 +92,7 @@ def number_of_matches(
             for pttrn_index, re_pattern in enumerate(re_patterns):
 
                 # Primero con unrotate = True (comprobación de los recortes individuales)
-                Ann = AnnotatedPage(ann, img, usernames_labelstudio=lsi.usernames)
+                Ann = AnnotatedPage(ann, img, usernames_labelstudio=paths.lsi.usernames)
 
                 for fragment in Ann.text_fragments.values():
                     does_match = re_pattern.search(fragment.text)
