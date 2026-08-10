@@ -121,7 +121,7 @@ class AnnotatedPage:
         self.image_boxes: dict[str, ImageBox] = (
             {  # conjunto de cajas-imagen (instancias de ImageBox)
                 img_result.id: ImageBox.from_image_result(
-                    img_result, self.task_id, img, self.stroke, unrotate
+                    img_result, self.task_id, self.stroke, unrotate
                 )
                 for img_result in img_results_list
             }
@@ -240,9 +240,9 @@ class AnnotatedPage:
                     # asociación caja-imagen -> caja-imagen (error de anotación)
                     print(f"(Task {self.task_id}) Asociación caja-imagen->caja-imagen:")
                     print("Caja 1 (source):")
-                    display(self.image_boxes[source_id].crop)
+                    display(self.image_boxes[source_id].stroke_crop)
                     print("Caja 2 (target):")
-                    display(self.image_boxes[target_id].crop)
+                    display(self.image_boxes[target_id].stroke_crop)
                     continue
                 elif (source_id in self.text_fragments) and (
                     target_id in self.text_fragments
@@ -343,7 +343,7 @@ class AnnotatedPage:
 
     def generate_collage(
         self,
-        box_id_sequence: set[str] | list[str],
+        box_id_sequence: set[str] | list[str] | Literal["all"],
         background_color: (
             tuple[int, int, int] | tuple[int, int, int, int] | None
         ) = None,
@@ -356,6 +356,10 @@ class AnnotatedPage:
         la página original los recortes, rellenando el resto con el color promedio de la imagen y recortando la imagen
         al tamaño mínimo que contiene todos los recortes colocados.
         """
+
+        if box_id_sequence == "all":
+            box_id_sequence = set(self.image_boxes.keys())
+
         if not self.process_images:
             return Image.Image()
 
@@ -383,7 +387,6 @@ class AnnotatedPage:
         return compose_collage(
             subgraph_image_boxes,
             background=background,
-            use_stroke=use_stroke,
             tight_layout=tight_layout,
         )
 
@@ -421,7 +424,7 @@ class AnnotatedPage:
 
     def cluster_reading_order(
         self,
-        box_ids: list["str"],
+        box_ids: list["str"] | Literal["all"],
     ) -> tuple[Image.Image, str, int]:
         """
         Dada una lista de IDs de cajas-imagen, devuelve:
@@ -431,7 +434,8 @@ class AnnotatedPage:
         """
 
         collage = self.generate_collage(box_ids)
-
+        if box_ids == "all":
+            box_ids = list(self.image_boxes.keys())
         fragments = [self.image_boxes[box_id].fragment for box_id in box_ids]
         # usando .starting_index estamos usando el mismo orden de lectura de image_boxes
         fragments: list[TextFragment] = sorted(
@@ -520,14 +524,13 @@ class AnnotatedPage:
 
         return -np.degrees(np.arctan2(sum_sin, sum_cos))
 
-    def represent_by_ids(
+    def draw_with_polygons(
         self,
         image_box_ids: list[str],
         represent_polygon: bool = True,
         represent_mbr: bool = False,
         polygon_color: tuple[int, int, int] = (255, 0, 0),
         mbr_color: tuple[int, int, int] = (0, 255, 0),
-        background_color: tuple[int, int, int] | None = None,
         line_width: int = 3,
         crop_to_fit: bool = False,
     ) -> Image.Image:
@@ -542,18 +545,10 @@ class AnnotatedPage:
             )
 
         selected_boxes = [self.image_boxes[box_id] for box_id in selected_ids]
-        if background_color is not None:
-            background = Image.new(
-                "RGB",
-                self.background.size,
-                background_color,
-            )
-        else:
-            background = self.background.convert("RGB")
 
         collage = compose_collage(
-            list(self.image_boxes.values()), background, crop_to_fit
-        ).convert(mode="RGB")
+            list(self.image_boxes.values()), self.background, crop_to_fit
+        )
 
         origin_x = (
             int(min(box.polygon.bounds[0] for box in self.image_boxes.values()))
@@ -565,6 +560,7 @@ class AnnotatedPage:
         )
 
         # Usamos el mismo anclaje que compose_collage para convertir coordenadas globales a locales.
+        collage = collage.convert("RGB")
 
         draw = ImageDraw.Draw(collage)
 

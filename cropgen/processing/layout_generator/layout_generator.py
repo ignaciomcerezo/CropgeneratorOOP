@@ -25,9 +25,10 @@ class LayoutGenerator:
 
         self.inter_transforms: list[InterparagraphTransform] = []
 
-    def add_intra_to_all(self, transform: IntraparagraphTransform):
-        for i in range(len(self.intra_transforms)):
-            self.intra_transforms[i].append(transform)
+    def add_intra_to_all(self, *transforms: IntraparagraphTransform):
+        for transform in transforms:
+            for i in range(len(self.intra_transforms)):
+                self.intra_transforms[i].append(transform)
 
     def add_intra_to_one(
         self, transform: IntraparagraphTransform, paragraph: Paragraph

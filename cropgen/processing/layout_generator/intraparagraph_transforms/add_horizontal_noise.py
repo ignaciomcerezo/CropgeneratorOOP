@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Callable, Self
+from typing import Literal, Callable
 
 
 from cropgen.processing.Paragraph import Paragraph
@@ -16,9 +16,9 @@ NOISES = Literal["linear", "wave", "random", "zigzag"]
 @dataclass
 class AddHorizontalNoise(IntraparagraphTransform):
     noise_type: NOISES
-    period: float = 10
+    period: float = 50
     amplitude: float = 5
-    slope: float = 5
+    slope: float = 1
     intercept: float = 0
 
     def __post_init__(self):
@@ -38,24 +38,30 @@ class AddHorizontalNoise(IntraparagraphTransform):
             )
 
     def _call_wave(self, paragraph: Paragraph) -> None:
-        x0, y0 = paragraph.image_boxes[0].centroid()
+        _, y0 = paragraph.image_boxes[0].centroid()
+
         for box in paragraph.image_boxes:
-            xi, yi = box.centroid()
-            box.polygon = translate(
-                box.polygon, xoff=self.amplitude * np.cos(2 * np.pi * 1 / self.period)
-            )
+            _, yi = box.centroid()
+
+            xoff = self.amplitude * np.cos(2 * np.pi * (yi - y0) / self.period)
+
+            box.polygon = translate(box.polygon, xoff=xoff)
 
     def _call_zigzag(self, paragraph: Paragraph) -> None:
-        for i, box in enumerate(paragraph.image_boxes):
-            box.polygon = translate(
-                box.polygon, xoff=(1 - 2 * (i % 2)) * self.amplitude
-            )
+        _, y0 = paragraph.image_boxes[0].centroid()
+
+        for box in paragraph.image_boxes:
+            _, yi = box.centroid()
+
+            phase = int((yi - y0) / self.period)
+            xoff = self.amplitude if phase % 2 == 0 else -self.amplitude
+
+            box.polygon = translate(box.polygon, xoff=xoff)
 
     def _call_random(self, paragraph: Paragraph) -> None:
         for box in paragraph.image_boxes:
-            box.polygon = translate(
-                box.polygon, xoff=(np.random.rand() * 2 - 1) * self.amplitude
-            )
+            xoff = np.random.uniform(-self.amplitude, self.amplitude)
+            box.polygon = translate(box.polygon, xoff=xoff)
 
     def __call__(self, paragraph: Paragraph) -> None:
         self.type2map[self.noise_type](paragraph)

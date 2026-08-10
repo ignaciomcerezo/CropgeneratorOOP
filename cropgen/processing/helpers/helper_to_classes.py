@@ -99,12 +99,10 @@ def get_rotated_region(
     val: PolygonValue | RectangleValue,
     page_width: float | int,
     page_height: float | int,
-    img: Image.Image,
     residual: Image.Image,
-) -> tuple[Image.Image, Image.Image, Polygon, float, bool]:
+) -> tuple[Image.Image, Polygon, float, bool]:
     """
     Extrae una imagen (sea rectángulo rotado o polígono arbitrario). Devuelve:
-    - crop: el recorte de la imagen completa correspondiente.
     - residual_crop: el recorte correspondiente del residuo.
     - polygon: el polígono que corresponde a la región.
     - rotation: rotación (en grados) de nuestra región. Si era un rectángulo, es la rotación manual, si no se calcula usando heurísticos.
@@ -172,10 +170,9 @@ def get_rotated_region(
         draw.polygon(local_points, fill=255)
         calculated_rotation = calculate_reading_angle(poly)
 
-        final_image = _crop_with_alpha(img, box, mask)
         residual_crop = _crop_with_alpha(residual, box, mask)
 
-        return final_image, residual_crop, poly, calculated_rotation, True
+        return residual_crop, poly, calculated_rotation, True
 
     # hecho con la herramienta caja-imagen rectangular
 
@@ -206,9 +203,8 @@ def get_rotated_region(
 
         box = (x1, y1, x2, y2)
 
-        final_image = img.crop(box)
         residual_crop = residual.crop(box)
-        return final_image, residual_crop, poly, 0, False
+        return residual_crop, poly, 0, False
 
     # si hay rotación, usamos los vértices calculados para definir la bounding box del recorte
     all_x = [p[0] for p in corners]
@@ -239,10 +235,9 @@ def get_rotated_region(
 
     draw.polygon(local_corners, fill=255)
 
-    final_image = _crop_with_alpha(img, box, mask)
     residual_crop = _crop_with_alpha(residual, box, mask)
 
-    return final_image, residual_crop, poly, rotation, False
+    return residual_crop, poly, rotation, False
 
 
 def calculate_reading_angle(polygon: Polygon) -> float:
@@ -324,7 +319,6 @@ def compose_collage(
     image_boxes: list["ImageBox"],
     background: Image.Image,
     tight_layout: bool = True,
-    use_stroke: bool = True,
 ) -> Image.Image:
     """
     Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
@@ -348,8 +342,7 @@ def compose_collage(
         x1 = 0
         y1 = 0
 
-    if use_stroke:
-        overlay: np.ndarray = np.full(np.asarray(collage).shape, 0)
+    overlay: np.ndarray = np.full(np.asarray(collage).shape, 0)
 
     for box in image_boxes:
         box_x0, box_y0, _, _ = box.polygon.bounds
@@ -357,23 +350,24 @@ def compose_collage(
         # calculamos la posición relativa al nuevo lienzo
         paste_x, paste_y = int(box_x0 - x1), int(box_y0 - y1)
 
-        crop = box.stroke_crop if use_stroke else box.crop
-        mask = box.crop if box.crop.mode == "RGBA" else None
+        stroke_rgba = np.asarray(box.stroke_crop.convert("RGBA"))
 
-        if use_stroke:
-            overlay[
-                paste_y : paste_y + crop.height, paste_x : paste_x + crop.width
-            ] += np.array(crop.convert("L"), dtype=np.uint8)
-        else:
-            collage.paste(crop, box=(paste_x, paste_y), mask=mask)
+        stroke = stroke_rgba[..., 0]
+        alpha = stroke_rgba[..., 3]
 
-    if use_stroke:
-        # difference instead of addition as our strokes are reversed in intensity
-        collage = Image.fromarray(
-            np.clip(np.asarray(collage, dtype=np.float32) - overlay, 0, 255).astype(
-                np.uint8
-            )
+        masked_stroke = stroke * (alpha / 255.0)
+
+        overlay[
+            paste_y : paste_y + box.stroke_crop.height,
+            paste_x : paste_x + box.stroke_crop.width,
+        ] += masked_stroke.astype(np.uint8)
+
+    # difference instead of addition as our strokes are reversed in intensity
+    collage = Image.fromarray(
+        np.clip(np.asarray(collage, dtype=np.float32) - overlay, 0, 255).astype(
+            np.uint8
         )
+    )
 
     return collage
 

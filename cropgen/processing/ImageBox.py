@@ -28,7 +28,7 @@ class ImageBox:
     """
 
     id: str
-    crop: Image.Image
+    # crop: Image.Image
     stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
@@ -93,24 +93,32 @@ class ImageBox:
         """Coordenada x menor del polígono asociado."""
         return self.polygon.bounds[0]
 
+    @property
+    def right(self):
+        """Coordenada x mayor del polígono asociado."""
+        return self.polygon.bounds[2]
+
+    @property
+    def bot(self):
+        """Coordenada y mayor del polígono asociado."""
+        return self.polygon.bounds[3]
+
     @staticmethod
     def from_image_result(
         simplified_result_item: RectangleResult | PolygonResult,
         task_id: int,
-        image: Image.Image,
         stroke: Image.Image,
         unrotate: bool = False,
     ) -> "ImageBox":
         imgbox_id = simplified_result_item.id
 
-        crop, residual_crop, polygon, rotation, true_rectangle, unrotated = (
-            ImageBox._rotatedregion(image, stroke, simplified_result_item, unrotate)
+        residual_crop, polygon, rotation, true_rectangle, unrotated = (
+            ImageBox._rotatedregion(stroke, simplified_result_item, unrotate)
         )
 
         return ImageBox(
             id=imgbox_id,
             task_id=task_id,
-            crop=crop,
             stroke_crop=residual_crop,
             polygon=polygon,
             rotation=rotation,
@@ -120,11 +128,10 @@ class ImageBox:
 
     @staticmethod
     def _rotatedregion(
-        img: Image.Image,
         residual: Image.Image,
         simplified_result_item: RectangleResult | PolygonResult,
         unrotate=False,
-    ) -> tuple[Image.Image, Image.Image, Polygon, float, bool, bool]:
+    ) -> tuple[Image.Image, Polygon, float, bool, bool]:
         """
         Genera parte de la información necesaria para instanciar ImageBox a partir de la información en una tarea y
         su imagen. Devuelve, en orden:
@@ -143,16 +150,15 @@ class ImageBox:
         val = simplified_result_item.value
 
         # Obtenemos el recorte y el polígono original (en coordenadas globales)
-        crop, residual_crop, original_poly, rotation, polygonic = get_rotated_region(
+        residual_crop, original_poly, rotation, polygonic = get_rotated_region(
             val,
             width,
             height,
-            img,
             residual,
         )
 
         if not unrotate or not rotation:
-            return crop, residual_crop, original_poly, rotation, not polygonic, False
+            return residual_crop, original_poly, rotation, not polygonic, False
         else:
             # Si des-rotamos, la bounding box del polígono original (rotado) suele ser
             # más grande que la imagen enderezada final, generando espacios en blanco en el collage.
@@ -160,9 +166,8 @@ class ImageBox:
 
             # Generamos primero la imagen final para obtener sus dimensiones reales (w, h)
             # Esto elimina las zonas transparentes sobrantes tras la rotación.
-            final_crop = unrotate_image(crop, rotation)
             final_residual_crop = unrotate_image(residual_crop, rotation)
-            cw, ch = final_crop.size
+            cw, ch = final_residual_crop.size
 
             # calculamos el punto de anclado basándonos en la geometría original.
             # Usamos el mínimo rectángulo rotado para hallar la verdadera esquina
@@ -180,7 +185,6 @@ class ImageBox:
             new_poly = Polygon(boxshape(pivot_x, pivot_y, pivot_x + cw, pivot_y + ch))
 
             return (
-                final_crop,
                 final_residual_crop,
                 new_poly,
                 rotation,

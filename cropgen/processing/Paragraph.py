@@ -24,6 +24,8 @@ class Paragraph:
         "avg_rotation",
         "top",
         "left",
+        "right",
+        "bot",
         "image_boxes_ids",
         "text_fragments_ids",
         "task_id",
@@ -79,41 +81,8 @@ class Paragraph:
     def __gt__(self, other: "Paragraph"):
         return (self.top, self.left) > (other.top, other.left)
 
-    def collage(
-        self,
-        fill_color: tuple[int, int, int] | tuple[int, int, int, int] = (255, 0, 255),
-    ):
-        return compose_collage(self.image_boxes, fill_color)
-
     def transcription(self, separator: str = " "):
         return separator.join([fragment.text for fragment in self.text_fragments])
-
-    def cluster_reading_order(
-        self,
-        unrotate: bool = False,
-        fill_color: tuple[int, int, int] | tuple[int, int, int, int] | None = None,
-    ):
-        fill_color: tuple[int, int, int] | tuple[int, int, int, int] = (
-            tuple(fill_color) if fill_color is not None else (255, 0, 255)
-        )
-
-        if not unrotate:
-            collage = compose_collage(self.image_boxes, (255, 0, 255))
-        else:
-            transp_collage = compose_collage(
-                self.image_boxes, tuple(list(fill_color) + [0])
-            )
-
-            unrotated = unrotate_image(transp_collage, -self.avg_rotation)
-
-            collage = Image.new("RGB", unrotated.size, fill_color)
-            collage.paste(unrotated, (0, 0), mask=unrotated)
-
-        return (
-            collage,
-            " ".join([fragment.text for fragment in self.text_fragments]),
-            self.text_fragments[0].starting_index,
-        )
 
     def __len__(self):
         return len(self.image_boxes_ids)
@@ -189,6 +158,8 @@ class Paragraph:
 
         self.top: float = min([box.top for box in self.image_boxes])
         self.left: float = min([box.left for box in self.image_boxes])
+        self.bot = max([box.bot for box in self.image_boxes])
+        self.right = max([box.right for box in self.image_boxes])
 
     def _subgraph_is_Pk(self) -> bool:
         return self.subgraph is not None and is_path_graph(self.subgraph)
@@ -220,9 +191,9 @@ class Paragraph:
             self.image_boxes = sorted(
                 self.image_boxes,
                 key=lambda box: (
-                    box.corrected_centroid[1],
-                    box.corrected_centroid[0],
-                ),  # ty:ignore[not-subscriptable]
+                    box.corrected_centroid[1],  # ty: ignore[not-subscriptable]
+                    box.corrected_centroid[0],  # ty: ignore[not-subscriptable]
+                ),
             )
             return self.image_boxes
 
@@ -239,9 +210,9 @@ class Paragraph:
         top_box = min(
             terminal_vertices,
             key=lambda box: (
-                box.corrected_centroid[1],
-                box.corrected_centroid[0],
-            ),  # ty:ignore[not-subscriptable]
+                box.corrected_centroid[1],  # ty: ignore[not-subscriptable]
+                box.corrected_centroid[0],  # ty: ignore[not-subscriptable]
+            ),
         )
 
         boxes_by_id = {box.id: box for box in self.image_boxes}
