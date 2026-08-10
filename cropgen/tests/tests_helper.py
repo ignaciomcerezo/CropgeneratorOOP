@@ -1,3 +1,4 @@
+from debugpy.launcher.debuggee import process
 from PIL import Image
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
@@ -17,8 +18,7 @@ def load_ann(
     paths: PathBundle,
     task_id: int,
     annotation_number_in_task: int = 0,
-    lsi: LabelStudioInterface | None = None,
-    reload_lsi=False,
+    process_images: bool = False,
     fake_image: bool = False,
     unrotate: bool = False,
 ) -> AnnotatedPage:
@@ -27,12 +27,10 @@ def load_ann(
     de la clase AnnotatedPage
     """
 
-    if reload_lsi:
-        LabelStudioInterface.fetch_and_simplify(paths)
-        lsi: LabelStudioInterface = LabelStudioInterface(paths)
-    else:
+    lsi = paths.lsi
 
-        lsi: LabelStudioInterface = lsi if lsi else LabelStudioInterface(paths)
+    if lsi is None:
+        raise ValueError("The PathBundle instance passed has no .lsi attribute set.")
 
     simplified_ls_ann = lsi[task_id][annotation_number_in_task]
 
@@ -51,6 +49,7 @@ def load_ann(
         img=img,
         unrotate=unrotate,
         usernames_labelstudio=lsi.usernames,
+        process_images=process_images,
     )
 
 
@@ -67,7 +66,8 @@ def extract_height_width_from_task(
             result, ImageBaseResult
         ):
             break
-    else:
+
+    if not isinstance(result, ImageBaseResult):
         raise ValueError(f"No es ha encontrado ningún resultado en la tarea {task}.")
 
     retrieved_width = result.original_width

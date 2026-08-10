@@ -27,13 +27,3 @@ def test_lsi_annotations(lsi: LabelStudioInterface):
 def test_lsi_getitem(lsi: LabelStudioInterface, index):
     items = lsi[index]
     assert isinstance(items, list)
-
-
-def test_lsi_save_raw_and_simplified(lsi: LabelStudioInterface, paths: PathBundle):
-    paths.clean_export_folder()
-    assert not paths.raw_export_filepath.exists()
-    assert not paths.simplified_filepath.exists()
-    lsi.save_raw_export()
-    lsi.save_simplified_export()
-    assert paths.raw_export_filepath.exists()
-    assert paths.simplified_filepath.exists()

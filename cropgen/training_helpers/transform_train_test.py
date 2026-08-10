@@ -1,4 +1,3 @@
-import torchvision.transforms as tvt  # ty:ignore[unresolved-import]
 from PIL.Image import Image
 import numpy as np
 from typing import Callable, Literal
@@ -54,144 +53,151 @@ def transform_test(batch, max_dim: int = 1024):
     return batch
 
 
-def transform_train(
-    batch,
-    augment: bool,
-    straighten: bool,
-    use_complex_rotation_interval: bool,
-    maxdist: float,
-    global_resize_scale: float,
-    shift_prop: float,
-    max_dim: int | float,
-    context_probability: float,
-    max_escala: float,
-    instruction_text: str,
-    min_rot: float,
-    max_rot: float,
-    distorsion_scale: float,
-    context_mode: Literal["never", "always", "probabilistic"],
-    min_context: int,
-    max_context: int,
-    randomize_context_length: bool,
-) -> dict[str, list]:
-    """
-    Recibe un batch de muestras durante el entrenamiento o evaluación.
-    Aplica transformaciones de imagen y le da formato a los datos
-    en base al modo de contexto configurado.
-    """
-    formatted_messages = []
+try:
+    import torchvision.transforms as tvt
 
-    for i in range(len(batch["image"])):
-        image: Image = batch["image"][i]
-        text: str = batch["text"][i]
-        avg_col_tuple: tuple[int, int, int] = tuple(batch["avg_color"][i])
-        average_rotation: float = batch["avg_rotation"][i]
-        context: str = batch.get("context", [""] * len(batch["image"]))[i]
+    def transform_train(
+        batch,
+        augment: bool,
+        straighten: bool,
+        use_complex_rotation_interval: bool,
+        maxdist: float,
+        global_resize_scale: float,
+        shift_prop: float,
+        max_dim: int | float,
+        context_probability: float,
+        max_escala: float,
+        instruction_text: str,
+        min_rot: float,
+        max_rot: float,
+        distorsion_scale: float,
+        context_mode: Literal["never", "always", "probabilistic"],
+        min_context: int,
+        max_context: int,
+        randomize_context_length: bool,
+    ) -> dict[str, list]:
+        """
+        Recibe un batch de muestras durante el entrenamiento o evaluación.
+        Aplica transformaciones de imagen y le da formato a los datos
+        en base al modo de contexto configurado.
+        """
 
-        image = image.convert("RGB")
+        formatted_messages = []
 
-        if global_resize_scale != 1:
+        for i in range(len(batch["image"])):
+            image: Image = batch["image"][i]
+            text: str = batch["text"][i]
+            avg_col_tuple: tuple[int, int, int] = tuple(batch["avg_color"][i])
+            average_rotation: float = batch["avg_rotation"][i]
+            context: str = batch.get("context", [""] * len(batch["image"]))[i]
+
+            image = image.convert("RGB")
+
+            if global_resize_scale != 1:
+                w, h = image.size
+                image = image.resize(
+                    (int(w * global_resize_scale), int(h * global_resize_scale))
+                )
+
+            if straighten:
+                image = image.rotate(
+                    -average_rotation, expand=True, fillcolor=avg_col_tuple
+                )
+                average_rotation = 0
+
+            if augment:
+                if use_complex_rotation_interval:
+                    rotation_interval = _choose_rotation_interval_complex(
+                        average_rotation=average_rotation,
+                        min_added_rotation=min_rot,
+                        max_added_rotation=max_rot,
+                    )
+                else:
+                    rotation_interval = _choose_rotation_interval_simple(
+                        added_rotation=min_rot
+                    )
+
+                current_transforms = tvt.Compose(
+                    [
+                        tvt.RandomRotation(
+                            degrees=rotation_interval,
+                            expand=True,
+                            fill=avg_col_tuple,
+                        ),
+                        tvt.RandomAffine(
+                            degrees=0,
+                            translate=(shift_prop, shift_prop),
+                            scale=(1 - max_escala, 1 + max_escala),
+                            shear=maxdist,
+                            fill=avg_col_tuple,
+                        ),
+                        tvt.RandomPerspective(
+                            distortion_scale=distorsion_scale,
+                            p=0.3,
+                            fill=avg_col_tuple,
+                        ),
+                    ]
+                )
+                image = current_transforms(image)
+
             w, h = image.size
-            image = image.resize(
-                (int(w * global_resize_scale), int(h * global_resize_scale))
-            )
+            if w > max_dim or h > max_dim:
+                scale_down = max_dim / max(w, h)
+                image = image.resize((int(w * scale_down), int(h * scale_down)))
 
-        if straighten:
-            image = image.rotate(
-                -average_rotation, expand=True, fillcolor=avg_col_tuple
-            )
-            average_rotation = 0
+            is_context_valid = (context is not None) and (min_context <= len(context))
 
-        if augment:
-            if use_complex_rotation_interval:
-                rotation_interval = _choose_rotation_interval_complex(
-                    average_rotation=average_rotation,
-                    min_added_rotation=min_rot,
-                    max_added_rotation=max_rot,
-                )
+            if randomize_context_length:
+                # aleatorizamos la cantidad de contexto añadida
+                context_length = np.random.randint(min_context, max_context)
+                context = context[-context_length:]
             else:
-                rotation_interval = _choose_rotation_interval_simple(
-                    added_rotation=min_rot
-                )
+                context = context[-max_context:]
 
-            current_transforms = tvt.Compose(
-                [
-                    tvt.RandomRotation(
-                        degrees=rotation_interval,
-                        expand=True,
-                        fill=avg_col_tuple,
-                    ),
-                    tvt.RandomAffine(
-                        degrees=0,
-                        translate=(shift_prop, shift_prop),
-                        scale=(1 - max_escala, 1 + max_escala),
-                        shear=maxdist,
-                        fill=avg_col_tuple,
-                    ),
-                    tvt.RandomPerspective(
-                        distortion_scale=distorsion_scale,
-                        p=0.3,
-                        fill=avg_col_tuple,
-                    ),
-                ]
-            )
-            image = current_transforms(image)
+            context = context.replace("\n", " ")
+            text = text.replace("\n", " ")
 
-        w, h = image.size
-        if w > max_dim or h > max_dim:
-            scale_down = max_dim / max(w, h)
-            image = image.resize((int(w * scale_down), int(h * scale_down)))
+            no_context_conv = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": instruction_text},
+                        {"type": "image", "image": image},
+                    ],
+                },
+                {"role": "assistant", "content": [{"type": "text", "text": text}]},
+            ]
 
-        is_context_valid = (context is not None) and (min_context <= len(context))
+            with_context_conv = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": instruction_text},
+                        {"type": "image", "image": image},
+                        {
+                            "type": "text",
+                            "text": f"For reference, here is the previous text: {context}",
+                        },
+                    ],
+                },
+                {"role": "assistant", "content": [{"type": "text", "text": text}]},
+            ]
 
-        if randomize_context_length:
-            # aleatorizamos la cantidad de contexto añadida
-            context_length = np.random.randint(min_context, max_context)
-            context = context[-context_length:]
-        else:
-            context = context[-max_context:]
-
-        context = context.replace("\n", " ")
-        text = text.replace("\n", " ")
-
-        no_context_conv = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": instruction_text},
-                    {"type": "image", "image": image},
-                ],
-            },
-            {"role": "assistant", "content": [{"type": "text", "text": text}]},
-        ]
-
-        with_context_conv = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": instruction_text},
-                    {"type": "image", "image": image},
-                    {
-                        "type": "text",
-                        "text": f"For reference, here is the previous text: {context}",
-                    },
-                ],
-            },
-            {"role": "assistant", "content": [{"type": "text", "text": text}]},
-        ]
-
-        if context_mode == "never":
-            formatted_messages.append(no_context_conv)
-
-        elif context_mode == "always":
-            formatted_messages.append(
-                with_context_conv if is_context_valid else no_context_conv
-            )
-
-        elif context_mode == "probabilistic":
-            if is_context_valid and np.random.rand() < context_probability:
-                formatted_messages.append(with_context_conv)
-            else:
+            if context_mode == "never":
                 formatted_messages.append(no_context_conv)
 
-    return {"messages": formatted_messages}
+            elif context_mode == "always":
+                formatted_messages.append(
+                    with_context_conv if is_context_valid else no_context_conv
+                )
+
+            elif context_mode == "probabilistic":
+                if is_context_valid and np.random.rand() < context_probability:
+                    formatted_messages.append(with_context_conv)
+                else:
+                    formatted_messages.append(no_context_conv)
+
+        return {"messages": formatted_messages}
+
+except:
+    pass

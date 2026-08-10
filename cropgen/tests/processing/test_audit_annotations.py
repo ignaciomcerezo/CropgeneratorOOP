@@ -1,3 +1,4 @@
+from debugpy.launcher.debuggee import process
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 import re
 
@@ -17,7 +18,7 @@ from cropgen.tests.tests_helper import extract_height_width_from_task
 def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
     assert isinstance(box, ImageBox)
     assert isinstance(box.fragment, TextFragment)
-    assert isinstance(box.crop, Image.Image)
+    assert isinstance(box.stroke_crop, Image.Image)
     assert isinstance(box.task_id, int)
     assert isinstance(
         box.polygon, (Polygon, MultiPolygon)
@@ -31,7 +32,7 @@ def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
         assert len(set(box.polygon.exterior.coords)) == 4
 
     if paragraph != -1:
-        paragraph: Paragraph
+        assert isinstance(paragraph, Paragraph)
         assert box.fragment.id in paragraph.text_fragments_ids
 
 
@@ -47,7 +48,7 @@ def _fragment_checks(
     assert isinstance(fragment.starting_index, int)
 
     if paragraph != -1:
-        paragraph: Paragraph
+        assert isinstance(paragraph, Paragraph)
         assert fragment.box.id in paragraph.image_boxes_ids
 
 
@@ -62,21 +63,24 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
 
 
 @pytest.mark.audit
-def test_audit_annotations(paths, ls_url, ls_token, lsi: LabelStudioInterface):
+def test_audit_annotations(paths):
 
-    for task in tqdm(lsi.simplified_tasks, desc="test_audit_annotations"):
+    for task in tqdm(paths.lsi.simplified_tasks, desc="test_audit_annotations"):
         width, height = extract_height_width_from_task(task)
 
         image = mother_pil_image(width=width, height=height, color=(255, 255, 255))
 
         ann = AnnotatedPage.combine_annotations(
             *[
-                AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
+                AnnotatedPage(
+                    ann,
+                    image,
+                    usernames_labelstudio=paths.lsi.usernames,
+                    process_images=False,
+                )
                 for ann in task.annotations
             ]
         )
-
-        ann.assert_pairing()  # esto ya se llama dentro del AnnotatedPage.__init__(), pero por asegurar
 
         seen_boxes = set()
         seen_fragments = set()
@@ -89,12 +93,18 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi: LabelStudioInterface):
         # hasta aquí (por ahora)
 
         for paragraph in ann.paragraphs:
+            graph = set(ann.graph.keys())
+
+            assert isinstance(paragraph, Paragraph)
             assert paragraph._subgraph_is_Pk()
+
+            for order in range(len(paragraph)):
+                for subsubgraph_keys in paragraph.generate_conntected_subgraphs(order):
+                    assert set(subsubgraph_keys).issubset(graph)
 
             seen_boxes_par = set()
             seen_fragments_par = set()
 
-            assert isinstance(paragraph, Paragraph)
             assert len(paragraph.image_boxes_ids) != 0
             assert len(paragraph.image_boxes_ids) == len(paragraph.text_fragments_ids)
             assert len(paragraph.image_boxes) == len(paragraph.text_fragments)
@@ -153,7 +163,7 @@ def test_audit_annotations(paths, ls_url, ls_token, lsi: LabelStudioInterface):
             _, transcription_1, sindex_1 = ann.cluster_reading_order(
                 paragraph.image_boxes_ids
             )
-            transcription_2 = paragraph.transcription()
+            transcription_2 = paragraph.transcription(ann.line_separator)
 
             assert transcription_1 == transcription_2
 

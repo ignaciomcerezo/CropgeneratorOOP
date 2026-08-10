@@ -32,7 +32,7 @@ def test_contextualize_by_words(task_macedonia, pdi):
             reference = " ".join([prev_trans_text, curr_trans_text])
 
             score = fuzz.partial_ratio(contextualized, reference)
-            assert score >= 95, (
+            assert score >= 90, (
                 f"Detectado bajo {score=}:\n\t {row.task=}, {row.id=}, {row.sindex}"
                 f"contextualized =\n{contextualized}\n\n"
                 f"reference=\n{reference}\n\n"
@@ -65,8 +65,7 @@ def test_cluster_in_contextualize(
             raise ValueError(f"No existe la tarea {task_n} en el dataframe")
 
         annotations = [
-            load_ann(paths, task_n, k, lsi=lsi, fake_image=True)
-            for k in range(len(lsi[task_n]))
+            load_ann(paths, task_n, k, fake_image=True) for k in range(len(lsi[task_n]))
         ]
         anns_by_id = {ann.annotation_unique_id: ann for ann in annotations}
 

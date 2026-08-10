@@ -25,10 +25,9 @@ class OracleBucketInterface:
     """
     Interfaz de descarga con el bucket de Oracle. Utiliza rutas proporcionadas por un PathBundle.
     """
+
     def __init__(
-        self,
-        paths: PathBundle,
-        bucket_url: str | None = None,
+        self, paths: PathBundle, bucket_url: str | None = None, online: bool = True
     ) -> None:
         if not bucket_url:
             if "BUCKET_URL" in os.environ:
@@ -41,6 +40,7 @@ class OracleBucketInterface:
         self.paths = paths
         self.bucket_url = self._normalize_bucket_url(bucket_url)
         self._timeout = 15
+        self.online = online
 
         self.images_url_path = self.bucket_url
         self.transcripciones_url_path = self.bucket_url + urllib.parse.quote(
@@ -49,9 +49,7 @@ class OracleBucketInterface:
 
     @classmethod
     def from_env(
-        cls,
-        paths: PathBundle,
-        env_var: str = "BUCKET_URL",
+        cls, paths: PathBundle, env_var: str = "BUCKET_URL", online: bool = True
     ) -> "OracleBucketInterface":
         # cargamos nuestro .env si python-dotenv esta disponible; si no, usa os.getenv
         try:
@@ -64,7 +62,7 @@ class OracleBucketInterface:
         bucket_url = os.getenv(env_var)
         if not bucket_url:
             raise ValueError(f"No se encontro {env_var} en variables de entorno/.env")
-        return cls(paths=paths, bucket_url=bucket_url)
+        return cls(paths=paths, bucket_url=bucket_url, online=online)
 
     @staticmethod
     def _normalize_bucket_url(url: str) -> str:
@@ -177,6 +175,9 @@ class OracleBucketInterface:
         return [pair.page_name for pair in self._compute_updates()]
 
     def update(self) -> list[str]:
+
+        if not self.online:
+            return []
 
         pending = self._compute_updates()
         if not pending:

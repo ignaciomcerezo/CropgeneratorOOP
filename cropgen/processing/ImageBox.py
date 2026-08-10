@@ -12,8 +12,8 @@ from cropgen.processing.helpers.PairingErrors import (
 )
 from cropgen.processing.helpers.helper_to_classes import (
     get_rotated_region,
-    unrotate_image,
 )
+from cropgen.processing.helpers.image_processing import unrotate_image
 from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 
 if TYPE_CHECKING:
@@ -24,11 +24,12 @@ if TYPE_CHECKING:
 class ImageBox:
     """
     Contenedor de la información sobre las selecciones en la imagen hechas durante las anotaciones. Contiene información
-    sobre el polígono dibujado, la rotación del polígono
+    sobre el polígono dibujado, la rotación del polígono, el fragmentos asociado, el recorte correspondiente.
     """
 
     id: str
-    crop: Image.Image
+    # crop: Image.Image
+    stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
     unrotated: bool
@@ -92,23 +93,33 @@ class ImageBox:
         """Coordenada x menor del polígono asociado."""
         return self.polygon.bounds[0]
 
+    @property
+    def right(self):
+        """Coordenada x mayor del polígono asociado."""
+        return self.polygon.bounds[2]
+
+    @property
+    def bot(self):
+        """Coordenada y mayor del polígono asociado."""
+        return self.polygon.bounds[3]
+
     @staticmethod
     def from_image_result(
         simplified_result_item: RectangleResult | PolygonResult,
         task_id: int,
-        img: Image.Image,
+        stroke: Image.Image,
         unrotate: bool = False,
     ) -> "ImageBox":
         imgbox_id = simplified_result_item.id
 
-        crop, polygon, rotation, true_rectangle, unrotated = ImageBox._rotatedregion(
-            img, simplified_result_item, unrotate
+        residual_crop, polygon, rotation, true_rectangle, unrotated = (
+            ImageBox._rotatedregion(stroke, simplified_result_item, unrotate)
         )
 
         return ImageBox(
             id=imgbox_id,
             task_id=task_id,
-            crop=crop,
+            stroke_crop=residual_crop,
             polygon=polygon,
             rotation=rotation,
             true_rectangle=true_rectangle,
@@ -117,7 +128,7 @@ class ImageBox:
 
     @staticmethod
     def _rotatedregion(
-        img: Image.Image,
+        residual: Image.Image,
         simplified_result_item: RectangleResult | PolygonResult,
         unrotate=False,
     ) -> tuple[Image.Image, Polygon, float, bool, bool]:
@@ -139,12 +150,15 @@ class ImageBox:
         val = simplified_result_item.value
 
         # Obtenemos el recorte y el polígono original (en coordenadas globales)
-        crop, original_poly, rotation, polygonic = get_rotated_region(
-            val, width, height, img
+        residual_crop, original_poly, rotation, polygonic = get_rotated_region(
+            val,
+            width,
+            height,
+            residual,
         )
 
         if not unrotate or not rotation:
-            return crop, original_poly, rotation, not polygonic, False
+            return residual_crop, original_poly, rotation, not polygonic, False
         else:
             # Si des-rotamos, la bounding box del polígono original (rotado) suele ser
             # más grande que la imagen enderezada final, generando espacios en blanco en el collage.
@@ -152,8 +166,8 @@ class ImageBox:
 
             # Generamos primero la imagen final para obtener sus dimensiones reales (w, h)
             # Esto elimina las zonas transparentes sobrantes tras la rotación.
-            final_crop = unrotate_image(crop, rotation)
-            cw, ch = final_crop.size
+            final_residual_crop = unrotate_image(residual_crop, rotation)
+            cw, ch = final_residual_crop.size
 
             # calculamos el punto de anclado basándonos en la geometría original.
             # Usamos el mínimo rectángulo rotado para hallar la verdadera esquina
@@ -170,4 +184,10 @@ class ImageBox:
             # esto nos asegura consistencia al pegar en el lienzo del collage.
             new_poly = Polygon(boxshape(pivot_x, pivot_y, pivot_x + cw, pivot_y + ch))
 
-            return final_crop, new_poly, rotation, not polygonic, True
+            return (
+                final_residual_crop,
+                new_poly,
+                rotation,
+                not polygonic,
+                True,
+            )

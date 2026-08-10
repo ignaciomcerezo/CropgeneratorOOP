@@ -16,9 +16,12 @@ from cropgen.processing.helpers.PairingErrors import (
 )
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
-    get_dominant_color,
     compose_collage,
     subdictionary,
+)
+from cropgen.processing.helpers.image_processing import get_dominant_color
+from cropgen.processing.helpers.text_background_separator import (
+    separate_background_and_stroke,
 )
 from cropgen.processing.helpers.text_regularization import (
     regularize_text,
@@ -54,9 +57,10 @@ class AnnotatedPage:
     warn_process_images = True
     min_nodes_for_big_box_removal = min_nodes_for_big_box_removal
     __slots__ = (
-        "background_color",
         "image_boxes",
         "text_fragments",
+        "background",
+        "stroke",
         "task_id",
         "__graph",
         "last_update_time",
@@ -77,6 +81,7 @@ class AnnotatedPage:
         line_separtor: str = "\n",
         process_images: bool = True,
     ):
+        img = img.convert("L")
 
         if unrotate and AnnotatedPage.warn_unrotate:
             print(
@@ -104,7 +109,11 @@ class AnnotatedPage:
         self.task_id = int(ann.task)
         results: list[SimplifiedResultItem] = ann.result
 
-        self.background_color = get_dominant_color(img)
+        if not process_images:
+            # blanks
+            self.background = self.stroke = img
+        else:
+            self.background, self.stroke = separate_background_and_stroke(img)
 
         img_results_list: list[RectangleResult | PolygonResult] = [
             r for r in results if isinstance(r, (RectangleResult, PolygonResult))
@@ -117,7 +126,7 @@ class AnnotatedPage:
         self.image_boxes: dict[str, ImageBox] = (
             {  # conjunto de cajas-imagen (instancias de ImageBox)
                 img_result.id: ImageBox.from_image_result(
-                    img_result, self.task_id, img, unrotate
+                    img_result, self.task_id, self.stroke, unrotate
                 )
                 for img_result in img_results_list
             }
@@ -236,9 +245,9 @@ class AnnotatedPage:
                     # asociación caja-imagen -> caja-imagen (error de anotación)
                     print(f"(Task {self.task_id}) Asociación caja-imagen->caja-imagen:")
                     print("Caja 1 (source):")
-                    display(self.image_boxes[source_id].crop)
+                    display(self.image_boxes[source_id].stroke_crop)
                     print("Caja 2 (target):")
-                    display(self.image_boxes[target_id].crop)
+                    display(self.image_boxes[target_id].stroke_crop)
                     continue
                 elif (source_id in self.text_fragments) and (
                     target_id in self.text_fragments
@@ -339,16 +348,18 @@ class AnnotatedPage:
 
     def generate_collage(
         self,
-        box_id_sequence: set[str] | list[str],
-        background_color: (
-            tuple[int, int, int] | tuple[int, int, int, int] | None
-        ) = None,
+        box_id_sequence: set[str] | list[str] | Literal["all"],
+        tight_layout: bool = True,
     ) -> Image.Image:
         """
         Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo), colocando en sus posiciones en
         la página original los recortes, rellenando el resto con el color promedio de la imagen y recortando la imagen
         al tamaño mínimo que contiene todos los recortes colocados.
         """
+
+        if box_id_sequence == "all":
+            box_id_sequence = set(self.image_boxes.keys())
+
         if not self.process_images:
             return Image.Image()
 
@@ -359,16 +370,10 @@ class AnnotatedPage:
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]
 
-        background_color = (
-            background_color if background_color is not None else self.background_color
-        )
         return compose_collage(
             subgraph_image_boxes,
-            (
-                background_color
-                if not isinstance(background_color, tuple)
-                else self.background_color
-            ),
+            background=self.background,
+            tight_layout=tight_layout,
         )
 
     # def trim_star_nodes(
@@ -405,7 +410,7 @@ class AnnotatedPage:
 
     def cluster_reading_order(
         self,
-        box_ids: list["str"],
+        box_ids: list["str"] | Literal["all"],
     ) -> tuple[Image.Image, str, int]:
         """
         Dada una lista de IDs de cajas-imagen, devuelve:
@@ -415,7 +420,8 @@ class AnnotatedPage:
         """
 
         collage = self.generate_collage(box_ids)
-
+        if box_ids == "all":
+            box_ids = list(self.image_boxes.keys())
         fragments = [self.image_boxes[box_id].fragment for box_id in box_ids]
         # usando .starting_index estamos usando el mismo orden de lectura de image_boxes
         fragments: list[TextFragment] = sorted(
@@ -504,19 +510,15 @@ class AnnotatedPage:
 
         return -np.degrees(np.arctan2(sum_sin, sum_cos))
 
-    def represent_by_ids(
+    def draw_with_polygons(
         self,
         image_box_ids: list[str],
         represent_polygon: bool = True,
         represent_mbr: bool = False,
-        polygon_color: tuple[int, int, int] | tuple[int, int, int, int] = (255, 0, 0),
-        mbr_color: tuple[int, int, int] | tuple[int, int, int, int] = (0, 255, 0),
-        background_color: (
-            tuple[int, int, int] | tuple[int, int, int, int] | None
-        ) = None,
-        line_width: int = 2,
-        use_full_page: bool | Literal["OnlyBoxed"] = False,
-        full_page: Image.Image | None = None,
+        polygon_color: tuple[int, int, int] = (255, 0, 0),
+        mbr_color: tuple[int, int, int] = (0, 255, 0),
+        line_width: int = 3,
+        crop_to_fit: bool = False,
     ) -> Image.Image:
         """
         Genera un collage con las cajas seleccionadas y dibuja sus polígonos encima.
@@ -529,39 +531,24 @@ class AnnotatedPage:
             )
 
         selected_boxes = [self.image_boxes[box_id] for box_id in selected_ids]
-        fill_background = (
-            background_color if background_color is not None else self.background_color
+
+        collage = compose_collage(
+            list(self.image_boxes.values()), self.background, crop_to_fit
         )
 
-        if use_full_page == "OnlyBoxed":
-            background = compose_collage(
-                list(self.image_boxes.values()), fill_background
-            )
-            origin_x = int(
-                min(box.polygon.bounds[0] for box in self.image_boxes.values())
-            )
-            origin_y = int(
-                min(box.polygon.bounds[1] for box in self.image_boxes.values())
-            )
-        elif use_full_page:
-            if full_page is None:
-                raise ValueError(
-                    "Si se quiere usar la página completa como fondo, se debe pasar como argumento en full_page."
-                )
-            background = full_page.convert("RGB")
-
-            origin_x = 0
-            origin_y = 0
-
-        else:
-            # solamente la región que tiene cajas
-            background = compose_collage(selected_boxes, fill_background)
-            origin_x = int(min(box.polygon.bounds[0] for box in selected_boxes))
-            origin_y = int(min(box.polygon.bounds[1] for box in selected_boxes))
+        origin_x = (
+            int(min(box.polygon.bounds[0] for box in self.image_boxes.values()))
+            * crop_to_fit
+        )
+        origin_y = (
+            int(min(box.polygon.bounds[1] for box in self.image_boxes.values()))
+            * crop_to_fit
+        )
 
         # Usamos el mismo anclaje que compose_collage para convertir coordenadas globales a locales.
+        collage = collage.convert("RGB")
 
-        draw = ImageDraw.Draw(background)
+        draw = ImageDraw.Draw(collage)
 
         for box in selected_boxes:
             if represent_polygon:
@@ -578,14 +565,14 @@ class AnnotatedPage:
                 ]
                 draw.line(mbr_points, fill=mbr_color, width=line_width)
 
-        return background
+        return collage
 
     @classmethod
     def from_paragraphs(
         cls,
         paragraphs: list[Paragraph],
         task_id: int,
-        background_color: tuple[int, int, int],
+        background: Image.Image,
         last_update_time: str,
         completer: str,
         updater: str,
@@ -599,8 +586,8 @@ class AnnotatedPage:
         instance: AnnotatedPage = cls.__new__(cls)
 
         instance.task_id = task_id
-        instance.background_color = background_color
         instance.last_update_time = last_update_time
+        instance.background = background
         instance.completer = completer
         instance.updater = updater
         instance.annotation_unique_id = annotation_unique_id
@@ -662,11 +649,12 @@ class AnnotatedPage:
         annotation_id = int("000".join(str(ann.task_id) for ann in annotations))
         process_images = all(ann.process_images for ann in annotations)
         line_separator = annotations[0].line_separator
+        background = annotations[0].background
 
         combined_ann = AnnotatedPage.from_paragraphs(
             paragraphs=combined_paragraphs,
             task_id=annotations[0].task_id,
-            background_color=annotations[0].background_color,
+            background=background,
             last_update_time=last_update_time,
             completer=completer,
             updater=updater,
