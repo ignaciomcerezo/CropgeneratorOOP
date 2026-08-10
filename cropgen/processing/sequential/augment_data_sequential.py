@@ -132,7 +132,7 @@ def augment_data_sequential(
                     "text": transcription,
                     "page": page_number,
                     "crop_file": filename,
-                    "background_color": Ann.background_color,  # TODO: cambiar a background...
+                    # "background_color": Ann.background_color,  # TODO: cambiar a background...
                     "average_rotation": Ann.get_average_rotation(Ann.graph.keys()),
                 }
             )
@@ -164,7 +164,7 @@ def augment_data_sequential(
                         "text": transcription,
                         "page": page_number,
                         "crop_file": filename,
-                        "background_color": Ann.background_color,
+                        # "background_color": Ann.background_color,
                         "average_rotation": Ann.get_average_rotation(
                             (paragraph.subgraph.keys())
                         ),
@@ -206,7 +206,7 @@ def augment_data_sequential(
                             "text": transcripcion,
                             "page": page_number,
                             "crop_file": filename,
-                            "background_color": Ann.background_color,
+                            # "background_color": Ann.background_color,
                             "average_rotation": Ann.get_average_rotation(
                                 box_id_sequence
                             ),
@@ -229,7 +229,7 @@ def augment_data_sequential(
                 "sindex",
                 "text",
                 "crop_file",
-                "background_color",
+                # "background_color",
                 "average_rotation",
             ]  # ty:ignore[invalid-argument-type]
         )

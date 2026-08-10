@@ -1,4 +1,5 @@
 # tests/conftest.py
+from tkinter import Label
 import multiprocessing
 import os
 from pathlib import Path
@@ -43,12 +44,15 @@ def bucket_url() -> str:
 
 @pytest.fixture(scope="session")
 def lsi(paths, ls_token, ls_url) -> LabelStudioInterface:
-    return LabelStudioInterface(paths, ls_url, ls_token)
+    res = LabelStudioInterface(paths, ls_url, ls_token)
+    paths.lsi = res
+    return res
 
 
 @pytest.fixture(scope="session")
-def obi(paths, bucket_url):
+def obi(paths: PathBundle, bucket_url: str) -> OracleBucketInterface:
     obi = OracleBucketInterface(paths, bucket_url)
+    paths.obi = obi
     return obi
 
 
@@ -81,7 +85,7 @@ def two_paragraph_laloma() -> list[int]:
 
 @pytest.fixture
 def three_paragraph_laloma() -> list[int]:
-    return [355, 366, 463]
+    return [128, 132, 140, 366, 463]
 
 
 @pytest.fixture

@@ -109,7 +109,11 @@ class AnnotatedPage:
         self.task_id = int(ann.task)
         results: list[SimplifiedResultItem] = ann.result
 
-        self.background, self.stroke = separate_background_and_stroke(img)
+        if not process_images:
+            # blanks
+            self.background = self.stroke = img
+        else:
+            self.background, self.stroke = separate_background_and_stroke(img)
 
         img_results_list: list[RectangleResult | PolygonResult] = [
             r for r in results if isinstance(r, (RectangleResult, PolygonResult))
@@ -345,11 +349,6 @@ class AnnotatedPage:
     def generate_collage(
         self,
         box_id_sequence: set[str] | list[str] | Literal["all"],
-        background_color: (
-            tuple[int, int, int] | tuple[int, int, int, int] | None
-        ) = None,
-        background: Image.Image | None = None,
-        use_stroke: bool = True,
         tight_layout: bool = True,
     ) -> Image.Image:
         """
@@ -371,23 +370,9 @@ class AnnotatedPage:
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]
 
-        if (background is None) and (background_color is None):
-            background = self.background
-        if (background is None) and (background_color is not None):
-            background = Image.new(
-                "RGB" if (len(background_color) == 3) else "RGBA",
-                self.background.size,
-                background_color,
-            )
-
-        if background is None:
-            raise ValueError(
-                "The background was not properly calculated for the given collage."
-            )
-
         return compose_collage(
             subgraph_image_boxes,
-            background=background,
+            background=self.background,
             tight_layout=tight_layout,
         )
 

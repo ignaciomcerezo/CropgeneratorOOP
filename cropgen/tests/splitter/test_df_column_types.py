@@ -47,7 +47,6 @@ def test_df_column_types(paths: PathBundle):
         .apply(lambda x: isinstance(x, int) or (x == "full") or (x == "paragraph"))
         .all()
     )
-    assert pdi.df["background_color"].apply(_has_correct_background_format).all()
     assert pdi.df["average_rotation"].apply(lambda x: isinstance(x, float)).all
     assert pdi.df["context_length_chars"].apply(lambda x: isinstance(x, int)).all
     assert pdi.df["context_length_words"].apply(lambda x: isinstance(x, int)).all

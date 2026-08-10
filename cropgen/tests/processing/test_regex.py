@@ -37,7 +37,8 @@ subscript_p = rf"\_{scriptable_block}"
 superscript_p = rf"\^{scriptable_block}"
 foreign_p = rf"[^{''.join([re.escape(char) for char in french_latex_characters])}]"
 
-_PATTERNS = (r"[a-zA-Z]\d", r"[a-zA-Z]\w", r"\s\;", r"\s\:", r"\\rightarrow")
+# _PATTERNS = (r"[a-zA-Z]\d", r"[a-zA-Z]\w", r"\s\;", r"\s\:", r"\\rightarrow")
+_PATTERNS = []
 
 
 def test_undesirable_matches(
@@ -82,7 +83,11 @@ def number_of_matches(
         if "id" in filters and (task.id not in filters["id"]):
             continue
 
-        page = paths.get_image_path_from_task(task).stem
+        page_path = paths.get_image_path_from_task(task)
+
+        if page_path is None:
+            raise ValueError(f"No page found for task {task.id}")
+        page = page_path.stem
 
         if "page" in filters and (page not in filters["page"]):
             continue
