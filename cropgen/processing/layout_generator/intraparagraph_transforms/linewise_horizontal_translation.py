@@ -14,7 +14,7 @@ NOISES = Literal["linear", "wave", "random", "zigzag"]
 
 
 @dataclass
-class AddHorizontalNoise(IntraparagraphTransform):
+class LinewiseHorizontalTranslation(IntraparagraphTransform):
     noise_type: NOISES
     period: float = 50
     amplitude: float = 5

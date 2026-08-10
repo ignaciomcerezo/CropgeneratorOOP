@@ -7,7 +7,7 @@ from shapely.affinity import translate
 import numpy as np
 
 
-class AddVerticalClearance(IntraparagraphTransform):
+class VerticalClearance(IntraparagraphTransform):
     def __init__(
         self,
         relative: float | None = None,

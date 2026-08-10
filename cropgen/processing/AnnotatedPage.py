@@ -81,6 +81,7 @@ class AnnotatedPage:
         line_separtor: str = "\n",
         process_images: bool = True,
     ):
+        img = img.convert("L")
 
         if unrotate and AnnotatedPage.warn_unrotate:
             print(

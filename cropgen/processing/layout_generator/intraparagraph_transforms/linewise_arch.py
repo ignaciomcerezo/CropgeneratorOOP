@@ -10,12 +10,12 @@ from cropgen.processing.layout_generator.transforms import (
 )
 
 
-class AddLineFlex(IntraparagraphTransform):
+class LinewiseArch(IntraparagraphTransform):
     """
-    Applies a parabolic flex to all lines.
+    Applies a parabolic arch to all lines.
     """
 
-    def __init__(self, amplitude: float, segmentation_thinness: int = 200):
+    def __init__(self, *, amplitude: float, segmentation_thinness: int = 200):
         self.amplitude = amplitude
         self.segmentation_thinness = segmentation_thinness
 
