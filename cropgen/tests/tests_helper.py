@@ -66,7 +66,8 @@ def extract_height_width_from_task(
             result, ImageBaseResult
         ):
             break
-    else:
+
+    if not isinstance(result, ImageBaseResult):
         raise ValueError(f"No es ha encontrado ningún resultado en la tarea {task}.")
 
     retrieved_width = result.original_width
