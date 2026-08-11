@@ -1,11 +1,11 @@
 from PIL import Image
 from cropgen.processing.helpers.helper_to_classes import get_union_rect
-from cropgen.processing.layout_generator.interparagraph_transforms.refresh import (
+from cropgen.ocrdataset.layout_generator.interparagraph_transforms.refresh import (
     Refresh,
 )
 from cropgen.processing.Paragraph import Paragraph
 from cropgen.processing.AnnotatedPage import AnnotatedPage
-from cropgen.processing.layout_generator.transforms import (
+from cropgen.ocrdataset.layout_generator.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,
 )
@@ -40,6 +40,9 @@ class LayoutGenerator:
         self.inter_transforms.append(layout)
 
     def apply(self) -> AnnotatedPage:
+        if not self.intra_transforms and not self.inter_transforms:
+            return self.ann
+
         for p_layouts, paragraph in zip(self.intra_transforms, self.paragraphs):
             for layout in p_layouts:
                 layout(paragraph)

@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 from cropgen.shared.PathBundle import PathBundle
-from cropgen.splitter.crops_interface.PairsDataInterface import PairsDataInterface
 
 
 @pytest.fixture(scope="session")
@@ -113,15 +112,3 @@ def task_macedonia(
 @pytest.fixture(autouse=True, scope="session")
 def set_multiprocessing_start_method():
     multiprocessing.set_start_method("spawn", force=True)
-
-
-@pytest.fixture
-def pdi(paths) -> PairsDataInterface:
-    if not paths.json_filepath.exists():
-        pytest.skip("pairs.jsonl no existe")
-
-    interface = PairsDataInterface(paths)
-    if interface.df.empty:
-        pytest.fail("pairs.jsonl existe pero no contiene filas para probar")
-
-    return interface

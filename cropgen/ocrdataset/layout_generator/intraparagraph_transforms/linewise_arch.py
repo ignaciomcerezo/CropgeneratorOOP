@@ -4,7 +4,7 @@ import shapely
 import numpy as np
 import cv2
 from PIL import Image
-from cropgen.processing.layout_generator.transforms import (
+from cropgen.ocrdataset.layout_generator.transforms import (
     IntraparagraphTransform,
     _ParagraphInfo,
 )

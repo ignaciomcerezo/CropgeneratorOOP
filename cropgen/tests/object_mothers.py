@@ -761,7 +761,7 @@ def mother_text_fragment(
 
 def mother_image_box(
     id: Optional[str] = None,
-    crop: Optional[Image.Image] = None,
+    stroke_crop: Optional[Image.Image] = None,
     polygon: Optional[ShapelyPolygon] = None,
     rotation: Optional[float] = None,
     unrotated: Optional[bool] = None,
@@ -772,8 +772,10 @@ def mother_image_box(
     pil_image_kwargs: Optional[dict[str, Any]] = None,
     has_association: bool = True,
 ) -> ImageBox:
-    crop: Image.Image = (
-        crop if crop is not None else mother_pil_image(**(pil_image_kwargs or {}))
+    stroke_crop: Image.Image = (
+        stroke_crop
+        if stroke_crop is not None
+        else mother_pil_image(**(pil_image_kwargs or {}))
     )
     if polygon is None:
         count = n_points if n_points is not None else random.randint(3, 8)
@@ -788,7 +790,7 @@ def mother_image_box(
         polygon: ShapelyPolygon = ShapelyPolygon(points)
     image_box = ImageBox(
         id=id if id is not None else f"box{random.randint(1, 1000)}",
-        crop=crop,
+        stroke_crop=stroke_crop,
         polygon=polygon,
         rotation=rotation if rotation is not None else random.uniform(0, 360),
         unrotated=unrotated if unrotated is not None else random.choice([True, False]),
