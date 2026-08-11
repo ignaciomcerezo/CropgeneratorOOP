@@ -18,6 +18,9 @@ def setup(
     lsi: LabelStudioInterface | None = None,
     online: bool = True,
     project_id: int = 4,
+    bucket_url: str | None = None,
+    ls_server_url: str | None = None,
+    ls_token: str | None = None,
 ) -> PathBundle:
     """
     Descarga todos los archivos necesarios para crear el conjunto de datos, y genera sus respectivas interfaces.
@@ -27,13 +30,19 @@ def setup(
     paths = PathBundle(path)
 
     obi: OracleBucketInterface = (
-        OracleBucketInterface.from_env(paths, online=online) if obi is None else obi
+        OracleBucketInterface.from_env(paths, online=online, bucket_url=bucket_url)
+        if obi is None
+        else obi
     )
     if online:
         obi.update()
 
     lsi = (
-        LabelStudioInterface.from_env(paths, online, project_id) if lsi is None else lsi
+        LabelStudioInterface.from_env(
+            paths, online, project_id, ls_server_url=ls_server_url, ls_token=ls_token
+        )
+        if lsi is None
+        else lsi
     )
     if online:
         lsi.fetch_and_simplify()

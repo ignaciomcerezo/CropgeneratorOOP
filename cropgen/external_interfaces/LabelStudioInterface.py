@@ -90,20 +90,25 @@ class LabelStudioInterface:
         paths: PathBundle,
         online: bool = True,
         project_id: int = 4,
+        ls_token: str | None = None,
+        ls_server_url: str | None = None,
         token_env_var: str = "LS_TOKEN",
         url_env_var: str = "LS_URL",
     ) -> "LabelStudioInterface":
-        if token_env_var not in os.environ:
+
+        if (token_env_var not in os.environ) and (ls_token is None):
             raise ValueError(
                 f"{token_env_var} no está presente en las variables de entorno."
             )
-        elif url_env_var not in os.environ:
+        elif (url_env_var not in os.environ) and (ls_server_url is None):
             raise ValueError(
                 f"{url_env_var} no está presente en las variables de entorno."
             )
 
-        token = str(os.getenv(token_env_var))
-        url = str(os.getenv(url_env_var))
+        token = ls_token if ls_token is not None else str(os.getenv(token_env_var))
+        url = (
+            ls_server_url if ls_server_url is not None else str(os.getenv(url_env_var))
+        )
 
         obj = cls(paths, url, token, project_id, online)
 

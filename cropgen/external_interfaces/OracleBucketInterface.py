@@ -49,19 +49,29 @@ class OracleBucketInterface:
 
     @classmethod
     def from_env(
-        cls, paths: PathBundle, env_var: str = "BUCKET_URL", online: bool = True
+        cls,
+        paths: PathBundle,
+        bucket_url: str | None = None,
+        env_var: str = "BUCKET_URL",
+        online: bool = True,
     ) -> "OracleBucketInterface":
+        """
+        Generates an instance of OracleBucketInterface taking missing data from the environment
+        variables and dotenv.
+        """
         # cargamos nuestro .env si python-dotenv esta disponible; si no, usa os.getenv
         try:
 
             load_dotenv()
         except Exception:
-            print("No se ha podido cargar el dotenv.")
+            print("Could not load the dotenv.")
             pass
 
-        bucket_url = os.getenv(env_var)
+        bucket_url = bucket_url if bucket_url is not None else os.getenv(env_var)
         if not bucket_url:
-            raise ValueError(f"No se encontro {env_var} en variables de entorno/.env")
+            raise ValueError(
+                f"Did not find {env_var} in the .env or environment variables"
+            )
         return cls(paths=paths, bucket_url=bucket_url, online=online)
 
     @staticmethod
