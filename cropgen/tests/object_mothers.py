@@ -866,7 +866,7 @@ def mother_pil_image(
 def mother_annotated_page(
     ann: Optional[SimplifiedAnnotation] = None,
     img: Optional[Image.Image] = None,
-    unrotate: Optional[bool] = None,
+    unrotate: Optional[bool] = False,
     usernames_labelstudio: Optional[list[str]] = None,
     simplified_annotation_kwargs: Optional[dict[str, Any]] = None,
     pil_image_kwargs: Optional[dict[str, Any]] = None,

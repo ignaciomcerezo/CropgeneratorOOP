@@ -23,8 +23,8 @@ class OCRDataset(Dataset):
         annotations: Sequence[AnnotatedPage],
         *,
         orders: Collection[int | Literal["paragraph", "full"]],
-        intraparagraph_transforms: Collection[IntraparagraphTransform],
-        interparagraph_transforms: Collection[InterparagraphTransform],
+        intraparagraph_transforms: Collection[IntraparagraphTransform] = [],
+        interparagraph_transforms: Collection[InterparagraphTransform] = [],
     ):
         self.annotated_pages = annotations
         # temp
@@ -70,7 +70,7 @@ class OCRDataset(Dataset):
 
         if set(new_orders) != pseudo_old_orders:
             self._orders = [x for x in new_orders if isinstance(x, int)]
-            self._use_paragraphs = "paragraphs" in new_orders
+            self._use_paragraphs = "paragraph" in new_orders
             self._use_full_pages = "full" in new_orders
             self._recalculate_size_and_probabilities()
 
