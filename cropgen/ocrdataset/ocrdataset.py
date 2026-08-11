@@ -9,6 +9,8 @@ from typing import Collection, Literal, Any, Sequence, Sequence, Optional
 from torch.utils.data import Dataset
 import numpy as np
 
+orders_type = Collection[int | Literal["paragraph", "full"]]
+
 
 @dataclass(kw_only=True, slots=True)
 class _ClusterParameters:
@@ -21,17 +23,18 @@ class OCRDataset(Dataset):
     Dataset variant intended to be used for OCR tasks. Takes as input a sequence of annotations
     (of type AnnotatedPage) and a collecion of orders that will be used to sample the pages.
 
-    When an item is solicited, the dataset deterministically chooses an item (taken from all possible contiguous
-    clusters of lines of one of the orders provided) and returns the crop, its transcription, and other data.
+    When an item is requested, the dataset deterministically chooses an item (taken from all
+    possible contiguous clusters of lines of length one of the orders provided) and returns the
+    crop, its transcription, and other data.
     """
 
     def __init__(
         self,
         annotations: Sequence[AnnotatedPage],
         *,
-        orders: Collection[int | Literal["paragraph", "full"]],
-        intraparagraph_transforms: Collection[IntraparagraphTransform] = [],
-        interparagraph_transforms: Collection[InterparagraphTransform] = [],
+        orders: orders_type,
+        intraparagraph_transforms: Collection[IntraparagraphTransform] | None = None,
+        interparagraph_transforms: Collection[InterparagraphTransform] | None = None,
     ):
         self.annotated_pages = annotations
         # temp
@@ -40,8 +43,12 @@ class OCRDataset(Dataset):
         self._use_full_pages = False
         self._update_orders(orders)  # the three previous attributes are updated here
 
-        self._intraparagraph_transforms = intraparagraph_transforms
-        self._interparagraph_transforms = interparagraph_transforms
+        self._intraparagraph_transforms = (
+            list() if intraparagraph_transforms is None else intraparagraph_transforms
+        )
+        self._interparagraph_transforms = (
+            list() if interparagraph_transforms is None else interparagraph_transforms
+        )
         self._cluster_params = _ClusterParameters()
 
     @property
@@ -203,3 +210,121 @@ class OCRDataset(Dataset):
             "id": identifyer,
             "page_id": target_ann.task_id,
         }
+
+    @staticmethod
+    def from_split(
+        *groups_of_annotations: list[AnnotatedPage],
+        p: float,
+        orders: orders_type,
+        orders_to_split_with: orders_type | None = None,
+    ):
+        """
+        Generates two OCRDatasets (paradigmatically train and test) from various groups of AnnotatedPages.
+        This could be used to generate splits that are balanced in difficulty, passing groups of annotations
+        that differ in difficulty, or in any other characteristic, to get splits homogeneous in that characteristic.
+        The split is done taking the number of samples in each annotation considering only those samples that
+        are of order orders_to_split_with (or 'orders' directly, if the former is not given a value.)
+
+        ann_group_1 = [...]
+        ann_group_2 = [...]
+        ann_group_3 = [...]
+
+        train, test = OCRDataset.from_split(ann_group_1, ann_group_2, ann_group_3, p = 0.95, orders_to_split_with = [1], orders = [1,2,3,4,5])
+
+        produces a split that
+
+        """
+        train = []
+        test = []
+
+        for annotations in groups_of_annotations:
+            train_i, test_i = OCRDataset.montecarlo_ann_split(
+                annotations,
+                p,
+                orders=orders if orders_to_split_with is None else orders_to_split_with,
+            )
+
+            train += train_i
+            test += test_i
+        return OCRDataset(train, orders=orders), OCRDataset(test, orders=orders)
+
+    @staticmethod
+    def samples_in_annotation(
+        ann: AnnotatedPage, orders: Collection[int | Literal["paragraph", "full"]]
+    ):
+        return (
+            sum(
+                sum(
+                    max(0, len(paragraph) - order + 1)
+                    for order in orders
+                    if isinstance(order, int)
+                )
+                for paragraph in ann.paragraphs
+            )
+            + len(ann.paragraphs) * (("paragraph") in orders)
+            + ("full" in orders)
+        )
+
+    @staticmethod
+    def montecarlo_ann_split(
+        annotations: list[AnnotatedPage],
+        p=0.95,
+        orders: Collection[int | Literal["paragraph", "full"]] = [1],
+        n_trials: int = 1000,
+    ) -> tuple[list[AnnotatedPage], list[AnnotatedPage]]:
+
+        print(f"Performing Monte Carlo page split with {n_trials} trials")
+
+        weights = [
+            (i, OCRDataset.samples_in_annotation(ann, orders))
+            for i, ann in enumerate(annotations)
+        ]
+
+        total_samples = sum(weight for _, weight in weights)
+
+        if total_samples == 0:
+            raise ValueError("Total number of samples is zero.")
+
+        if not 0 <= p <= 1:
+            raise ValueError(f"p must be between 0 and 1, got {p}")
+
+        target_a = total_samples * p
+
+        best_error = float("inf")
+        best_pages: set[int] = set()
+
+        for _ in range(n_trials):
+            candidate_pages = {i for i, _ in weights if np.random.rand() < p}
+
+            candidate_samples = sum(
+                weight for i, weight in weights if i in candidate_pages
+            )
+
+            error = abs(candidate_samples - target_a)
+
+            if error < best_error:
+                best_error = error
+                best_pages = candidate_pages
+
+                # Exact match, so there is no reason to keep searching.
+                if error == 0:
+                    break
+
+        train_annotations = [
+            annotations[i] for i in range(len(annotations)) if i in best_pages
+        ]
+
+        test_annotations = [
+            annotations[i] for i in range(len(annotations)) if i not in best_pages
+        ]
+
+        train_samples = sum(
+            OCRDataset.samples_in_annotation(annotation, orders)
+            for annotation in train_annotations
+        )
+
+        test_samples = sum(
+            OCRDataset.samples_in_annotation(annotation, orders)
+            for annotation in test_annotations
+        )
+        return train_annotations, test_annotations
