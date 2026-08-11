@@ -5,9 +5,9 @@ from collections.abc import Iterable
 import numpy as np
 from PIL import Image, ImageDraw
 
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.processing.TextFragment import TextFragment
+from cropgen.processing.image_box import ImageBox
+from cropgen.processing.paragraph import Paragraph
+from cropgen.processing.text_fragment import TextFragment
 from cropgen.processing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
@@ -19,7 +19,6 @@ from cropgen.processing.helpers.helper_to_classes import (
     compose_collage,
     subdictionary,
 )
-from cropgen.processing.helpers.image_processing import get_dominant_color
 from cropgen.processing.helpers.text_background_separator import (
     separate_background_and_stroke,
 )
@@ -38,24 +37,21 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedResultItem,
     SimplifiedTextCorrectionResult,
 )
-from cropgen.shared.default_parameters import (
-    big_box_threshold,
-    min_nodes_for_big_box_removal,
-)
+from cropgen.shared.default_parameters import MAX_IMG_DIM
 from cropgen.shared.display import display
 
 
 class AnnotatedPage:
     """
-    Clase que representa una única anotación. Recoge la información sobre las cajas-imagen y los fragmentos
-    de texto (con sus relaciones), construye el grafo de adyacencia, crea los párrafos y ordena la información
-    y la hace accesible de forma que la función augment_data tenga menor complejidad.
+    Single annotated page, gathers all the information about image-boxes and text fragments with their
+    correspondances, builds the adjacency graph, structures the lines into paragraphs and implements
+    methods to create synthetic annotations by using only some of the lines in a page (.synthetic_sample).
     """
 
-    n_annotation_errors = 0
-    warn_unrotate = True
-    warn_process_images = True
-    min_nodes_for_big_box_removal = min_nodes_for_big_box_removal
+    n_annotation_errors: int = 0
+    warn_unrotate: bool = True
+    warn_process_images: bool = True
+    max_img_dimension: int = MAX_IMG_DIM
     __slots__ = (
         "image_boxes",
         "text_fragments",
@@ -76,44 +72,38 @@ class AnnotatedPage:
         self,
         ann: SimplifiedAnnotation,
         img: Image.Image,
-        unrotate: bool = False,
         usernames_labelstudio: list[str] | None = None,
         line_separtor: str = "\n",
         process_images: bool = True,
     ):
-        img = img.convert("L")
-
-        if unrotate and AnnotatedPage.warn_unrotate:
-            print(
-                "[!!!] Usar unrotate = True destruye la información sobre la posición del crop en "
-                "la instancia de AnnotatedPage. Además, reduce la calidad de las imágenes por usar "
-                "interpolación bicúbica, y esta misma interpolación introduce artefactos visuales "
-                "en los bordes de la imagen. También invalida la forma en la que se generan los párrafos, "
-                "la transcripción global (y la de los clusters) y los starting_indices.\n"
-                "Úsese solamente en caso de revisión manual de las imágenes, y NO para el código de "
-                "generación del dataset."
-            )
-            AnnotatedPage.warn_unrotate = False
 
         if not (process_images) and AnnotatedPage.warn_process_images:
-            print(
-                "[!!!] Usar fake_images = True evita usar las imágenes y produce recortes vacíos.\n"
-                "Úsese solo en caso de testeo y NO para el código de generación del dataset."
-            )
-            AnnotatedPage.warn_process_images = False
+            self._warn_process_images()
+
         assert (
             usernames_labelstudio is not None
-        ), "Es necesario proporcionar la lista de usernames de LS para generar la anotación."
+        ), "A Label Studio username list must be provided."
 
-        # corrige los resultados realizando las sustituciones
         self.task_id = int(ann.task)
         results: list[SimplifiedResultItem] = ann.result
 
-        if not process_images:
-            # blanks
-            self.background = self.stroke = img
-        else:
+        if process_images:
+            w, h = img.size
+
+            scale_factor = AnnotatedPage.max_img_dimension / max(w, h)
+            img = img.resize(
+                (
+                    int(np.ceil(w * scale_factor)),
+                    int(np.ceil(h * scale_factor)),
+                )
+            )
+
+            img = img.convert("L")
+
             self.background, self.stroke = separate_background_and_stroke(img)
+        else:
+            # blanks
+            self.background = self.stroke = Image.Image()
 
         img_results_list: list[RectangleResult | PolygonResult] = [
             r for r in results if isinstance(r, (RectangleResult, PolygonResult))
@@ -123,14 +113,12 @@ class AnnotatedPage:
             r for r in results if isinstance(r, SimplifiedTextCorrectionResult)
         ]
 
-        self.image_boxes: dict[str, ImageBox] = (
-            {  # conjunto de cajas-imagen (instancias de ImageBox)
-                img_result.id: ImageBox.from_image_result(
-                    img_result, self.task_id, self.stroke, unrotate
-                )
-                for img_result in img_results_list
-            }
-        )
+        self.image_boxes: dict[str, ImageBox] = {  # ImageBox set
+            img_result.id: ImageBox.from_image_result(
+                img_result, self.task_id, self.stroke
+            )
+            for img_result in img_results_list
+        }
 
         self.text_fragments: dict[str, TextFragment] = {
             txt_result.id: TextFragment(
@@ -144,46 +132,18 @@ class AnnotatedPage:
         self.process_images = process_images
         self.line_separator = line_separtor
 
-        self._setup_mappings(
-            results
-        )  # guardamos en cada dataclass los otros objetos que tiene asociados mediante una relación de external_interfaces
+        self._setup_mappings(results)
 
-        self.assert_pairing()  # nos aseguramos de que todas las imágenes tengan fragmento, y viceversa
+        self.assert_pairing()  # all images have an associated text fragment and vice versa.
 
-        self.__graph: dict[str, set[str]] = (
-            self._build_intersection_graph()
-        )  # construimos el grafo de intersecciones entre cajas-imagen
+        self._setup_graph_and_paragraphs()
 
-        # colocamos las componentes conexas siguiendo el orden de lectura.
-
-        connected_components = get_connected_components(self.__graph)
-
-        box_ccs = [
-            [self.image_boxes[box_id] for box_id in component]
-            for component in connected_components
-        ]
-
-        subgraphs_ccs = [
-            subdictionary(component, subdictionary(component, self.graph))
-            for component in connected_components
-        ]
-
-        # generamos los párrafos (componentes conexas con información extra), que añaden automáticamente información sobre
-        # los centroides corregidos a cada caja-imagen. El sorted se ejecuta atuomáticamente, y se hace usando el orden
-        # naif.
-        self.paragraphs: list[Paragraph] = sorted(
-            [
-                Paragraph(box_cc, task_id=self.task_id, subgraph=subgraph)
-                for (box_cc, subgraph) in zip(box_ccs, subgraphs_ccs)
-            ]
-        )
-
-        # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
+        # only pages that lay inside of a paragraph have an sindex
         self._correct_text_and_set_sindices()
 
         self.last_update_time = " ".join(
             ann.updated_at.replace("Z", "").split("T")
-        )  # última actualización de la tarea
+        )  # task's last update
 
         completer_index = ann.completed_by
         updater_index = ann.updated_by
@@ -201,71 +161,61 @@ class AnnotatedPage:
 
     @property
     def order(self) -> int:
-        """Número total de imágenes (si no hay PairingError también será el total de fragmentos)"""
+        """Total number of lines"""
         return len(self.graph)
 
     @property
     def graph(self) -> dict[str, set[str]]:
-        """Grafo de adyacencia de las ImageBox.id dado por las intersecciones de sus crops."""
+        """Line's polygon annotation intersection graph which keys are the ImageBox(es) ids"""
         return self.__graph
-
-    @graph.setter
-    def graph(self, value):
-        raise ValueError(
-            "Por causas de starting_index y composición del documento, no es posible modificar el grafo!"
-        )
 
     def _setup_mappings(self, results: list[SimplifiedResultItem]) -> None:
         """
-        A partir de las relaciones creadas en cada tarea de LS, genera respectivos diccionarios:
-            1. img2text_rel: dict[str, str], box_id -> fragment_id,
-        que lleva el ID de una caja-imagen al id de un fragmento, y
-            2. text2img_rel: dict[str, str], fragment_id -> box_id,
-        que lleva el ID de un fragmento a su caja-imagen correspondiente.
+        Associates an ImageBox to each TextFragment (and vice versa) following the relations
+        made by the annotators.
         """
 
         for r in results:
-            if isinstance(r, RelationResult):  # si el resultado es una relación
+            if isinstance(r, RelationResult):  # if the result is a relation
                 source_id, target_id = r.from_id, r.to_id
 
                 if (source_id in self.image_boxes) and (
                     target_id in self.text_fragments
                 ):
-                    # asociación caja-imagen -> fragmento
+                    # ImgB -> TxtF
                     box_id, fragment_id = source_id, target_id
                 elif (source_id in self.text_fragments) and (
                     target_id in self.image_boxes
                 ):
-                    # asociación fragmento -> caja-imagen
+                    # TxtF -> ImgB
                     box_id, fragment_id = target_id, source_id
                 elif (source_id in self.image_boxes) and (
                     target_id in self.image_boxes
                 ):
-                    AnnotatedPage._register_error()
-                    # asociación caja-imagen -> caja-imagen (error de anotación)
-                    print(f"(Task {self.task_id}) Asociación caja-imagen->caja-imagen:")
-                    print("Caja 1 (source):")
-                    display(self.image_boxes[source_id].stroke_crop)
-                    print("Caja 2 (target):")
-                    display(self.image_boxes[target_id].stroke_crop)
+                    AnnotatedPage.n_annotation_errors += 1
+                    # ImgB -> ImgB (annotation error)
+                    print(f"(Task {self.task_id}) ImageBox to ImageBox association:")
+                    print(
+                        f"Box {self.image_boxes[source_id].id} -> Box {self.image_boxes[target_id].id}."
+                    )
                     continue
                 elif (source_id in self.text_fragments) and (
                     target_id in self.text_fragments
                 ):
-                    AnnotatedPage._register_error()
-                    # asociación fragmento -> fragmento (error de anotación)
-                    print(f"(Task {self.task_id}) Asociación texto->texto.")
-                    print(self.text_fragments[source_id].text)
-                    print(self.text_fragments[target_id].text)
+                    AnnotatedPage.n_annotation_errors += 1
+                    # TxtF -> TxtF (annotation error)
+                    print(
+                        f"(Task {self.task_id}) TextFragment to TextFragment association:"
+                    )
+                    print(
+                        f"Fragment {self.text_fragments[source_id].id} to {self.text_fragments[target_id].id}."
+                    )
                     continue
                 else:
-                    AnnotatedPage._register_error()
-                    # otro tipo de asociación (extraña)
+                    AnnotatedPage.n_annotation_errors += 1
+                    # other type of error
                     print(f"(Task {self.task_id}) Asociación rara.")
                     continue
-
-                # comprobamos ahora que de cada objeto sale o entra una única relación, ni más ni menos.
-                # (es decir, que un fragmento solamente está conectado a una imagen y solo una vez, y viceversa)
 
                 image_box = self.image_boxes[box_id]
                 text_fragment = self.text_fragments[fragment_id]
@@ -273,9 +223,33 @@ class AnnotatedPage:
                 image_box.associate_fragment(text_fragment)
                 text_fragment.associate_box(image_box)
 
+    def _setup_graph_and_paragraphs(self):
+        """
+        Builds the intersection graph given by the polygons of the ImageBoxes.
+        Also groups them into paragraphs (connected components) and sorts the
+        boxes in their reading order.
+        """
+        self.__graph: dict[str, set[str]] = self._build_intersection_graph()
+        connected_components = get_connected_components(self.__graph)
+
+        box_ccs = [
+            [self.image_boxes[box_id] for box_id in component]
+            for component in connected_components
+        ]
+
+        subgraphs_ccs = [
+            subdictionary(component, subdictionary(component, self.graph))
+            for component in connected_components
+        ]
+        self.paragraphs: list[Paragraph] = sorted(
+            [
+                Paragraph(box_cc, task_id=self.task_id, subgraph=subgraph)
+                for (box_cc, subgraph) in zip(box_ccs, subgraphs_ccs)
+            ]
+        )
+
     def _correct_text_and_set_sindices(self):
-        sindex = 0  # índices de inicio de cada fragmento de texto
-        # notemos que solamente las imágenes que estén en un párrafo tienen sindex...
+        sindex = 0
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
             temporary_separator = "\n\x00\n"
@@ -284,12 +258,10 @@ class AnnotatedPage:
                 raw_separated_transcription
             ).split(temporary_separator)
 
-            assert len(regularized_transcriptions) == len(paragraph.text_fragments), (
-                "El número de transcripciones regularizadas y el número de líneas de texto no coinciden: "
-                f"hay {len(regularized_transcriptions)} l.reg. y {len(paragraph.text_fragments)} l. normales.\n"
-                f" RAW_SEPARATED_TRANSCRIPTION:\n {raw_separated_transcription}\n\n\n"
-                f"Paragraph lines:\n{temporary_separator.join([p.text for p in paragraph.text_fragments])}"
-            )
+            if len(regularized_transcriptions) != len(paragraph.text_fragments):
+                raise ValueError(
+                    "The number of lines after text regularization and the number of original lines do not match."
+                )
 
             for fragment, new_transcription in zip(
                 paragraph.text_fragments, regularized_transcriptions
@@ -299,9 +271,7 @@ class AnnotatedPage:
                 sindex += len(fragment.text) + len(self.line_separator)
 
     def assert_pairing(self):
-        """
-        Compruba que todas las cajas están asociadas a un único texto, y viceversa
-        """
+        """Checks that all boxes have a fragment and vice versa."""
         for fragment in self.text_fragments.values():
             if any(
                 [isinstance(obj, TextFragment) for obj in fragment.associated_boxes]
@@ -346,15 +316,16 @@ class AnnotatedPage:
 
         return adj
 
-    def generate_collage(
+    def synthetic_manuscript(
         self,
         box_id_sequence: set[str] | list[str] | Literal["all"],
         tight_layout: bool = True,
+        margin_size_px: int = 0,
     ) -> Image.Image:
         """
-        Genera el collage de recortes para una secuencia de ids de cajas (un subgrafo), colocando en sus posiciones en
-        la página original los recortes, rellenando el resto con el color promedio de la imagen y recortando la imagen
-        al tamaño mínimo que contiene todos los recortes colocados.
+        Generates the collage of handwritten strokes given by a sequence of ImageBox ids, placing each
+        crop in its original place on the page, and using the background of the page, cropped or resized,
+        to fit.
         """
 
         if box_id_sequence == "all":
@@ -374,56 +345,30 @@ class AnnotatedPage:
             subgraph_image_boxes,
             background=self.background,
             tight_layout=tight_layout,
+            margin_size_px=margin_size_px,
         )
 
-    # def trim_star_nodes(
-    #     self,
-    #     relative_threshold: float = big_box_threshold,
-    # ) -> None:
-    #     """
-    #     Elimina los nodos con una conectividad mayor a relative_threshold
-    #     """
-
-    #     adj_graph = self.__graph.copy()
-    #     nodes_to_remove = []
-
-    #     for rid, neighbors in adj_graph.items():
-    #         if (
-    #             len(neighbors) / (len(adj_graph) - 1) > relative_threshold
-    #         ):  # si pasa el umbral
-    #             nodes_to_remove.append(rid)
-
-    #     if len(nodes_to_remove) > 0:
-    #         print(
-    #             f"Eliminando {len(nodes_to_remove)} nodos estrellados de la tarea {self.task_id}."
-    #         )
-
-    #     for rid in nodes_to_remove:
-    #         self.image_boxes[rid].fragment.starting_index = -1
-
-    #         del adj_graph[rid]  # quitamos el nodo en forma de estrella
-
-    #         for other in adj_graph:  # eliminamos todas sus referencias
-    #             adj_graph[other].discard(rid)
-
-    #     self.__graph = adj_graph
-
-    def cluster_reading_order(
+    def synthetic_sample(
         self,
         box_ids: list["str"] | Literal["all"],
+        tight_layout: bool = True,
+        margin_size_px: int = 0,
     ) -> tuple[Image.Image, str, int]:
         """
-        Dada una lista de IDs de cajas-imagen, devuelve:
-        - su collage correspondiente
-        - la transcripción en el orden de lectura
-        - el índice de inicio de este bloque en la transcripción total.
+        Given a list of ImageBox ids, returns:
+        - their synthetic manuscript PIL.Image given by .synthetic_manuscript,
+        - the transcription corresponding to this image,
+        - the starting index of this text in the page transcription.
         """
 
-        collage = self.generate_collage(box_ids)
+        collage = self.synthetic_manuscript(
+            box_ids, tight_layout=tight_layout, margin_size_px=margin_size_px
+        )
         if box_ids == "all":
             box_ids = list(self.image_boxes.keys())
         fragments = [self.image_boxes[box_id].fragment for box_id in box_ids]
-        # usando .starting_index estamos usando el mismo orden de lectura de image_boxes
+
+        # using .starting_index has the same ordering as the reading order in image_boxes by design
         fragments: list[TextFragment] = sorted(
             fragments, key=lambda x: x.starting_index
         )  # ty:ignore[no-matching-overload]
@@ -433,97 +378,35 @@ class AnnotatedPage:
         )
         if not fragments:
             raise ValueError(
-                f"No se puede llamar cluster_reading_order si no hay fragmentos asociados ({self.task_id}) -> {box_ids=}"
+                f"Cannot use synthetic sample with no associated fragments, Task ({self.task_id}) -> {box_ids=}"
             )
 
         if fragments[0].starting_index is None:
             raise ValueError(
-                "Los fragmentos dados no tienen índices de inicio asignados."
+                "The fragments provided have no starting index - something has failed internally."
             )
 
         sindex = int(fragments[0].starting_index)
 
         return collage, transcription, sindex
 
-    def are_in_same_cc(self, box_id_sequence: list[str]) -> bool:
-        """
-        Devuelve si una secuencia de ids de cajas está o no en la misma componente conexa
-        """
-        if not box_id_sequence:
-            return True
-
-        first_box_id = box_id_sequence[0]
-
-        for paragraph in self.paragraphs:
-            if first_box_id in paragraph.image_boxes_ids:
-                break
-        else:
-            raise ValueError(
-                "El primer box_id no pertenece a ninguna componente conexa (párrafo) de esta anotación. ¿Pertenece a esta página?"
-            )
-
-        return set(box_id_sequence[1:]).issubset(set(paragraph.image_boxes_ids))
-
-    @property
-    def n_paragraphs(self):
-        """Número de párrafos de la anotación"""
-        return len([paragraph for paragraph in self.paragraphs if (len(paragraph) > 1)])
-
-    @property
-    def is_single_paragraph(self):
-        return self.n_paragraphs == 1
-
-    @staticmethod
-    def _register_error():
-        AnnotatedPage.n_annotation_errors += 1
-
-    def fragments_without_paragraph(self) -> list[TextFragment]:
-        """
-        Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
-            1. Son fragmentos aislados del resto durante las anotaciones.
-        Anteriormente podían ser fragmentos de conectividad alta desconectados usando trim_star_nodes,
-        pero, a partir del cambio de paradigma hacia lecturas puramente lineales (grafos de los párrafos
-        de tipo P_k) se eliminó esta dinámica.
-        """
-        in_paragraph = []
-        out_paragraph = []
-        for paragraph in self.paragraphs:
-            in_paragraph += [f.id for f in paragraph.text_fragments]
-        if len(in_paragraph) == len(self.text_fragments):
-            return []
-
-        for f in self.text_fragments.values():
-            if f.id not in in_paragraph:
-                out_paragraph.append(f.id)
-        return [self.text_fragments[fragment_id] for fragment_id in out_paragraph]
-
-    def get_average_rotation(self, img_box_ids: Iterable[str]) -> float:
-        """
-        Devuelve la rotación promedio de un grupo de cajas-imagen dados sus ids.
-        """
-        image_boxes = [self.image_boxes[box_id] for box_id in img_box_ids]
-        areas = [box.polygon.area for box in image_boxes]
-        angles_in_radians = [np.radians(box.rotation) for box in image_boxes]
-
-        sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
-        sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
-
-        return -np.degrees(np.arctan2(sum_sin, sum_cos))
-
-    def draw_with_polygons(
+    def synthetic_sample_with_polygons(
         self,
         image_box_ids: list[str],
         represent_polygon: bool = True,
-        represent_mbr: bool = False,
+        represent_mbr: bool = True,
         polygon_color: tuple[int, int, int] = (255, 0, 0),
         mbr_color: tuple[int, int, int] = (0, 255, 0),
         line_width: int = 3,
         crop_to_fit: bool = False,
     ) -> Image.Image:
         """
-        Genera un collage con las cajas seleccionadas y dibuja sus polígonos encima.
-        Si represent_mbr=True, añade también el mínimo rectángulo rotado de cada polígono.
+        Generates a synthetic sample with the polygons and minimum area rotated bounding box
+        represented.
         """
+        if not self.process_images:
+            return Image.Image()
+
         selected_ids = list(image_box_ids)
         if not selected_ids:
             raise ValueError(
@@ -532,9 +415,7 @@ class AnnotatedPage:
 
         selected_boxes = [self.image_boxes[box_id] for box_id in selected_ids]
 
-        collage = compose_collage(
-            list(self.image_boxes.values()), self.background, crop_to_fit
-        )
+        collage = self.synthetic_manuscript(list(self.image_boxes.keys()), crop_to_fit)
 
         origin_x = (
             int(min(box.polygon.bounds[0] for box in self.image_boxes.values()))
@@ -581,7 +462,7 @@ class AnnotatedPage:
         process_images: bool,
     ) -> "AnnotatedPage":
         """
-        Construye una instancia de AnnotatedPage a partir de una lista de párrafos (de dos instancias ya generadas).
+        Constructs a new AnnotatedPage instance from a list of paragraphs.
         """
         instance: AnnotatedPage = cls.__new__(cls)
 
@@ -615,22 +496,22 @@ class AnnotatedPage:
     @staticmethod
     def combine_annotations(*annotations: "AnnotatedPage") -> "AnnotatedPage":
         """
-        Combina dos anotaciones de una misma tarea ordenando sus párrafos.
-        Emplean como orden de lectura de párrafos el dado por el centroide de su primera línea.
+        Combines two annotations in a single one sorting their paragraphs. As an ordering,
+        uses the vertical coordinate of the centroid of the first line of each paragraph.
         """
 
-        if not annotations:
-            raise ValueError("Debe pasarse alguna anotación para combinar.")
+        if len(annotations) <= 1:
+            raise ValueError("At least two annotations must be passed as arguments.")
 
         if not (len(set(ann.task_id for ann in annotations)) == 1):
             raise ValueError(
-                "No se pueden combinar anotaciones de tareas diferentes: "
+                "Cannot combine annotations from two different tasks: "
                 f" {set(ann.task_id for ann in annotations)}"
             )
 
         if not (len(set(ann.line_separator for ann in annotations)) == 1):
             raise ValueError(
-                "No se pueden combinar anotaciones con separadores de línea diferentes: "
+                "Cannot combine two annotations with different line separators: "
                 f" {set(ann.line_separator for ann in annotations)}"
             )
 
@@ -664,3 +545,20 @@ class AnnotatedPage:
         )
         combined_ann._correct_text_and_set_sindices()
         return combined_ann
+
+    def _warn_unrotate(self):
+        print(
+            "[!!!] WARN: Using unrotate = True destroys the information about the crop's original "
+            "position on the page and distorts the images due to the digital rotation.\n"
+            "It also invalidates how paragraphs are formed, the global transcription, synthetic sample "
+            "generation and starting indices.\n"
+            "It is only to be used in case of manual revision of the immages and NOT for production."
+        )
+        AnnotatedPage.warn_unrotate = False
+
+    def _warn_process_images(self):
+        print(
+            "[!!!] WARN: Image processing deactivated: all crops and sample's images will be empty.\n"
+            "Only to be used to speed up testing that does not require images and NOT for production."
+        )
+        AnnotatedPage.warn_process_images = False

@@ -3,8 +3,8 @@ from cropgen.processing.helpers.helper_to_classes import get_union_rect
 from cropgen.ocrdataset.layout_generator.interparagraph_transforms.refresh import (
     Refresh,
 )
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.processing.AnnotatedPage import AnnotatedPage
+from cropgen.processing import Paragraph
+from cropgen.processing import AnnotatedPage
 from cropgen.ocrdataset.layout_generator.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,

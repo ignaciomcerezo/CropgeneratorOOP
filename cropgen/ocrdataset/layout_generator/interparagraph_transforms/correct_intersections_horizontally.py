@@ -1,5 +1,5 @@
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.ocrdataset.layout_generator.transforms import (
+from cropgen.processing import Paragraph
+from cropgen.ocrdataset.layout_generator import (
     InterparagraphTransform,
     _ParagraphInfo,
 )

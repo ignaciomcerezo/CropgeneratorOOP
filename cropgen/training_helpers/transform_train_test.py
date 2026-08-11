@@ -54,7 +54,7 @@ def transform_test(batch, max_dim: int = 1024):
 
 
 try:
-    import torchvision.transforms as tvt
+    import torchvision.transforms as tvt  # ty: ignore[unresolved-import]
 
     def transform_train(
         batch,

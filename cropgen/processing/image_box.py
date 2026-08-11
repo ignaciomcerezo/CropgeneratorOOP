@@ -1,9 +1,12 @@
+from cropgen.shared.LSTypedDicts.values import RectangleValue
+from cropgen.shared.LSTypedDicts.values import PolygonValue
 from dataclasses import dataclass, field
 from typing import Optional
 from typing import TYPE_CHECKING
 
 from PIL import Image
 from shapely import Polygon, box as boxshape
+from shapely.affinity import scale
 
 from cropgen.processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
@@ -13,11 +16,10 @@ from cropgen.processing.helpers.PairingErrors import (
 from cropgen.processing.helpers.helper_to_classes import (
     get_rotated_region,
 )
-from cropgen.processing.helpers.image_processing import unrotate_image
 from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 
 if TYPE_CHECKING:
-    from cropgen.processing.TextFragment import TextFragment
+    from cropgen.processing.text_fragment import TextFragment
 
 
 @dataclass(slots=True, kw_only=True)
@@ -32,7 +34,6 @@ class ImageBox:
     stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
-    unrotated: bool
     task_id: int
     index: Optional[int] = -1
     associated_fragments: list["TextFragment"] = field(default_factory=lambda: list())
@@ -66,7 +67,6 @@ class ImageBox:
             "<ImageBox "
             + ("rectangular" if self.true_rectangle else "poligonal")
             + f" {self.id} de la tarea ({self.task_id})."
-            + self.unrotated * "¡Rotación cancelada!"
             + ">"
         )
 
@@ -108,12 +108,11 @@ class ImageBox:
         simplified_result_item: RectangleResult | PolygonResult,
         task_id: int,
         stroke: Image.Image,
-        unrotate: bool = False,
     ) -> "ImageBox":
         imgbox_id = simplified_result_item.id
 
-        residual_crop, polygon, rotation, true_rectangle, unrotated = (
-            ImageBox._rotatedregion(stroke, simplified_result_item, unrotate)
+        residual_crop, polygon, rotation, true_rectangle = ImageBox._rotatedregion(
+            stroke, simplified_result_item
         )
 
         return ImageBox(
@@ -123,71 +122,19 @@ class ImageBox:
             polygon=polygon,
             rotation=rotation,
             true_rectangle=true_rectangle,
-            unrotated=unrotated,
         )
 
     @staticmethod
     def _rotatedregion(
         residual: Image.Image,
         simplified_result_item: RectangleResult | PolygonResult,
-        unrotate=False,
-    ) -> tuple[Image.Image, Polygon, float, bool, bool]:
-        """
-        Genera parte de la información necesaria para instanciar ImageBox a partir de la información en una tarea y
-        su imagen. Devuelve, en orden:
-            crop: PIL.Image.Image -> imagen recortada
-            polygon: Polygon -> polígono de shapely
-            rotation: bool -> ángulo de rotación (manual o calculado) de la región para su lectura.
-            true_rectangle: bool -> si se generó usando la herramienta rectángulo.
+    ) -> tuple[Image.Image, Polygon, float, bool]:
 
-        Si unrotate=True, la imagen se endereza y el polígono se reconstruye para coincidir exactamente con
-        las nuevas dimensiones visuales. El enderezado se hace caja por caja, por lo que no se preservan adyacencias y
-        la imagen completa, si se representa con los objetos enderezados, puede presentar anomalías: el enderezado
-         solamente es para el proceso de revisión,
-        """
-        height = simplified_result_item.original_height
-        width = simplified_result_item.original_width
-        val = simplified_result_item.value
+        val: RectangleValue | PolygonValue = simplified_result_item.value
 
-        # Obtenemos el recorte y el polígono original (en coordenadas globales)
         residual_crop, original_poly, rotation, polygonic = get_rotated_region(
             val,
-            width,
-            height,
             residual,
         )
 
-        if not unrotate or not rotation:
-            return residual_crop, original_poly, rotation, not polygonic, False
-        else:
-            # Si des-rotamos, la bounding box del polígono original (rotado) suele ser
-            # más grande que la imagen enderezada final, generando espacios en blanco en el collage.
-            # Procedemos a crear un nuevo polígono ajustado al píxel.
-
-            # Generamos primero la imagen final para obtener sus dimensiones reales (w, h)
-            # Esto elimina las zonas transparentes sobrantes tras la rotación.
-            final_residual_crop = unrotate_image(residual_crop, rotation)
-            cw, ch = final_residual_crop.size
-
-            # calculamos el punto de anclado basándonos en la geometría original.
-            # Usamos el mínimo rectángulo rotado para hallar la verdadera esquina
-            # superior izquierda visual, independientemente de la orientación de los ejes.
-            rotated_rect = original_poly.minimum_rotated_rectangle
-            rect_coords = list(rotated_rect.exterior.coords)[:-1]
-
-            # ordenamos vértices: prioridad menor Y (arriba), desempate menor X (izquierda) - extremadamente improbable salvo en el borde inferior
-            pivot_point = sorted(rect_coords, key=lambda p: (p[1], p[0]))[0]
-            pivot_x, pivot_y = pivot_point
-
-            # construimos un nuevo polígono rectangular
-            # empieza en el pivote original pero tiene exactamente las dimensiones de la imagen recortada.
-            # esto nos asegura consistencia al pegar en el lienzo del collage.
-            new_poly = Polygon(boxshape(pivot_x, pivot_y, pivot_x + cw, pivot_y + ch))
-
-            return (
-                final_residual_crop,
-                new_poly,
-                rotation,
-                not polygonic,
-                True,
-            )
+        return residual_crop, original_poly, rotation, not polygonic

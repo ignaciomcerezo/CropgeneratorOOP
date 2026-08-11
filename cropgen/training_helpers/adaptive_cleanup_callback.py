@@ -1,5 +1,5 @@
 import torch
-from transformers import TrainerCallback
+from transformers import TrainerCallback  # ty: ignore[unresolved-import]
 import gc
 
 

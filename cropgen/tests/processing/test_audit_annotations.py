@@ -7,10 +7,7 @@ from PIL import Image
 from shapely import Polygon, MultiPolygon
 from tqdm.auto import tqdm
 
-from cropgen.processing.AnnotatedPage import AnnotatedPage
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.processing.TextFragment import TextFragment
+from cropgen.processing import AnnotatedPage, ImageBox, Paragraph, TextFragment
 from cropgen.tests.object_mothers import mother_pil_image
 from cropgen.tests.tests_helper import extract_height_width_from_task
 
@@ -60,6 +57,27 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
             msg += "\n\t > " + fragment.text
 
     return msg
+
+
+def fragments_without_paragraph(annotated_page: AnnotatedPage) -> list[TextFragment]:
+    """
+    Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
+        1. Son fragmentos aislados del resto durante las anotaciones.
+    Anteriormente podían ser fragmentos de conectividad alta desconectados usando trim_star_nodes,
+    pero, a partir del cambio de paradigma hacia lecturas puramente lineales (grafos de los párrafos
+    de tipo P_k) se eliminó esta dinámica.
+    """
+    in_paragraph = []
+    out_paragraph = []
+    for paragraph in annotated_page.paragraphs:
+        in_paragraph += [f.id for f in paragraph.text_fragments]
+    if len(in_paragraph) == len(annotated_page.text_fragments):
+        return []
+
+    for f in annotated_page.text_fragments.values():
+        if f.id not in in_paragraph:
+            out_paragraph.append(f.id)
+    return [annotated_page.text_fragments[fragment_id] for fragment_id in out_paragraph]
 
 
 @pytest.mark.audit
@@ -152,15 +170,17 @@ def test_audit_annotations(paths):
             )  # solamente puede haber un -1 si no está conectado a nada
 
             assert (
-                sorted(sindices_par_fragments) == sindices_par_fragments
+                sorted(sindices_par_fragments)  # ty: ignore[invalid-argument-type]
+                == sindices_par_fragments
             )  # a lo largo del código se asume que vienen así ordenados.
 
             assert (
-                sorted(indices_par_boxes) == indices_par_boxes
+                sorted(indices_par_boxes)  # ty: ignore[invalid-argument-type]
+                == indices_par_boxes
             )  # llevan el mismo orden que los fragmentos
 
             # antiguo test_paragraph_transcriptions
-            _, transcription_1, sindex_1 = ann.cluster_reading_order(
+            _, transcription_1, sindex_1 = ann.synthetic_sample(
                 paragraph.image_boxes_ids
             )
             transcription_2 = paragraph.transcription(ann.line_separator)
@@ -169,7 +189,7 @@ def test_audit_annotations(paths):
 
         # vuelta al audit_annotations inicial
 
-        for text_fragment in ann.fragments_without_paragraph():
+        for text_fragment in fragments_without_paragraph(ann):
 
             assert text_fragment.id not in seen_fragments
             seen_fragments.add(text_fragment.id)

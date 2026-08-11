@@ -1,13 +1,15 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from cropgen.processing.ImageBox import (
-    ImageBox,
-)
+
 from cropgen.processing.helpers.PairingErrors import (
     RepeatedSameAssociationError,
     MultipleAssociationError,
     NoAssociationError,
+)
+
+from cropgen.processing.image_box import (
+    ImageBox,
 )
 
 

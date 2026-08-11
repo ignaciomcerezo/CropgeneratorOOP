@@ -1,5 +1,5 @@
 from typing import Collection
-from cropgen.processing.Paragraph import Paragraph
+from cropgen.processing import Paragraph
 from abc import ABC, abstractmethod
 import shapely
 

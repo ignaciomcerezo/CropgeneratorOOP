@@ -53,7 +53,7 @@ def extract_strokes(
     conn = np.zeros(num_labels, dtype=np.uint8)
     conn[valid_labels] = 255
 
-    clean_mask = conn[labels]
+    clean_mask = conn[labels]  # ty: ignore[invalid-argument-type]
 
     stroke_residual = cv2.bitwise_and(residual, residual, mask=clean_mask)
 

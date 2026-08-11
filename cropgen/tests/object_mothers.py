@@ -5,16 +5,13 @@ import numpy as np
 from PIL import Image
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from cropgen.processing.AnnotatedPage import AnnotatedPage
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.processing.TextFragment import TextFragment
+from cropgen.processing import AnnotatedPage, ImageBox, Paragraph, TextFragment
 from cropgen.shared.LSTypedDicts.aggregates import (
     RawAnnotation,
     TaskData,
     LabelStudioTask,
 )
-from cropgen.shared.LSTypedDicts.results import (
+from cropgen.shared.LSTypedDicts import (
     BaseResult,
     ImageBaseResult,
     TextRegionResult,
@@ -22,15 +19,11 @@ from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
     PolygonResult,
     RelationResult,
-)
-from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTextCorrectionValue,
     SimplifiedTextCorrectionResult,
     SimplifiedAnnotation,
     SimplifiedTask,
     SimplifiedResultItem,
-)
-from cropgen.shared.LSTypedDicts.values import (
     TextRegionValue,
     TextCorrectionValue,
     RectangleValue,
@@ -793,7 +786,6 @@ def mother_image_box(
         stroke_crop=stroke_crop,
         polygon=polygon,
         rotation=rotation if rotation is not None else random.uniform(0, 360),
-        unrotated=unrotated if unrotated is not None else random.choice([True, False]),
         task_id=task_id if task_id is not None else random.randint(1, 1000),
         true_rectangle=(
             true_rectangle
@@ -896,6 +888,5 @@ def mother_annotated_page(
     return AnnotatedPage(
         ann,
         img,
-        unrotate=unrotate if unrotate is not None else random.choice([True, False]),
         usernames_labelstudio=usernames_labelstudio,
     )

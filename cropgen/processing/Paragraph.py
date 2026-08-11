@@ -6,9 +6,8 @@ from shapely import coverage_union_all
 from shapely import Polygon
 from shapely.affinity import affine_transform
 
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.TextFragment import TextFragment
-from cropgen.processing.helpers.image_processing import unrotate_image
+from cropgen.processing.image_box import ImageBox
+from cropgen.processing.text_fragment import TextFragment
 from cropgen.processing.helpers.helper_to_classes import (
     compose_collage,
     is_path_graph,
@@ -73,9 +72,7 @@ class Paragraph:
         self.image_boxes_ids = [box.id for box in self.image_boxes]
         self.text_fragments_ids = [fragment.id for fragment in self.text_fragments]
 
-    def __lt__(
-        self, other: "Paragraph"
-    ):  # para poder ordenar automáticamente usando list.sort o sorted()
+    def __lt__(self, other: "Paragraph"):
         return (self.top, self.left) < (other.top, other.left)
 
     def __gt__(self, other: "Paragraph"):

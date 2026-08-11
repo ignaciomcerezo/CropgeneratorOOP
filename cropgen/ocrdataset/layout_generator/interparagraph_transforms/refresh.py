@@ -1,5 +1,5 @@
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.ocrdataset.layout_generator.transforms import InterparagraphTransform
+from cropgen.processing import Paragraph
+from cropgen.ocrdataset.layout_generator import InterparagraphTransform
 import numpy as np
 from shapely.affinity import translate
 

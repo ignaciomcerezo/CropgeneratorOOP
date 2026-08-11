@@ -1,12 +1,19 @@
+from dataclasses import dataclass
 from multiprocessing import Value
 from cropgen.ocrdataset.layout_generator.transforms import (
     IntraparagraphTransform,
     InterparagraphTransform,
 )
-from cropgen.processing.AnnotatedPage import AnnotatedPage
+from cropgen.processing.annotated_page import AnnotatedPage
 from typing import Collection, Literal, Any, Sequence, Sequence, Optional
 from torch.utils.data import Dataset
 import numpy as np
+
+
+@dataclass(kw_only=True, slots=True)
+class _ClusterParameters:
+    tight_layout: bool = True
+    margin_size_px: int = 0
 
 
 class OCRDataset(Dataset):
@@ -35,6 +42,7 @@ class OCRDataset(Dataset):
 
         self._intraparagraph_transforms = intraparagraph_transforms
         self._interparagraph_transforms = interparagraph_transforms
+        self._cluster_params = _ClusterParameters()
 
     @property
     def orders(self):
@@ -183,7 +191,7 @@ class OCRDataset(Dataset):
         # TODO: implement the layout changes.
         target_ann = ann
 
-        collage, text, sindex = target_ann.cluster_reading_order(selected_box_ids)
+        collage, text, sindex = target_ann.synthetic_sample(selected_box_ids)
 
         # TODO: add context?
 

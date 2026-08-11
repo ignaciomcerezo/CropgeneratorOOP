@@ -1,4 +1,4 @@
-from cropgen.processing.Paragraph import Paragraph
+from cropgen.processing import Paragraph
 from typing import Optional, Literal
 
 from cropgen.ocrdataset.layout_generator.transforms import (

@@ -2,7 +2,7 @@ from debugpy.launcher.debuggee import process
 from PIL import Image
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
-from cropgen.processing.AnnotatedPage import AnnotatedPage
+from cropgen.processing import AnnotatedPage
 from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
 from cropgen.shared.LSTypedDicts.results import ImageBaseResult
 from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
@@ -47,7 +47,6 @@ def load_ann(
     return AnnotatedPage(
         ann=simplified_ls_ann,
         img=img,
-        unrotate=unrotate,
         usernames_labelstudio=lsi.usernames,
         process_images=process_images,
     )

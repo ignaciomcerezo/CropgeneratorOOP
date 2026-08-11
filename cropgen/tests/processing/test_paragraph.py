@@ -21,7 +21,7 @@ def test_paragraph_v1(
     supposed_paragraphs,
 ):
     ann = load_ann(paths, *page, fake_image=True)
-    n_par = ann.n_paragraphs
+    n_par = len(ann.paragraphs)
     assert n_par == (
         supposed_paragraphs
     ), f"Se esperaban {n_par} párrafos en la anotación {ann} de la página {page}, pero tiene {n_par}."
@@ -53,7 +53,7 @@ def test_paragraph_v2(
 
 def test_paragraph_ordering_v3(paths):
     ann = load_ann(paths, 280, fake_image=True)
-    assert ann.n_paragraphs == 1
+    assert len(ann.paragraphs) == 1
 
     assert ann.paragraphs[0].image_boxes_ids == [
         "3vLJQ-OQfx",
@@ -73,7 +73,7 @@ def test_paragraph_ordering_v3(paths):
 
     ann = load_ann(paths, 690, fake_image=True)
 
-    assert ann.n_paragraphs == 2
+    assert len(ann.paragraphs) == 2
 
     assert ann.paragraphs[0].image_boxes_ids[:6] == [
         "XhDbxw40iQ",

@@ -1,7 +1,7 @@
 from shapely.ops import transform
 from typing import Callable
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.ocrdataset.layout_generator.transforms import IntraparagraphTransform
+from cropgen.processing import Paragraph
+from cropgen.ocrdataset.layout_generator import IntraparagraphTransform
 from PIL.ImageTransform import PerspectiveTransform
 import numpy as np
 

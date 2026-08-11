@@ -7,16 +7,7 @@ from cropgen.shared.LSTypedDicts.values import RectangleValue, PolygonValue
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from cropgen.processing.ImageBox import ImageBox
-
-
-def get_deterministic_id(text, length: int = 8):
-    """
-    Genera un identificador 'único' (módulo colisión de hash) y determinista
-    a partir de un texto dado usando SHA-256.
-    """
-    hash_object = hashlib.sha256(text.encode("utf-8"))
-    return hash_object.hexdigest()[:length]
+    from cropgen.processing import ImageBox
 
 
 def calculate_polygon(x, y, w, h, rotation):
@@ -57,48 +48,8 @@ def calculate_polygon(x, y, w, h, rotation):
     return Polygon(corners), corners
 
 
-def calculate_polygon_angle(poly):
-    """
-    Calcula el ángulo de rotación del polígono basándose en su
-    rectángulo mínimo orientado (minimum bounding box de shapely).
-    Asume que el lado más largo del rectángulo corresponde a la orientación del texto.
-    """
-    rect = poly.minimum_rotated_rectangle
-
-    coords = list(rect.exterior.coords)
-
-    p0, p1 = coords[0], coords[1]
-    dist_a = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-
-    p2 = coords[2]
-    dist_b = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-
-    # determinamos cuál es el lado "largo" (la base del texto)
-    if dist_a > dist_b:
-        # vector p0 -> p1
-        dx = p1[0] - p0[0]
-        dy = p1[1] - p0[1]
-    else:
-        # vector p1 -> p2
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
-
-    # ángulo en grados
-    angle = math.degrees(math.atan2(dy, dx))
-
-    # normalizams teniendo en cuenta que la lectura es de izq. a derecha
-    if angle < -45:
-        angle += 180
-    elif angle > 135:
-        angle -= 180
-
-    return angle
-
-
 def get_rotated_region(
     val: PolygonValue | RectangleValue,
-    page_width: float | int,
-    page_height: float | int,
     residual: Image.Image,
 ) -> tuple[Image.Image, Polygon, float, bool]:
     """
@@ -108,6 +59,7 @@ def get_rotated_region(
     - rotation: rotación (en grados) de nuestra región. Si era un rectángulo, es la rotación manual, si no se calcula usando heurísticos.
     - polygon_tool: booleano que representa si la región se hizo usando la herramienta polígono (True) o no.
     """
+    page_width, page_height = residual.size
 
     def _crop_with_alpha(
         source: Image.Image,
@@ -319,6 +271,7 @@ def compose_collage(
     image_boxes: list["ImageBox"],
     background: Image.Image,
     tight_layout: bool = True,
+    margin_size_px: int = 0,
 ) -> Image.Image:
     """
     Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
@@ -328,12 +281,14 @@ def compose_collage(
     """
 
     if tight_layout:
-        # calculamos la región mínima de la imagen que contiene todas las cajas
+        # we calculate the minimum bounding box thata contains our image boxes
         x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
 
-        # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
-        x1, y1 = int(x1), int(y1)
-        x2, y2 = int(x2) + 1, int(y2) + 1
+        #  (Floor is top/left, Ceil for bottom/right)
+        x1 = max(0, int(x1) - margin_size_px)
+        y1 = max(0, int(y1) - margin_size_px)
+        x2 = min(background.width, int(x2) + 1 + margin_size_px)
+        y2 = min(background.height, int(y2) + 1 + margin_size_px)
 
         crop_width, crop_height = x2 - x1, y2 - y1
         collage = background.crop((x1, y1, x2, y2))

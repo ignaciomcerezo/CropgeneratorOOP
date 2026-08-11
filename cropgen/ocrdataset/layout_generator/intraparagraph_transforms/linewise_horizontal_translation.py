@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal, Callable
 
 
-from cropgen.processing.Paragraph import Paragraph
+from cropgen.processing import Paragraph
 from cropgen.ocrdataset.layout_generator.transforms import (
     IntraparagraphTransform,
     _ParagraphInfo,

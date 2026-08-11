@@ -1,7 +1,6 @@
-from cropgen.processing.Paragraph import Paragraph
-from shapely.geometry import Polygon
-from shapely import affinity
-import shapely
+from cropgen.processing import Paragraph
+from shapely import Polygon
+from shapely.affinity import rotate
 import numpy as np
 import cv2
 from PIL import Image
@@ -80,7 +79,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         center: tuple[float, float],
     ) -> Polygon:
 
-        return shapely.affinity.rotate(
+        return rotate(
             poly,
             angle,
             origin=center,

@@ -1,10 +1,10 @@
-from cropgen.processing.Paragraph import Paragraph
+from cropgen.processing import Paragraph
 from shapely.geometry import Polygon
 import shapely
 import numpy as np
 import cv2
 from PIL import Image
-from cropgen.ocrdataset.layout_generator.transforms import (
+from cropgen.ocrdataset.layout_generator import (
     IntraparagraphTransform,
     _ParagraphInfo,
 )

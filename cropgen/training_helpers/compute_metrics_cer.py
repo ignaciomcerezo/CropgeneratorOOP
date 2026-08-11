@@ -1,5 +1,5 @@
 from cropgen.training_helpers.part_detector import extract_collator_markers
-import jiwer
+import jiwer  # ty: ignore[unresolved-import]
 
 
 def preprocess_logits_for_metrics(logits, labels):

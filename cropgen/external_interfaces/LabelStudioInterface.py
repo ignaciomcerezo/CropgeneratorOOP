@@ -12,7 +12,7 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedAnnotation,
 )
 from pathlib import Path
-from cropgen.processing.AnnotatedPage import AnnotatedPage
+from cropgen.processing.annotated_page import AnnotatedPage
 from PIL import Image, ImageOps
 
 
@@ -288,7 +288,6 @@ class LabelStudioInterface:
         return AnnotatedPage(
             annotation,
             img,
-            unrotate=False,
             usernames_labelstudio=self.usernames,
             process_images=True,
         )
@@ -315,7 +314,6 @@ class LabelStudioInterface:
                 AnnotatedPage(
                     ann,
                     img,
-                    unrotate=False,
                     usernames_labelstudio=self.usernames,
                     process_images=True,
                 )
