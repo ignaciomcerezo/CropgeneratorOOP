@@ -1,4 +1,5 @@
-from cropgen.dataset_interface.layout_generator.transforms import (
+from multiprocessing import Value
+from cropgen.ocrdataset.layout_generator.transforms import (
     IntraparagraphTransform,
     InterparagraphTransform,
 )
@@ -9,33 +10,54 @@ import numpy as np
 
 
 class OCRDataset(Dataset):
+    """
+    Dataset variant intended to be used for OCR tasks. Takes as input a sequence of annotations
+    (of type AnnotatedPage) and a collecion of orders that will be used to sample the pages.
+
+    When an item is solicited, the dataset deterministically chooses an item (taken from all possible contiguous
+    clusters of lines of one of the orders provided) and returns the crop, its transcription, and other data.
+    """
+
     def __init__(
         self,
-        pages: Sequence[AnnotatedPage],
+        annotations: Sequence[AnnotatedPage],
         *,
         orders: Collection[int | Literal["paragraph", "full"]],
         intraparagraph_transforms: Collection[IntraparagraphTransform],
         interparagraph_transforms: Collection[InterparagraphTransform],
     ):
-        self.annotated_pages = pages
-        self.__orders = [order for order in orders if isinstance(order, int)]
-
-        self.__use_paragraphs = "paragraph" in orders
-        self.__use_full_pages = "full" in orders
+        self.annotated_pages = annotations
+        self.__orders = []
+        self.__update_orders(orders)
 
         self.__intraparagraph_transforms = intraparagraph_transforms
         self.__interparagraph_transforms = interparagraph_transforms
-
-        self.__recalculate_size_and_probabilities()
 
     @property
     def orders(self):
         return self.__orders
 
-    def __update_order(
+    @orders.setter
+    def orders(self, value):
+        self.__update_orders(value)
+
+    def __update_orders(
         self,
         new_orders: Collection[int | Literal["paragraph", "full"]],
     ):
+        for order in new_orders:
+            if (
+                (isinstance(order, float))
+                or (
+                    isinstance(order, str)
+                    and ((order != "full") and (order != "paragraph"))
+                )
+                or (isinstance(order, int) and (order < 1))
+            ):
+                raise ValueError(
+                    f"Value {order} found inside orders. Only ints > 1, 'paragraph' and 'full' are acceptable orders."
+                )
+
         if new_orders != self.__orders:
             self.__orders = [x for x in new_orders if isinstance(x, int)]
             self.__use_paragraphs = "paragraphs" in new_orders
@@ -56,7 +78,7 @@ class OCRDataset(Dataset):
         intraparagraph_transforms: Collection[IntraparagraphTransform],
         interparagraph_transforms: Collection[InterparagraphTransform],
     ):
-        self.__update_order(new_orders)
+        self.__update_orders(new_orders)
         self.__update_transforms(intraparagraph_transforms, interparagraph_transforms)
 
     def __recalculate_size_and_probabilities(self):
@@ -109,10 +131,12 @@ class OCRDataset(Dataset):
         page_offset = int(self.__page_prefix_sums[page_idx - 1]) if page_idx > 0 else 0
         rel_idx = index - page_offset
 
-        ann = self.annotated_pages[page_idx]
+        ann: AnnotatedPage = self.annotated_pages[page_idx]
 
         if self.__use_full_pages and rel_idx == self.__page_sample_counts[page_idx] - 1:
             selected_box_ids = list(ann.image_boxes.keys())
+            order = "full"
+            identifyer = page_idx
         else:
             par_prefix = self.__par_prefix_sums[page_idx]
             par_idx = int(np.searchsorted(par_prefix, rel_idx, side="right"))
@@ -131,11 +155,16 @@ class OCRDataset(Dataset):
                 if curr < n_windows:
                     start_line = curr
                     selected_box_ids = line_ids[start_line : start_line + order]
+                    identifyer = f"L{start_line}" + f"{start_line+order-1}" * (
+                        order > 1
+                    )
                     break
                 curr -= n_windows
 
             if selected_box_ids is None and self.__use_paragraphs:
                 selected_box_ids = line_ids
+                order = "paragraph"
+                identifyer = f"P{par_idx}"
 
             if selected_box_ids is None:
                 raise RuntimeError(f"Failed to resolve sample target for index {index}")
@@ -151,6 +180,7 @@ class OCRDataset(Dataset):
             "image": collage,
             "text": text,
             "sindex": sindex,
+            "order": order,
             "box_ids": selected_box_ids,
             "page_id": target_ann.task_id,
         }
