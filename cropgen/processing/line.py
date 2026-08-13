@@ -1,8 +1,8 @@
+from cropgen.shared.LSTypedDicts.simplified import SimplifiedTextCorrectionResult
 from cropgen.shared.LSTypedDicts.values import RectangleValue
 from cropgen.shared.LSTypedDicts.values import PolygonValue
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
-from typing import TYPE_CHECKING
 
 from PIL import Image
 from shapely import Polygon, box as boxshape
@@ -18,65 +18,38 @@ from cropgen.processing.helpers.helper_to_classes import (
 )
 from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 
-if TYPE_CHECKING:
-    from cropgen.processing.text_fragment import TextFragment
-
 
 @dataclass(slots=True, kw_only=True)
-class ImageBox:
+class Line:
     """
     Contenedor de la información sobre las selecciones en la imagen hechas durante las anotaciones. Contiene información
     sobre el polígono dibujado, la rotación del polígono, el fragmentos asociado, el recorte correspondiente.
     """
 
-    id: str
+    box_id: str
+    fragment_id: str
     # crop: Image.Image
     stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
     task_id: int
+    text: str
     index: Optional[int] = -1
-    associated_fragments: list["TextFragment"] = field(default_factory=lambda: list())
     true_rectangle: bool
     corrected_centroid: Optional[tuple[float, float]] = None
+    starting_index: Optional[int] = None
 
-    def associate_fragment(self, fragment: "TextFragment", warn: bool = False):
-        """
-        Asocia un fragmento a nuestra caja-imagen. Si ya tiene uno asociado, salta un error.
-        """
-        if (
-            len(self.associated_fragments) != 0
-        ):  # si ya tenemos un fragmento de texto asociado
-            if warn and (fragment.id in self.associated_fragments):
-                raise RepeatedSameAssociationError(self)
-            elif warn:
-                raise MultipleAssociationError(self)
-
-        self.associated_fragments.append(fragment)
-
-        # self.corrected_centroid = None ??? why was this here #TODO: check why this was here
-        # self.corrected_polygon = None
+    @property
+    def id(self) -> str:
+        return self.box_id + "-@-" + self.fragment_id
 
     def __hash__(self):
-        return (
-            self.id.__hash__()
+        return hash(
+            str(self.box_id) + str(self.fragment_id)
         )  # podemos devolver el id sabiendo que, en caso de colisión, no es culpa nuestra sino de external_interfaces
 
     def __repr__(self):
-        return (
-            "<ImageBox "
-            + ("rectangular" if self.true_rectangle else "poligonal")
-            + f" {self.id} de la tarea ({self.task_id})."
-            + ">"
-        )
-
-    @property
-    def fragment(self) -> "TextFragment":
-        """Devuelve el primer fragmento de los asociados. Si hay más de uno, salta un error."""
-        if len(self.associated_fragments) == 0:
-            raise NoAssociationError(self)
-        else:
-            return self.associated_fragments[0]
+        return f"<Line with box {self.box_id} and fragment {self.fragment_id} of task {self.task_id}>"
 
     def centroid(self) -> tuple[float, float]:
         """Devuelve el centroide del pológono asociado a esta caja-imagen."""
@@ -104,24 +77,27 @@ class ImageBox:
         return self.polygon.bounds[3]
 
     @staticmethod
-    def from_image_result(
-        simplified_result_item: RectangleResult | PolygonResult,
+    def from_matching_ann_results(
+        simplified_img_result_item: RectangleResult | PolygonResult,
+        simplified_txt_result_item: SimplifiedTextCorrectionResult,
         task_id: int,
         stroke: Image.Image,
-    ) -> "ImageBox":
-        imgbox_id = simplified_result_item.id
+    ) -> "Line":
+        imgbox_id = simplified_img_result_item.id
 
-        residual_crop, polygon, rotation, true_rectangle = ImageBox._rotatedregion(
-            stroke, simplified_result_item
+        residual_crop, polygon, rotation, true_rectangle = Line._rotatedregion(
+            stroke, simplified_img_result_item
         )
 
-        return ImageBox(
-            id=imgbox_id,
+        return Line(
+            box_id=imgbox_id,
             task_id=task_id,
             stroke_crop=residual_crop,
             polygon=polygon,
             rotation=rotation,
             true_rectangle=true_rectangle,
+            fragment_id=simplified_txt_result_item.id,
+            text=" ".join(simplified_txt_result_item.value.text).strip(),
         )
 
     @staticmethod

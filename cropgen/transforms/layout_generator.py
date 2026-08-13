@@ -1,6 +1,6 @@
 from PIL import Image
 from cropgen.processing.helpers.helper_to_classes import get_union_rect
-from cropgen.transforms.layout_generator.interparagraph_transforms import (
+from cropgen.transforms.interparagraph_transforms import (
     Refresh,
 )
 from cropgen.processing import Paragraph
@@ -52,7 +52,7 @@ class LayoutGenerator:
 
         Refresh()(*self.paragraphs)
 
-        polygons = [box.polygon for box in self.ann.image_boxes.values()]
+        polygons = [box.polygon for box in self.ann.lines.values()]
         polygons.extend(paragraph.union_polygon() for paragraph in self.paragraphs)
 
         x1, y1, x2, y2 = get_union_rect(polygons)

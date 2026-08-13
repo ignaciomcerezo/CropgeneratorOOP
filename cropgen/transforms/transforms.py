@@ -1,5 +1,5 @@
+from cropgen.processing.line import Line
 from shapely.geometry import Polygon
-from cropgen.processing.image_box import ImageBox
 from typing import Collection, Sequence
 from cropgen.processing import Paragraph
 from abc import ABC, abstractmethod
@@ -12,7 +12,7 @@ def _union(geometries: Collection[shapely.Geometry]) -> Polygon:
     return shapely.unary_union(snapped_geoms)
 
 
-def _bounds(box: ImageBox):
+def _bounds(box: Line):
     return (box.left, box.top, box.right, box.bot)
 
 
@@ -21,7 +21,7 @@ class ParagraphInfo:
     Some helpful data to calculate layouts.
     """
 
-    def __init__(self, line_group: Paragraph | Sequence[ImageBox]):
+    def __init__(self, line_group: Paragraph | Sequence[Line]):
 
         # x0,y0,xf,yf
         self.box_bounds: list[tuple[float, float, float, float]] = [
@@ -116,11 +116,11 @@ class LinewiseTransform(ABC):
     """
 
     @abstractmethod
-    def __call__(self, box: ImageBox) -> tuple[Image.Image, shapely.Polygon]:
+    def __call__(self, box: Line) -> tuple[Image.Image, shapely.Polygon]:
         raise NotImplementedError
 
     def bulk_transform(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
         new_imgs, new_polygons = [], []
 
@@ -141,7 +141,7 @@ class IntraparagraphTransform(ABC):
 
     @abstractmethod
     def __call__(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
         raise NotImplementedError
 
@@ -159,7 +159,7 @@ class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
         self._transform = transform
 
     def __call__(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
         return self._transform.bulk_transform(line_group)
 
@@ -172,5 +172,5 @@ class InterparagraphTransform(ABC):
     """
 
     @abstractmethod
-    def __call__(self, *line_groups_group: Paragraph | Sequence[ImageBox]) -> None:
+    def __call__(self, *line_groups_group: Paragraph | Sequence[Line]) -> None:
         raise NotImplementedError

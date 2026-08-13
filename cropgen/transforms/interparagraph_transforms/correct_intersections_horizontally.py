@@ -1,5 +1,5 @@
 from cropgen.processing import Paragraph
-from cropgen.transforms.layout_generator import (
+from cropgen.transforms.transforms import (
     InterparagraphTransform,
     ParagraphInfo,
 )
@@ -47,11 +47,11 @@ class CorrectIntersectionsHorizontally:
 
                     eta = 1 - (2 * (i % 2))
 
-                    for box in paragraphs[i].image_boxes:
-                        box.polygon = translate(box.polygon, eta * nu * W)
+                    for line in paragraphs[i].lines:
+                        line.polygon = translate(line.polygon, eta * nu * W)
 
-                    for box in paragraphs[i - 1].image_boxes:
-                        box.polygon = translate(box.polygon, -eta * nu * W)
+                    for line in paragraphs[i - 1].lines:
+                        line.polygon = translate(line.polygon, -eta * nu * W)
 
                     infos[i] = ParagraphInfo(paragraphs[i])
                     infos[i - 1] = ParagraphInfo(paragraphs[i - 1])

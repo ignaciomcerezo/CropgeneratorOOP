@@ -1,13 +1,11 @@
-from cropgen.processing.image_box import ImageBox
 from typing import Sequence
-from cropgen.processing import Paragraph
+from cropgen.processing import Paragraph, Line
 from shapely import Polygon
 from shapely.affinity import rotate
 import numpy as np
 import cv2
 from PIL import Image
-
-from cropgen.transforms.layout_generator.transforms import (
+from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     ParagraphInfo,
 )
@@ -33,7 +31,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         self._metric = metric
 
     def __call__(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
 
         info = ParagraphInfo(line_group)
@@ -59,18 +57,18 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         new_images = []
         new_polygons = []
 
-        for box in line_group:
+        for line in line_group:
 
-            orig_bounds = box.polygon.bounds
+            orig_bounds = line.polygon.bounds
 
             new_poly = self._rotate_poly(
-                box.polygon,
+                line.polygon,
                 rotation,
                 centroid,
             )
 
             new_img = self._rotate_img(
-                box.stroke_crop,
+                line.stroke_crop,
                 rotation,
                 centroid,
                 orig_bounds,

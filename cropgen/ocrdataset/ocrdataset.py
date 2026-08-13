@@ -159,7 +159,7 @@ class OCRDataset(Dataset):
         ann: AnnotatedPage = self.annotated_pages[page_idx]
 
         if self._use_full_pages and rel_idx == self._page_sample_counts[page_idx] - 1:
-            selected_box_ids = list(ann.image_boxes.keys())
+            selected_box_ids = list(ann.lines.keys())
             order = "full"
             identifyer = f"pg{page_idx}"
         else:
@@ -169,18 +169,18 @@ class OCRDataset(Dataset):
             item_idx = rel_idx - par_offset
 
             paragraph = ann.paragraphs[par_idx]
-            line_ids = paragraph.image_boxes_ids
+            line_ids = paragraph.line_ids
             num_lines = len(line_ids)
 
             curr = item_idx
             selected_box_ids: Optional[list[str]] = None
 
             for order in self._orders:
-                n_windows = max(0, num_lines - order + 1)
+                n_windows: int = max(0, num_lines - order + 1)
                 if curr < n_windows:
                     start_line = curr
                     selected_box_ids = line_ids[start_line : start_line + order]
-                    identifyer = (
+                    identifyer = str(
                         f"pg{page_idx}par{par_idx}L{start_line}"
                         + f"{start_line+order-1}" * (order > 1)
                     )
@@ -195,7 +195,7 @@ class OCRDataset(Dataset):
             if selected_box_ids is None:
                 raise RuntimeError(f"Failed to resolve sample target for index {index}")
 
-        # TODO: implement the layout changes.
+        # TODO: implement the transforms
         target_ann = ann
 
         collage, text, sindex = target_ann.synthetic_sample(selected_box_ids)

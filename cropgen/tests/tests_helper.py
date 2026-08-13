@@ -20,7 +20,6 @@ def load_ann(
     annotation_number_in_task: int = 0,
     process_images: bool = False,
     fake_image: bool = False,
-    unrotate: bool = False,
 ) -> AnnotatedPage:
     """
     Carga la anotación annotation_number_in_task-ésima de la tarea task_id, y la devuelve como una instancia
@@ -67,7 +66,7 @@ def extract_height_width_from_task(
             break
 
     if not isinstance(result, ImageBaseResult):
-        raise ValueError(f"No es ha encontrado ningún resultado en la tarea {task}.")
+        raise ValueError(f"No image boxes in  (Task {task}).")
 
     retrieved_width = result.original_width
     retrieved_height = result.original_height

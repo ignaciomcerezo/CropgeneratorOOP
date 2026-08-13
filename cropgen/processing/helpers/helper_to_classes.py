@@ -6,9 +6,6 @@ import numpy as np
 from cropgen.shared.LSTypedDicts.values import RectangleValue, PolygonValue
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from cropgen.processing import ImageBox
-
 
 def calculate_polygon(x, y, w, h, rotation):
     """
@@ -265,66 +262,6 @@ def get_connected_components(adj: dict[str, set]):
             # añadimos la componente conexa
             components.append(comp)
     return components
-
-
-def compose_collage(
-    image_boxes: list["ImageBox"],
-    background: Image.Image,
-    tight_layout: bool = True,
-    margin_size_px: int = 0,
-) -> Image.Image:
-    """
-    Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
-    If min_bounding_boxes is provided, each element is taken to be the coordinates where the leftmost
-    topmost point of the bounding box of each line will be placed. If not provided, it takes that
-    information from the image_box instances themselves.
-    """
-
-    if tight_layout:
-        # we calculate the minimum bounding box thata contains our image boxes
-        x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
-
-        #  (Floor is top/left, Ceil for bottom/right)
-        x1 = max(0, int(x1) - margin_size_px)
-        y1 = max(0, int(y1) - margin_size_px)
-        x2 = min(background.width, int(x2) + 1 + margin_size_px)
-        y2 = min(background.height, int(y2) + 1 + margin_size_px)
-
-        crop_width, crop_height = x2 - x1, y2 - y1
-        collage = background.crop((x1, y1, x2, y2))
-    else:
-        collage = background
-        x1 = 0
-        y1 = 0
-
-    overlay: np.ndarray = np.full(np.asarray(collage).shape, 0)
-
-    for box in image_boxes:
-        box_x0, box_y0, _, _ = box.polygon.bounds
-
-        # calculamos la posición relativa al nuevo lienzo
-        paste_x, paste_y = int(box_x0 - x1), int(box_y0 - y1)
-
-        stroke_rgba = np.asarray(box.stroke_crop.convert("RGBA"))
-
-        stroke = stroke_rgba[..., 0]
-        alpha = stroke_rgba[..., 3]
-
-        masked_stroke = stroke * (alpha / 255.0)
-
-        overlay[
-            paste_y : paste_y + box.stroke_crop.height,
-            paste_x : paste_x + box.stroke_crop.width,
-        ] += masked_stroke.astype(np.uint8)
-
-    # difference instead of addition as our strokes are reversed in intensity
-    collage = Image.fromarray(
-        np.clip(np.asarray(collage, dtype=np.float32) - overlay, 0, 255).astype(
-            np.uint8
-        )
-    )
-
-    return collage
 
 
 def subdictionary(nodes, adj) -> dict[str, set[str]]:
