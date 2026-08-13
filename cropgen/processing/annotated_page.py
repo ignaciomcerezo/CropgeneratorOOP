@@ -5,7 +5,7 @@ from collections.abc import Iterable
 
 import numpy as np
 from PIL import Image, ImageDraw
-from cropgen.processing.paragraph import Paragraph
+from cropgen.processing import Paragraph
 from cropgen.processing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
