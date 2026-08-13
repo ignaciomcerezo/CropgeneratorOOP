@@ -1,13 +1,20 @@
+from shapely.geometry import Polygon
+from cropgen.processing.line import Line
+from typing import Sequence
+from cropgen.transforms.interparagraph_transforms.correct_intersections_vertically import (
+    _iterunion,
+)
 from cropgen.processing import Paragraph
 from cropgen.transforms.transforms import (
     InterparagraphTransform,
-    ParagraphInfo,
 )
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from shapely.affinity import translate
 from shapely import intersection
+from PIL import Image
 
 
-class CorrectIntersectionsHorizontally:
+class CorrectIntersectionsHorizontally(InterparagraphTransform):
     """
     Moves paragraphs away from each other horizontally to satisfy a minimum
     clearance constraint, assuming paragraphs are strictly ordered top-to-bottom.
@@ -16,51 +23,57 @@ class CorrectIntersectionsHorizontally:
     def __init__(self, absolute_clearance: float = 5):
         self.clearance = absolute_clearance
 
-    def __call__(self, *paragraphs: Paragraph) -> None:
-        n = len(paragraphs)
-        if n < 2:
-            return
+    def __call__(
+        self, *line_groups: Paragraph | Sequence[Line]
+    ) -> tuple[list[list[Image.Image]], list[list[Polygon]]]:
+        img_groups = [
+            [line.stroke_crop for line in line_group] for line_group in line_groups
+        ]
+        poly_groups = [
+            [line.polygon for line in line_group] for line_group in line_groups
+        ]
 
-        infos = [ParagraphInfo(paragraph) for paragraph in paragraphs]
+        if len(line_groups) < 2:
+            return img_groups, poly_groups
 
+        infos = [LineGroupInfo(line_group) for line_group in line_groups]
         nu = _detect_preferred_side(*infos)
 
-        # running this loop twice always yields a non-intersecting result,
-        # but is probably unnecessary
         max_iterations = 100
         iteration = 0
         movement = True
 
         while movement and iteration < max_iterations:
             movement = False
-            for i in range(1, len(paragraphs)):
-                prev = infos[i - 1]
-                curr = infos[i]
+            for i in range(1, len(line_groups)):
+                prev_union = _iterunion(*poly_groups[i - 1])
+                curr_union = _iterunion(*poly_groups[i])
 
-                if prev.union_polygon.intersects(curr.union_polygon):
+                if not prev_union.intersects(curr_union):
+                    continue
 
-                    intersect_geom = prev.union_polygon.intersection(curr.union_polygon)
-                    min_x, _, max_x, _ = intersect_geom.bounds
-                    intersection_depth = max_x - min_x
+                intersect_geom = prev_union.intersection(curr_union)
+                min_x, _, max_x, _ = intersect_geom.bounds
+                intersection_depth = max_x - min_x
+                w = (intersection_depth + self.clearance) / 2.0
+                eta = 1 - (2 * (i % 2))
+                shift = eta * nu * w
 
-                    W = (intersection_depth + self.clearance) / 2.0
+                poly_groups[i] = [
+                    translate(poly, xoff=shift) for poly in poly_groups[i]
+                ]
+                poly_groups[i - 1] = [
+                    translate(poly, xoff=-shift) for poly in poly_groups[i - 1]
+                ]
 
-                    eta = 1 - (2 * (i % 2))
-
-                    for line in paragraphs[i].lines:
-                        line.polygon = translate(line.polygon, eta * nu * W)
-
-                    for line in paragraphs[i - 1].lines:
-                        line.polygon = translate(line.polygon, -eta * nu * W)
-
-                    infos[i] = ParagraphInfo(paragraphs[i])
-                    infos[i - 1] = ParagraphInfo(paragraphs[i - 1])
-                    movement = True
+                movement = True
 
             iteration += 1
 
+        return img_groups, poly_groups
 
-def _detect_preferred_side(*infos: ParagraphInfo):
+
+def _detect_preferred_side(*infos: LineGroupInfo):
     avg_center = sum([info.center[0] for info in infos]) / len(infos)
     even = sum([info.center[0] for info in infos[::2]]) / len(infos[::2])
 

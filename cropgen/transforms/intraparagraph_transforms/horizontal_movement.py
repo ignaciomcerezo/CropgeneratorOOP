@@ -21,35 +21,33 @@ from shapely.affinity import translate
 import numpy as np
 from PIL import Image
 
-NOISES = Literal["linear", "wave", "random", "zigzag"]
+NOISES = Literal["linear", "wave", "from_amplitude_parameter", "zigzag"]
 
 scalar = Parameter | float
 
 
 @dataclass
-class LinewiseHorizontalTranslation(IntraparagraphFromLinewiseTransform):
+class HorizontalMovement(IntraparagraphFromLinewiseTransform):
 
     def __init__(
         self,
         noise_type: NOISES,
-        period: scalar,
-        amplitude: scalar,
-        slope: scalar,
-        intercept: scalar,
+        period: scalar | None = None,
+        amplitude: scalar | None = None,
+        slope: scalar | None = None,
+        intercept: scalar | None = 0,
     ):
         self.noise_type = noise_type
-        self.period: float = instanciate_if_parameter(period)
-        self.amplitude: float = instanciate_if_parameter(amplitude)
-        self.slope: float = instanciate_if_parameter(slope)
-        self.intercept = instanciate_if_parameter(intercept)
-
-    def __post_init__(self):
+        self.period = Parameter(period) if period is not None else None
+        self.amplitude = Parameter(amplitude) if amplitude is not None else None
+        self.slope = Parameter(slope) if slope is not None else None
+        self.intercept = Parameter(intercept) if intercept is not None else None
         self.type2map: dict[
             NOISES, Callable[[Paragraph | Sequence[Line]], list[Polygon]]
         ] = {
             "linear": self._call_linear_polygons,
             "wave": self._call_wave_polygons,
-            "random": self._call_random_polygons,
+            "from_amplitude_parameter": self._call_random_polygons,
             "zigzag": self._call_zigzag_polygons,
         }
 
@@ -57,12 +55,24 @@ class LinewiseHorizontalTranslation(IntraparagraphFromLinewiseTransform):
         self, line_group: Paragraph | Sequence[Line]
     ) -> list[Polygon]:
 
+        if self.slope is None:
+            raise ValueError(
+                "Cannot use linear horizontal movement if no slope is passed."
+            )
+
+        if self.intercept is None:
+            raise ValueError(
+                "Cannot use linear horizontal movement if None is passed as intercept."
+            )
+
         x0, y0 = line_group[0].centroid()
         polygons = []
         for line in line_group:
             xi, yi = line.centroid()
             polygons.append(
-                translate(line.polygon, xoff=self.intercept + self.slope * abs(yi - y0))
+                translate(
+                    line.polygon, xoff=self.intercept() + self.slope() * abs(yi - y0)
+                )
             )
         return polygons
 
@@ -70,12 +80,18 @@ class LinewiseHorizontalTranslation(IntraparagraphFromLinewiseTransform):
         self, line_group: Paragraph | Sequence[Line]
     ) -> list[Polygon]:
 
+        if self.amplitude is None:
+            raise ValueError("Cannot use wave movement if no amplitude is passed.")
+
+        if self.period is None:
+            raise ValueError("Cannot use wave movement if no period is passed.")
+
         _, y0 = line_group[0].centroid()
         polygons = []
         for line in line_group:
             _, yi = line.centroid()
 
-            xoff = self.amplitude * np.cos(2 * np.pi * (yi - y0) / self.period)
+            xoff = self.amplitude() * np.cos(2 * np.pi * (yi - y0) / self.period())
 
             polygons.append(translate(line.polygon, xoff=xoff))
         return polygons
@@ -86,11 +102,17 @@ class LinewiseHorizontalTranslation(IntraparagraphFromLinewiseTransform):
         _, y0 = line_group[0].centroid()
         polygons = []
 
+        if self.amplitude is None:
+            raise ValueError("Cannot use zigzag movement if no amplitude is passed.")
+
+        if self.period is None:
+            raise ValueError("Cannot use zigzag movement if no period is passed.")
+
         for line in line_group:
             _, yi = line.centroid()
 
-            phase = int((yi - y0) / self.period)
-            xoff = self.amplitude if phase % 2 == 0 else -self.amplitude
+            phase = int((yi - y0) / self.period())
+            xoff = self.amplitude if phase % 2 == 0 else -self.amplitude()
 
             polygons.append(translate(line.polygon, xoff=xoff))
 
@@ -99,9 +121,11 @@ class LinewiseHorizontalTranslation(IntraparagraphFromLinewiseTransform):
     def _call_random_polygons(
         self, line_group: Paragraph | Sequence[Line]
     ) -> list[Polygon]:
+        if self.amplitude is None:
+            raise ValueError("Cannot use random movement if no amplitude is passed.")
         polygons = []
         for line in line_group:
-            xoff = np.random.uniform(-self.amplitude, self.amplitude)
+            xoff = self.amplitude()
             polygons.append(translate(line.polygon, xoff=xoff))
         return polygons
 

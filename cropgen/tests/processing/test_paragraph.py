@@ -22,7 +22,8 @@ def test_paragraph_v1(
     page: tuple[int, int],
     supposed_paragraphs,
 ):
-    ann: AnnotatedPage = paths.lsi.get_annotated_page(*page)
+    lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
+    ann: AnnotatedPage = lsi.get_annotated_page(*page)
     n_par = len(ann.paragraphs)
     assert n_par == (
         supposed_paragraphs

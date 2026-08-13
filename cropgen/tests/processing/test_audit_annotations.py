@@ -131,7 +131,10 @@ def test_audit_annotations(paths):
 
             assert all(isinstance(s, int) for s in sindices_par)
             assert -1 not in sindices_par
-            assert sorted(sindices_par) == sindices_par
+            assert (
+                sorted(sindices_par)  # ty: ignore[invalid-argument-type]
+                == sindices_par
+            )
 
             transcription_1 = ann.synthetic_transcription(paragraph.line_ids)
             transcription_2 = paragraph.transcription(ann.line_separator)

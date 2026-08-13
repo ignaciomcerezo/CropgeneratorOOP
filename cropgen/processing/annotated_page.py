@@ -1,11 +1,12 @@
+from shapely.geometry import Point
 from cropgen.processing.line import Line
+from cropgen.processing.paragraph import Paragraph
 from typing import Literal, Optional
 import re
 from collections.abc import Iterable
-
+from shapely.affinity import translate
 import numpy as np
 from PIL import Image, ImageDraw
-from cropgen.processing import Paragraph
 from cropgen.processing.helpers.PairingErrors import (
     NoAssociationError,
     MultipleAssociationError,
@@ -84,19 +85,19 @@ class AnnotatedPage:
         results: list[SimplifiedResultItem] = ann.result
 
         if process_images:
-            w, h = img.size
+            img = img.convert("L")
+            self.background, self.stroke = separate_background_and_stroke(img)
 
+            w, h = img.size
             scale_factor = AnnotatedPage.max_img_dimension / max(w, h)
-            img = img.resize(
-                (
-                    int(np.ceil(w * scale_factor)),
-                    int(np.ceil(h * scale_factor)),
-                )
+            size = (
+                int(np.ceil(w * scale_factor)),
+                int(np.ceil(h * scale_factor)),
             )
 
-            img = img.convert("L")
+            self.background = self.background.resize(size)
+            self.stroke = self.stroke.resize(size)
 
-            self.background, self.stroke = separate_background_and_stroke(img)
         else:
             # blanks
             self.background = self.stroke = img.convert(mode="L")
@@ -575,3 +576,51 @@ class AnnotatedPage:
             "Only to be used to speed up testing that does not require images and NOT for production."
         )
         AnnotatedPage.warn_process_images = False
+
+    def refresh_geometric_info(self) -> None:
+        """
+        Refreshes the geometric information of a page to not cause errors. Useful after applying transforms.
+        """
+        if not self.paragraphs:
+            return
+
+        if not self.lines:
+            return
+
+        min_x = min(line.polygon.bounds[0] for line in self.lines.values())
+        min_y = min(line.polygon.bounds[1] for line in self.lines.values())
+
+        for paragraph in self.paragraphs:
+            for line in paragraph:
+                line.polygon = translate(line.polygon, xoff=-min_x, yoff=-min_y)
+
+        for paragraph in self.paragraphs:
+
+            paragraph.avg_rotation = (
+                1
+                / len(paragraph)
+                * sum(line.rotation * line.polygon.area for line in paragraph)
+            )
+            shape = paragraph[0].polygon
+
+            for line in [paragraph[i] for i in range(1, len(paragraph))]:
+                shape = shape.union(line.polygon)
+
+            paragraph.centroid = (shape.centroid.x, shape.centroid.y)
+
+            theta_rad = -np.radians(-paragraph.avg_rotation)
+            cos_theta = float(np.cos(theta_rad))
+            sin_theta = float(np.sin(theta_rad))
+
+            cx_para = float(paragraph.centroid[0])
+            cy_para = float(paragraph.centroid[1])
+
+            for line in paragraph:
+                cx, cy = line.centroid()
+                dx = cx - cx_para
+                dy = cy - cy_para
+
+                corrected_x = dx * cos_theta - dy * sin_theta + cx_para
+                corrected_y = dx * sin_theta + dy * cos_theta + cy_para
+
+                line.corrected_centroid = (corrected_x, corrected_y)

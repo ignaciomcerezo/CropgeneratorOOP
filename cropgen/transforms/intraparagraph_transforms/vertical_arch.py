@@ -1,5 +1,7 @@
+from cropgen.shared.parameters import Parameter
 from typing import Iterable
-from cropgen.transforms.transforms import IntraparagraphTransform, ParagraphInfo
+from cropgen.transforms.transforms import IntraparagraphTransform
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.processing import Paragraph, Line
 from shapely.geometry import Polygon
 import shapely
@@ -13,8 +15,10 @@ class VerticalArch(IntraparagraphTransform):
     Applies a parabolic arch to all lines.
     """
 
-    def __init__(self, *, amplitude: float, segmentation_thinness: int = 200):
-        self.amplitude = amplitude
+    def __init__(
+        self, amplitude: Parameter | float, *, segmentation_thinness: int = 200
+    ):
+        self.amplitude = Parameter(amplitude)
         self.segmentation_thinness = segmentation_thinness
 
     def __call__(
@@ -30,12 +34,14 @@ class VerticalArch(IntraparagraphTransform):
         for box in line_group:
             orig_bounds = box.polygon.bounds
 
-            new_polygon = self._apply_arch_poly(box.polygon, self.amplitude, x0, xf)
+            amplitude = self.amplitude()
+
+            new_polygon = self._apply_arch_poly(box.polygon, amplitude, x0, xf)
 
             new_images.append(
                 self._apply_arch_img(
                     box.stroke_crop,
-                    self.amplitude,
+                    amplitude,
                     x0,
                     xf,
                     orig_bounds,

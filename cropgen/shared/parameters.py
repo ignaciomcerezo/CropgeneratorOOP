@@ -10,18 +10,25 @@ class Parameter:
 
     __slots__ = ("_value",)
 
-    def __init__(self, value: float | Callable[[], float]):
-        self._value = value
+    # TODO: solve compatibility with NormalDistribution and UniformDistribution.
+
+    def __init__(self, value: "Parameter | float | Callable[[], float]"):
+        if isinstance(value, Parameter):
+            self._value = value._value
+        else:
+            self._value = value
 
     def __call__(self) -> float:
-        if isinstance(self._value, float):
+        if isinstance(self._value, (float, int)):
             return self._value
 
         elif callable(self._value):
             return self._value()  # ty: ignore[call-top-callable, invalid-return-type]
 
         else:
-            raise ValueError("Value is neither a callable nor a float.")
+            raise ValueError(
+                f"Value is neither a callable nor a float or int, but {self._value}"
+            )
 
 
 class NormalDistribution(Parameter):
@@ -34,6 +41,9 @@ class NormalDistribution(Parameter):
     def __call__(self) -> float:
         return float(np.random.normal(self._mean, self._sigma))
 
+    def __repr__(self):
+        return f"<N({self._mean},{self._sigma})>"
+
 
 class UniformDistribution(Parameter):
     __slots__ = ("_min", "_max")
@@ -44,6 +54,9 @@ class UniformDistribution(Parameter):
 
     def __call__(self) -> float:
         return float(np.random.uniform(self._min, self._max))
+
+    def __repr__(self):
+        return f"<U({self._min},{self._max})>"
 
 
 def instanciate_if_parameter(value: Parameter | float) -> float:

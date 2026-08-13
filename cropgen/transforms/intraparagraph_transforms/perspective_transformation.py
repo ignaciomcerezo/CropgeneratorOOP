@@ -1,34 +1,54 @@
-from shapely.geometry import Polygon
-from shapely.ops import transform
 from typing import Callable, Sequence
-from cropgen.processing import Paragraph, Line
-from cropgen.transforms.layout_generator import IntraparagraphTransform
-from PIL.ImageTransform import PerspectiveTransform
 import numpy as np
 from PIL import Image
+from PIL.ImageTransform import PerspectiveTransform
+from shapely.geometry import Polygon
+from shapely.ops import transform
+
+from cropgen.processing import Line, Paragraph
+from cropgen.shared.parameters import Parameter
+from cropgen.transforms.transforms import IntraparagraphTransform
 
 point2D = tuple[float, float]
 
 
 class PerspectiveTransformation(IntraparagraphTransform):
-    def __init__(self, source_points: list, destination_points: list):
-
-        # PIL needs the coeff. of the inverse transform, while shapely needs those of the direct one
-        self.inv_coefficients = calculate_perspective_coefficients(
-            source_points, destination_points
-        )
-        self.fwd_coefficients = calculate_perspective_coefficients(
-            destination_points, source_points
-        )
+    def __init__(
+        self,
+        source_points: Sequence[point2D] = ((0, 0), (1, 0), (0, 1), (1, 1)),
+        destination_points: Sequence[point2D] = ((0, 0), (1, 0), (0, 1), (1, 1)),
+        *,
+        noise_x: Parameter | float = 0,
+        noise_y: Parameter | float = 0,
+    ):
+        self.source_points = [tuple(point) for point in source_points]
+        self.destination_points = [tuple(point) for point in destination_points]
+        self.noise_x = Parameter(noise_x)
+        self.noise_y = Parameter(noise_y)
 
     def __call__(
         self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
-        shapely_configured_transform = _get_shapely_perspective_transform(
-            *self.fwd_coefficients
+        noisy_destination_points = [
+            (
+                x + self.noise_x(),
+                y + self.noise_y(),
+            )
+            for x, y in self.destination_points
+        ]
+
+        inv_coefficients = calculate_perspective_coefficients(
+            self.source_points, noisy_destination_points
+        )
+        fwd_coefficients = calculate_perspective_coefficients(
+            noisy_destination_points, self.source_points
         )
 
-        image_configured_transform = PerspectiveTransform(self.inv_coefficients)
+        shapely_configured_transform = _get_shapely_perspective_transform(
+            *fwd_coefficients
+        )
+        image_configured_transform = PerspectiveTransform(inv_coefficients)
+
         new_images = []
         new_polygons = []
 
@@ -37,7 +57,7 @@ class PerspectiveTransformation(IntraparagraphTransform):
 
             original_width, original_height = line.stroke_crop.size
             expected_size = _calculate_projected_size(
-                original_width, original_height, self.fwd_coefficients
+                original_width, original_height, fwd_coefficients
             )
             new_images.append(
                 line.stroke_crop.transform(expected_size, image_configured_transform)
@@ -61,8 +81,8 @@ def _calculate_projected_size(
         proj_x.append((a * x + b * y + c) / denominator)
         proj_y.append((d * x + e * y + f) / denominator)
 
-    new_width = int(np.ceil(max(proj_x) - min(proj_x)))
-    new_height = int(np.ceil(max(proj_y) - min(proj_y)))
+    new_width = max(1, int(np.ceil(max(proj_x) - min(proj_x))))
+    new_height = max(1, int(np.ceil(max(proj_y) - min(proj_y))))
 
     return new_width, new_height
 

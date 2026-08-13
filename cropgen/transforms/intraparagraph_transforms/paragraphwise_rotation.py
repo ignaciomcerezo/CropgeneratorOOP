@@ -1,3 +1,4 @@
+from cropgen.shared.parameters import Parameter
 from typing import Sequence
 from cropgen.processing import Paragraph, Line
 from shapely import Polygon
@@ -7,8 +8,8 @@ import cv2
 from PIL import Image
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
-    ParagraphInfo,
 )
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 
 
 class ParagraphwiseRotation(IntraparagraphTransform):
@@ -19,22 +20,22 @@ class ParagraphwiseRotation(IntraparagraphTransform):
     def __init__(
         self,
         *,
-        relative: float | None = None,
-        absolute: float | None = None,
+        relative: Parameter | float | None = None,
+        absolute: Parameter | float | None = None,
         metric: str = "degrees",
     ):
         if relative is None and absolute is None:
             raise ValueError("Either relative or absolute rotations must be provided")
 
-        self._relative = relative
-        self._absolute = absolute
+        self._relative = Parameter(relative) if relative is not None else None
+        self._absolute = Parameter(absolute) if absolute is not None else None
         self._metric = metric
 
     def __call__(
         self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
 
-        info = ParagraphInfo(line_group)
+        info = LineGroupInfo(line_group)
 
         if self._relative is not None:
             rotation = info.avg_rotation * self._relative
@@ -44,11 +45,11 @@ class ParagraphwiseRotation(IntraparagraphTransform):
 
             match self._metric:
                 case "degrees":
-                    rotation = self._absolute
+                    rotation = self._absolute()
                 case "radians":
-                    rotation = self._absolute / np.pi * 180
+                    rotation = self._absolute() / np.pi * 180
                 case "pi radians":
-                    rotation = self._absolute * 180
+                    rotation = self._absolute() * 180
                 case _:
                     raise ValueError(f"Unknown metric: {self._metric}")
 

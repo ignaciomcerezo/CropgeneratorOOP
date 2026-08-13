@@ -1,8 +1,5 @@
 from PIL import Image
 from cropgen.processing.helpers.helper_to_classes import get_union_rect
-from cropgen.transforms.interparagraph_transforms import (
-    Refresh,
-)
 from cropgen.processing import Paragraph
 from cropgen.processing import AnnotatedPage
 from cropgen.transforms import (
@@ -14,46 +11,67 @@ from copy import deepcopy
 
 
 class LayoutGenerator:
-    def __init__(self, ann: AnnotatedPage):
-        self.ann = ann
-        self.paragraphs = deepcopy(ann.paragraphs)
+    def __init__(self):
+        self._transform_index = 0
 
-        # FIX: Use a list comprehension to create N empty lists
-        self.intra_transforms: list[list[IntraparagraphTransform]] = [
-            [] for _ in range(len(self.paragraphs))
-        ]
+        self.intra_transforms_to_all: list[tuple[IntraparagraphTransform, int]] = []
+        self.intra_transforms_specific: dict[
+            int, list[tuple[IntraparagraphTransform, int]]
+        ] = dict()
 
         self.inter_transforms: list[InterparagraphTransform] = []
 
     def add_intra_to_all(self, *transforms: IntraparagraphTransform):
-        for transform in transforms:
-            for i in range(len(self.intra_transforms)):
-                self.intra_transforms[i].append(transform)
+        self.intra_transforms_to_all.extend(
+            (transform, i)
+            for i, transform in enumerate(transforms, start=self._transform_index)
+        )
+        self._transform_index += len(transforms)
 
     def add_intra_to_one(
-        self, transform: IntraparagraphTransform, paragraph: Paragraph
+        self, transform: IntraparagraphTransform, paragraph_index: int
     ):
 
-        self.intra_transforms[self.paragraphs.index(paragraph)].append(transform)
+        self.intra_transforms_specific[paragraph_index].append(
+            (transform, self._transform_index)
+        )
+        self._transform_index += 1
 
     def add_inter(self, layout: InterparagraphTransform):
         self.inter_transforms.append(layout)
 
-    def apply(self) -> AnnotatedPage:
-        if not self.intra_transforms and not self.inter_transforms:
-            return self.ann
+    def apply(self, ann: AnnotatedPage) -> AnnotatedPage:
+        """
+        Generates a new AnnotatedPage instance by applying the transforms to an annotated page.
+        """
 
-        for p_layouts, paragraph in zip(self.intra_transforms, self.paragraphs):
-            for layout in p_layouts:
-                layout(paragraph)
+        new_ann = deepcopy(ann)
+
+        if not (
+            self.intra_transforms_specific
+            or self.inter_transforms
+            or self.intra_transforms_to_all
+        ):
+            return new_ann
+
+        for p_idx, paragraph in enumerate(new_ann.paragraphs):
+            transforms_p = self.intra_transforms_to_all.copy()
+
+            if p_idx in self.intra_transforms_specific:
+                transforms_p += self.intra_transforms_specific[p_idx]
+
+            transforms_p = sorted(transforms_p, key=lambda x: x[1])
+
+            for transform, _ in transforms_p:
+                transform.in_place(paragraph)
 
         for layout in self.inter_transforms:
-            layout(*self.paragraphs)
+            layout.in_place(*new_ann.paragraphs)
 
-        Refresh()(*self.paragraphs)
+        new_ann.refresh_geometric_info()
 
-        polygons = [box.polygon for box in self.ann.lines.values()]
-        polygons.extend(paragraph.union_polygon() for paragraph in self.paragraphs)
+        polygons = [box.polygon for box in new_ann.lines.values()]
+        polygons.extend(paragraph.union_polygon() for paragraph in new_ann.paragraphs)
 
         x1, y1, x2, y2 = get_union_rect(polygons)
 
@@ -61,20 +79,20 @@ class LayoutGenerator:
         x2, y2 = int(x2) + 1, int(y2) + 1
 
         w, h = max(1, x2 - x1), max(1, y2 - y1)
-        background = self.ann.background.resize(
+        background = new_ann.background.resize(
             size=(w, h), resample=Image.Resampling.BICUBIC
         )
 
         return AnnotatedPage.from_paragraphs(
-            paragraphs=self.paragraphs,
-            task_id=self.ann.task_id,
+            paragraphs=new_ann.paragraphs,
+            task_id=new_ann.task_id,
             background=background,
-            completer=self.ann.completer,
-            last_update_time=self.ann.last_update_time,
-            updater=self.ann.updater,
+            completer=new_ann.completer,
+            last_update_time=new_ann.last_update_time,
+            updater=new_ann.updater,
             annotation_unique_id=hash(
-                " ".join(p.transcription() for p in self.paragraphs)
+                " ".join(p.transcription() for p in new_ann.paragraphs)
             ),
-            line_separator=self.ann.line_separator,
-            process_images=self.ann.process_images,
+            line_separator=new_ann.line_separator,
+            process_images=new_ann.process_images,
         )
