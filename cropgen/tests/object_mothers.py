@@ -782,7 +782,7 @@ def mother_image_box(
         )
         polygon: ShapelyPolygon = ShapelyPolygon(points)
     image_box = ImageBox(
-        id=id if id is not None else f"box{random.randint(1, 1000)}",
+        box_id=id if id is not None else f"box{random.randint(1, 1000)}",
         stroke_crop=stroke_crop,
         polygon=polygon,
         rotation=rotation if rotation is not None else random.uniform(0, 360),
@@ -824,7 +824,7 @@ def mother_paragraph(
             box.associate_fragment(fragment)
         image_boxes = [box]
         text_fragments = []
-        subgraph = subgraph if subgraph is not None else {box.id: set()}
+        subgraph = subgraph if subgraph is not None else {box.box_id: set()}
     return Paragraph(
         image_boxes=image_boxes,
         text_fragments=text_fragments,

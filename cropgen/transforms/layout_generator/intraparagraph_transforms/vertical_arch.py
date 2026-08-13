@@ -1,16 +1,18 @@
+from typing import Iterable
+from cropgen.processing.image_box import ImageBox
+from cropgen.transforms.layout_generator.transforms import IntraparagraphTransform
 from cropgen.processing import Paragraph
 from shapely.geometry import Polygon
 import shapely
 import numpy as np
 import cv2
 from PIL import Image
-from cropgen.ocrdataset.layout_generator import (
-    IntraparagraphTransform,
-    _ParagraphInfo,
+from cropgen.transforms.layout_generator import (
+    ParagraphInfo,
 )
 
 
-class LinewiseArch(IntraparagraphTransform):
+class VerticalArch(IntraparagraphTransform):
     """
     Applies a parabolic arch to all lines.
     """
@@ -19,27 +21,34 @@ class LinewiseArch(IntraparagraphTransform):
         self.amplitude = amplitude
         self.segmentation_thinness = segmentation_thinness
 
-    def __call__(self, paragraph: Paragraph):
+    def __call__(
+        self, line_group: Paragraph | Iterable[ImageBox]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
 
-        for box in paragraph.image_boxes:
+        x0 = min(box.left for box in line_group)
+        xf = max(box.right for box in line_group)
+
+        new_polygons = []
+        new_images = []
+
+        for box in line_group:
             orig_bounds = box.polygon.bounds
 
-            new_poly = self._apply_arch_poly(
-                box.polygon, self.amplitude, paragraph.left, paragraph.right
+            new_polygon = self._apply_arch_poly(box.polygon, self.amplitude, x0, xf)
+
+            new_images.append(
+                self._apply_arch_img(
+                    box.stroke_crop,
+                    self.amplitude,
+                    x0,
+                    xf,
+                    orig_bounds,
+                    new_polygon.bounds,
+                )
             )
+            new_polygons.append(new_polygon)
 
-            box.stroke_crop = self._apply_arch_img(
-                box.stroke_crop,
-                self.amplitude,
-                paragraph.left,
-                paragraph.right,
-                orig_bounds,
-                new_poly.bounds,
-            )
-
-            box.polygon = new_poly
-
-        return paragraph
+        return new_images, new_polygons
 
     def _apply_arch_img(
         self,

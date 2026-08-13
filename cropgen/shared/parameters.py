@@ -44,3 +44,10 @@ class UniformDistribution(Parameter):
 
     def __call__(self) -> float:
         return float(np.random.uniform(self._min, self._max))
+
+
+def instanciate_if_parameter(value: Parameter | float) -> float:
+    if isinstance(value, Parameter):
+        return value()
+    else:
+        return value

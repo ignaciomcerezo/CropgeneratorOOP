@@ -1,4 +1,5 @@
-from .linewise_arch import LinewiseArch
+from .vertical_arch import VerticalArch
+from .linewise_rotation import LinewiseRotation
 from .linewise_horizontal_translation import LinewiseHorizontalTranslation
 from .linewise_rotation import LinewiseRotation
 from .paragraphwise_rotation import ParagraphwiseRotation

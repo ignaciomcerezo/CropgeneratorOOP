@@ -26,7 +26,7 @@ class TextFragment:
         if warn and (
             len(self.associated_boxes) != 0
         ):  # si ya tenemos un fragmento de texto asociado
-            if box.id in self.associated_boxes:
+            if box.box_id in self.associated_boxes:
                 raise RepeatedSameAssociationError(self)
             elif warn:
                 raise MultipleAssociationError(self)

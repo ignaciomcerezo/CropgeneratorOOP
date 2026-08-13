@@ -1,11 +1,11 @@
 from PIL import Image
 from cropgen.processing.helpers.helper_to_classes import get_union_rect
-from cropgen.ocrdataset.layout_generator.interparagraph_transforms.refresh import (
+from cropgen.transforms.layout_generator.interparagraph_transforms import (
     Refresh,
 )
 from cropgen.processing import Paragraph
 from cropgen.processing import AnnotatedPage
-from cropgen.ocrdataset.layout_generator.transforms import (
+from cropgen.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,
 )

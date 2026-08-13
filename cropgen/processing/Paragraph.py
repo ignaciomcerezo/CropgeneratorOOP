@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterator
 
 import numpy as np
 from PIL import Image
@@ -69,8 +69,15 @@ class Paragraph:
         # reordenamos
         self.text_fragments = [box.fragment for box in self.image_boxes]
 
-        self.image_boxes_ids = [box.id for box in self.image_boxes]
+        self.image_boxes_ids = [box.box_id for box in self.image_boxes]
         self.text_fragments_ids = [fragment.id for fragment in self.text_fragments]
+
+    def __iter__(self) -> Iterator[ImageBox]:
+        for x in self.image_boxes:
+            yield x
+
+    def __getitem__(self, index) -> ImageBox:
+        return self.image_boxes[index]
 
     def __lt__(self, other: "Paragraph"):
         return (self.top, self.left) < (other.top, other.left)
@@ -200,7 +207,7 @@ class Paragraph:
         terminal_vertices = [
             box
             for box in self.image_boxes
-            if len(self.subgraph[box.id]) == 1  # ty:ignore[not-subscriptable]
+            if len(self.subgraph[box.box_id]) == 1  # ty:ignore[not-subscriptable]
         ]
         assert len(terminal_vertices) == 2
 
@@ -212,11 +219,11 @@ class Paragraph:
             ),
         )
 
-        boxes_by_id = {box.id: box for box in self.image_boxes}
+        boxes_by_id = {box.box_id: box for box in self.image_boxes}
         ordered_boxes = [top_box]
-        visited = {top_box.id}
+        visited = {top_box.box_id}
         previous_id: str | None = None
-        current_id = top_box.id
+        current_id = top_box.box_id
 
         while len(ordered_boxes) < len(self.image_boxes):
             next_candidates = [

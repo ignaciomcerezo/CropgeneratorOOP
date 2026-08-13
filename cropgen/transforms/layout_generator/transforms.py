@@ -1,25 +1,40 @@
-from typing import Collection
+from shapely.geometry import Polygon
+from cropgen.processing.image_box import ImageBox
+from typing import Collection, Sequence
 from cropgen.processing import Paragraph
 from abc import ABC, abstractmethod
 import shapely
+from PIL import Image
 
 
-def Union(geometries: Collection[shapely.Geometry]):
+def _union(geometries: Collection[shapely.Geometry]) -> Polygon:
     snapped_geoms = [shapely.set_precision(g, grid_size=1e-6) for g in geometries]
-    result = shapely.unary_union(snapped_geoms)
+    return shapely.unary_union(snapped_geoms)
 
 
-class _ParagraphInfo:
+def _bounds(box: ImageBox):
+    return (box.left, box.top, box.right, box.bot)
+
+
+class ParagraphInfo:
     """
     Some helpful data to calculate layouts.
     """
 
-    def __init__(self, paragraph: Paragraph):
+    def __init__(self, line_group: Paragraph | Sequence[ImageBox]):
 
         # x0,y0,xf,yf
         self.box_bounds: list[tuple[float, float, float, float]] = [
-            box.polygon.bounds for box in paragraph.image_boxes
+            _bounds(box) for box in line_group
         ]
+
+        self.area: float = _union([box.polygon for box in line_group]).area
+
+        self.avg_rotation = (
+            1
+            / len(line_group)
+            * sum((box.rotation * box.polygon.area) for box in line_group)
+        )
 
         if not self.box_bounds:
             self.union_bounds: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
@@ -32,16 +47,16 @@ class _ParagraphInfo:
             self.union_bounds = (min_x, min_y, max_x, max_y)
             self.centroid = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
 
-        self.n_points = len(paragraph)
+        self.n_points = len(line_group)
         self.box_x_deltas = [
             self.box_bounds[i + 1][0] - self.box_bounds[i][0]
-            for i in range(len(paragraph) - 1)
+            for i in range(len(line_group) - 1)
         ]
         self.box_y_deltas = [
             self.box_bounds[i + 1][1] - self.box_bounds[i][1]
-            for i in range(len(paragraph) - 1)
+            for i in range(len(line_group) - 1)
         ]
-        self.union_polygon = Union([box.polygon for box in paragraph.image_boxes])
+        self.union_polygon = _union([box.polygon for box in line_group])
 
         self.center = ((self.x0 + self.xf) / 2, (self.y0 + self.yf) / 2)
 
@@ -94,15 +109,59 @@ class _ParagraphInfo:
         return [abs(y0 - yf) for (y0, yf) in zip(self.y0s, self.yfs)]
 
 
+class LinewiseTransform(ABC):
+    """
+    Base class used to modify single linges, for example single line
+    distortions and stretching.
+    """
+
+    @abstractmethod
+    def __call__(self, box: ImageBox) -> tuple[Image.Image, shapely.Polygon]:
+        raise NotImplementedError
+
+    def bulk_transform(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
+        new_imgs, new_polygons = [], []
+
+        for box in line_group:
+            new_img, new_polygon = self(box)
+            new_imgs.append(new_img)
+            new_polygons.append(new_polygon)
+
+        return new_imgs, new_polygons
+
+
 class IntraparagraphTransform(ABC):
     """
     Base class used to modify layouts for individual paragraphs.
-    For example line shears or line-by-line distortions could be
+    For example line shears or paragraph rotations. or line-by-line distortions could be
     implemented like this.
     """
 
-    def __call__(self, paragraph: Paragraph) -> None:
+    @abstractmethod
+    def __call__(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
         raise NotImplementedError
+
+    @staticmethod
+    def from_linewise(transform: LinewiseTransform):
+        return IntraparagraphFromLinewiseTransform(transform)
+
+
+class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
+    """
+    Linewise transform turned paragraph transform.
+    """
+
+    def __init__(self, transform: LinewiseTransform):
+        self._transform = transform
+
+    def __call__(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+        return self._transform.bulk_transform(line_group)
 
 
 class InterparagraphTransform(ABC):
@@ -112,5 +171,6 @@ class InterparagraphTransform(ABC):
     rotate them globally, etc.
     """
 
-    def __call__(self, *paragraphs: Paragraph) -> None:
+    @abstractmethod
+    def __call__(self, *line_groups_group: Paragraph | Sequence[ImageBox]) -> None:
         raise NotImplementedError

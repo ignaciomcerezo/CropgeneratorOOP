@@ -49,4 +49,4 @@ def test_intersections_and_geometries(paths, lsi):
 
     assert box_d.polygon.intersects(box_e.polygon)
 
-    assert len(ann103.graph[box_e.id]) == 2
+    assert len(ann103.graph[box_e.box_id]) == 2

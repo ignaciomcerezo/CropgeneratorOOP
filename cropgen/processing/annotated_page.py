@@ -336,7 +336,7 @@ class AnnotatedPage:
 
         if not isinstance(box_id_sequence, set):
             if len(box_id_sequence) != len(set(box_id_sequence)):
-                raise ValueError("Hay cajas-imagen repetidas en generate_collage()")
+                raise ValueError("There are duplicate box ids in synthetic_manuscript.")
             box_id_sequence = set(box_id_sequence)
 
         subgraph_image_boxes = [self.image_boxes[box_id] for box_id in box_id_sequence]

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from multiprocessing import Value
-from cropgen.ocrdataset.layout_generator.transforms import (
+from cropgen.transforms import (
     IntraparagraphTransform,
     InterparagraphTransform,
 )

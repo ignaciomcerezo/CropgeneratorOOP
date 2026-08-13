@@ -1,7 +1,11 @@
+from cropgen.processing.image_box import ImageBox
+from typing import Sequence
+from shapely.geometry import Polygon
+from PIL import Image
 from cropgen.processing import Paragraph
-from cropgen.ocrdataset.layout_generator import (
+from cropgen.transforms.layout_generator import (
     IntraparagraphTransform,
-    _ParagraphInfo,
+    ParagraphInfo,
 )
 from shapely.affinity import translate
 import numpy as np
@@ -23,15 +27,17 @@ class VerticalClearance(IntraparagraphTransform):
         self.__relative = relative
         self.modulate_by_probability = modulate_by_probability
 
-    def __call__(self, paragraph: Paragraph) -> None:
-        info = _ParagraphInfo(paragraph)
+    def __call__(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
+
+        info = ParagraphInfo(line_group)
         vertical_size = abs(
             info.box_bounds[0][1] - info.box_bounds[-1][1]
         )  # topmost's topmost to botmost's topmost
 
-        if len(paragraph) < 2:
-            print("Paragraph too small.")
-            return
+        if len(line_group) < 2:
+            raise ValueError("Paragraph too small")
 
         Delta: float = (
             self.__absolute
@@ -39,9 +45,12 @@ class VerticalClearance(IntraparagraphTransform):
             else self.__relative * vertical_size  # ty:ignore[unsupported-operator]
         )  # total difference in size
 
-        delta_i = Delta / (len(paragraph) - 1)
+        delta_i = Delta / (len(line_group) - 1)
 
-        for k, box in enumerate(paragraph.image_boxes, start=1):
+        new_images = []
+        new_polygons = []
+
+        for k, box in enumerate(line_group, start=1):
             # -Delta moves upwards, as topmost vertex has the most negative y coordinate
 
             if k:
@@ -52,4 +61,8 @@ class VerticalClearance(IntraparagraphTransform):
             else:
                 displacement = -Delta / 2
 
-            box.polygon = translate(box.polygon, yoff=displacement)
+            new_polygons.append(translate(box.polygon, yoff=displacement))
+
+            new_images.append(box.stroke_crop)
+
+        return new_images, new_polygons

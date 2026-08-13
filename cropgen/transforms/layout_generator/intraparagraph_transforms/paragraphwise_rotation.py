@@ -1,3 +1,5 @@
+from cropgen.processing.image_box import ImageBox
+from typing import Sequence
 from cropgen.processing import Paragraph
 from shapely import Polygon
 from shapely.affinity import rotate
@@ -5,9 +7,9 @@ import numpy as np
 import cv2
 from PIL import Image
 
-from cropgen.ocrdataset.layout_generator.transforms import (
+from cropgen.transforms.layout_generator.transforms import (
     IntraparagraphTransform,
-    _ParagraphInfo,
+    ParagraphInfo,
 )
 
 
@@ -30,10 +32,14 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         self._absolute = absolute
         self._metric = metric
 
-    def __call__(self, paragraph: Paragraph):
+    def __call__(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
+
+        info = ParagraphInfo(line_group)
 
         if self._relative is not None:
-            rotation = paragraph.avg_rotation * self._relative
+            rotation = info.avg_rotation * self._relative
         else:
             if self._absolute is None:
                 raise ValueError("Either relative or absolute must be provided")
@@ -48,9 +54,12 @@ class ParagraphwiseRotation(IntraparagraphTransform):
                 case _:
                     raise ValueError(f"Unknown metric: {self._metric}")
 
-        centroid = _ParagraphInfo(paragraph).centroid
+        centroid = info.centroid
 
-        for box in paragraph.image_boxes:
+        new_images = []
+        new_polygons = []
+
+        for box in line_group:
 
             orig_bounds = box.polygon.bounds
 
@@ -60,17 +69,17 @@ class ParagraphwiseRotation(IntraparagraphTransform):
                 centroid,
             )
 
-            box.stroke_crop = self._rotate_img(
+            new_img = self._rotate_img(
                 box.stroke_crop,
                 rotation,
                 centroid,
                 orig_bounds,
                 new_poly.bounds,
             )
+            new_images.append(new_img)
+            new_polygons.append(new_poly)
 
-            box.polygon = new_poly
-
-        return paragraph
+        return new_images, new_polygons
 
     @staticmethod
     def _rotate_poly(

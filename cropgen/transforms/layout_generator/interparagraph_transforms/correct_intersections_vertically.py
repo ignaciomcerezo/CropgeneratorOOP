@@ -1,7 +1,9 @@
+from typing import Sequence
+from cropgen.processing.image_box import ImageBox
 from cropgen.processing import Paragraph
-from cropgen.ocrdataset.layout_generator import (
+from cropgen.transforms.layout_generator import (
     InterparagraphTransform,
-    _ParagraphInfo,
+    ParagraphInfo,
 )
 from shapely.affinity import translate
 from shapely import Polygon
@@ -14,20 +16,20 @@ def _iterunion(*geometries: Polygon) -> Polygon:
     return res
 
 
-def _get_polys(paragraph: Paragraph) -> list[Polygon]:
-    return [box.polygon for box in paragraph.image_boxes]
+def _get_polys(line_groups: Paragraph | Sequence[ImageBox]) -> list[Polygon]:
+    return [box.polygon for box in line_groups]
 
 
 class CorrectIntersectionsVertically(InterparagraphTransform):
     def __init__(self, absolute_clearance: float = 5.0):
         self.clearance = absolute_clearance
 
-    def __call__(self, *paragraphs: Paragraph) -> None:
-        n = len(paragraphs)
+    def __call__(self, *line_groups: Paragraph | Sequence[ImageBox]) -> None:
+        n = len(line_groups)
         if n < 2:
             return
 
-        infos = [_ParagraphInfo(p) for p in paragraphs]
+        infos = [ParagraphInfo(line_group) for line_group in line_groups]
         y_increases_downwards = infos[-1].center[1] > infos[0].center[1]
 
         for i in range(1, n):
@@ -44,8 +46,8 @@ class CorrectIntersectionsVertically(InterparagraphTransform):
 
             max_required_shift = self.clearance - bb_gap
 
-            prev_poly = _iterunion(*_get_polys(paragraphs[i - 1]))
-            curr_poly = _iterunion(*_get_polys(paragraphs[i]))
+            prev_poly = _iterunion(*_get_polys(line_groups[i - 1]))
+            curr_poly = _iterunion(*_get_polys(line_groups[i]))
 
             if prev_poly.distance(curr_poly) >= self.clearance:
                 continue
@@ -54,7 +56,7 @@ class CorrectIntersectionsVertically(InterparagraphTransform):
                 max_required_shift if y_increases_downwards else -max_required_shift
             )
 
-            for box in paragraphs[i].image_boxes:
+            for box in line_groups[i]:
                 box.polygon = translate(box.polygon, yoff=y_shift)
 
-            infos[i] = _ParagraphInfo(paragraphs[i])
+            infos[i] = ParagraphInfo(line_groups[i])

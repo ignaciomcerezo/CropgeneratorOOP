@@ -1,8 +1,10 @@
+from cropgen.processing.image_box import ImageBox
 from cropgen.processing import Paragraph
-from typing import Optional, Literal
+from typing import Optional, Literal, Sequence
 
-from cropgen.ocrdataset.layout_generator.transforms import (
+from cropgen.transforms.layout_generator.transforms import (
     IntraparagraphTransform,
+    ParagraphInfo,
 )
 
 import numpy as np
@@ -37,10 +39,14 @@ class LinewiseRotation(IntraparagraphTransform):
         self._absolute = absolute
         self._metric = metric
 
-    def __call__(self, paragraph: Paragraph):
+    def __call__(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
+
+        info = ParagraphInfo(line_group)
 
         if self._relative is not None:
-            rotation = paragraph.avg_rotation * self._relative
+            rotation = info.avg_rotation * self._relative
 
         else:
             if self._absolute is None:
@@ -59,7 +65,10 @@ class LinewiseRotation(IntraparagraphTransform):
                 case _:
                     raise ValueError(f"Unknown metric: {self._metric}")
 
-        for box in paragraph.image_boxes:
+        new_images = []
+        new_polygons = []
+
+        for box in line_group:
 
             # The polygon is in global/page coordinates.
             orig_bounds = box.polygon.bounds
@@ -78,16 +87,17 @@ class LinewiseRotation(IntraparagraphTransform):
                 center,
             )
 
-            box.stroke_crop = self._rotate_img(
-                box.stroke_crop,
-                rotation,
-                orig_bounds,
-                new_poly.bounds,
+            new_images.append(
+                self._rotate_img(
+                    box.stroke_crop,
+                    rotation,
+                    orig_bounds,
+                    new_poly.bounds,
+                )
             )
+            new_polygons.append(new_poly)
 
-            box.polygon = new_poly
-
-        return paragraph
+        return new_images, new_polygons
 
     @staticmethod
     def _rotate_poly(

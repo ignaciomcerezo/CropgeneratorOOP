@@ -1,9 +1,12 @@
+from shapely.geometry import Polygon
+from cropgen.processing.image_box import ImageBox
 from shapely.ops import transform
-from typing import Callable
+from typing import Callable, Sequence
 from cropgen.processing import Paragraph
-from cropgen.ocrdataset.layout_generator import IntraparagraphTransform
+from cropgen.transforms.layout_generator import IntraparagraphTransform
 from PIL.ImageTransform import PerspectiveTransform
 import numpy as np
+from PIL import Image
 
 point2D = tuple[float, float]
 
@@ -19,22 +22,29 @@ class PerspectiveTransformation(IntraparagraphTransform):
             destination_points, source_points
         )
 
-    def __call__(self, paragraph):
+    def __call__(
+        self, line_group: Paragraph | Sequence[ImageBox]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
         shapely_configured_transform = _get_shapely_perspective_transform(
             *self.fwd_coefficients
         )
 
         image_configured_transform = PerspectiveTransform(self.inv_coefficients)
+        new_images = []
+        new_polygons = []
 
-        for box in paragraph.image_boxes:
-            box.polygon = transform(shapely_configured_transform, box.polygon)
+        for box in line_group:
+            new_polygons.append(transform(shapely_configured_transform, box.polygon))
 
-            original_width, original_height = box.crop.size
+            original_width, original_height = box.stroke_crop.size
             expected_size = _calculate_projected_size(
                 original_width, original_height, self.fwd_coefficients
             )
+            new_images.append(
+                box.stroke_crop.transform(expected_size, image_configured_transform)
+            )
 
-            box.crop = box.crop.transform(expected_size, image_configured_transform)
+        return new_images, new_polygons
 
 
 def _calculate_projected_size(

@@ -1,7 +1,7 @@
 from cropgen.processing import Paragraph
-from cropgen.ocrdataset.layout_generator import (
+from cropgen.transforms.layout_generator import (
     InterparagraphTransform,
-    _ParagraphInfo,
+    ParagraphInfo,
 )
 from shapely.affinity import translate
 from shapely import intersection
@@ -21,7 +21,7 @@ class CorrectIntersectionsHorizontally:
         if n < 2:
             return
 
-        infos = [_ParagraphInfo(paragraph) for paragraph in paragraphs]
+        infos = [ParagraphInfo(paragraph) for paragraph in paragraphs]
 
         nu = _detect_preferred_side(*infos)
 
@@ -53,14 +53,14 @@ class CorrectIntersectionsHorizontally:
                     for box in paragraphs[i - 1].image_boxes:
                         box.polygon = translate(box.polygon, -eta * nu * W)
 
-                    infos[i] = _ParagraphInfo(paragraphs[i])
-                    infos[i - 1] = _ParagraphInfo(paragraphs[i - 1])
+                    infos[i] = ParagraphInfo(paragraphs[i])
+                    infos[i - 1] = ParagraphInfo(paragraphs[i - 1])
                     movement = True
 
             iteration += 1
 
 
-def _detect_preferred_side(*infos: _ParagraphInfo):
+def _detect_preferred_side(*infos: ParagraphInfo):
     avg_center = sum([info.center[0] for info in infos]) / len(infos)
     even = sum([info.center[0] for info in infos[::2]]) / len(infos[::2])
 

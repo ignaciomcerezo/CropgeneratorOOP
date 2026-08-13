@@ -46,7 +46,7 @@ def _fragment_checks(
 
     if paragraph != -1:
         assert isinstance(paragraph, Paragraph)
-        assert fragment.box.id in paragraph.image_boxes_ids
+        assert fragment.box.box_id in paragraph.image_boxes_ids
 
 
 def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
@@ -129,7 +129,7 @@ def test_audit_annotations(paths):
             assert len(paragraph.image_boxes_ids) == len(paragraph.image_boxes)
 
             for image_box in paragraph.image_boxes:
-                seen_boxes_par.add(image_box.id)
+                seen_boxes_par.add(image_box.box_id)
                 _box_checks(image_box, paragraph, ann)
 
             for text_fragment in paragraph.text_fragments:
