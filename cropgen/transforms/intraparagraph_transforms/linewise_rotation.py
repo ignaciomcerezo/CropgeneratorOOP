@@ -1,8 +1,8 @@
-from cropgen.processing.image_box import ImageBox
+from cropgen.processing.line import Line
 from cropgen.processing import Paragraph
 from typing import Optional, Literal, Sequence
 
-from cropgen.transforms.layout_generator.transforms import (
+from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     ParagraphInfo,
 )
@@ -40,7 +40,7 @@ class LinewiseRotation(IntraparagraphTransform):
         self._metric = metric
 
     def __call__(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
 
         info = ParagraphInfo(line_group)
@@ -68,10 +68,10 @@ class LinewiseRotation(IntraparagraphTransform):
         new_images = []
         new_polygons = []
 
-        for box in line_group:
+        for line in line_group:
 
             # The polygon is in global/page coordinates.
-            orig_bounds = box.polygon.bounds
+            orig_bounds = line.polygon.bounds
 
             # Rotate around the center of the LINE, not the local
             # pixel coordinates of the crop.
@@ -82,14 +82,14 @@ class LinewiseRotation(IntraparagraphTransform):
             )
 
             new_poly = self._rotate_poly(
-                box.polygon,
+                line.polygon,
                 rotation,
                 center,
             )
 
             new_images.append(
                 self._rotate_img(
-                    box.stroke_crop,
+                    line.stroke_crop,
                     rotation,
                     orig_bounds,
                     new_poly.bounds,

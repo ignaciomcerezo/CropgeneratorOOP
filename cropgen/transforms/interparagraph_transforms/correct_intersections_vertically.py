@@ -1,7 +1,6 @@
 from typing import Sequence
-from cropgen.processing.image_box import ImageBox
-from cropgen.processing import Paragraph
-from cropgen.transforms.layout_generator import (
+from cropgen.processing import Line, Paragraph
+from cropgen.transforms.transforms import (
     InterparagraphTransform,
     ParagraphInfo,
 )
@@ -16,15 +15,15 @@ def _iterunion(*geometries: Polygon) -> Polygon:
     return res
 
 
-def _get_polys(line_groups: Paragraph | Sequence[ImageBox]) -> list[Polygon]:
-    return [box.polygon for box in line_groups]
+def _get_polys(line_groups: Paragraph | Sequence[Line]) -> list[Polygon]:
+    return [line.polygon for line in line_groups]
 
 
 class CorrectIntersectionsVertically(InterparagraphTransform):
     def __init__(self, absolute_clearance: float = 5.0):
         self.clearance = absolute_clearance
 
-    def __call__(self, *line_groups: Paragraph | Sequence[ImageBox]) -> None:
+    def __call__(self, *line_groups: Paragraph | Sequence[Line]) -> None:
         n = len(line_groups)
         if n < 2:
             return
@@ -56,7 +55,7 @@ class CorrectIntersectionsVertically(InterparagraphTransform):
                 max_required_shift if y_increases_downwards else -max_required_shift
             )
 
-            for box in line_groups[i]:
-                box.polygon = translate(box.polygon, yoff=y_shift)
+            for line in line_groups[i]:
+                line.polygon = translate(line.polygon, yoff=y_shift)
 
             infos[i] = ParagraphInfo(line_groups[i])

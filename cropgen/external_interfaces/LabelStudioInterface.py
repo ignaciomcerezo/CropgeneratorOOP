@@ -1,3 +1,4 @@
+from cropgen.shared.LSTypedDicts.results import ImageBaseResult
 from label_studio_sdk import Client
 import json
 import os
@@ -14,6 +15,7 @@ from cropgen.shared.LSTypedDicts.simplified import (
 from pathlib import Path
 from cropgen.processing.annotated_page import AnnotatedPage
 from PIL import Image, ImageOps
+import numpy as np
 
 
 class LabelStudioInterface:

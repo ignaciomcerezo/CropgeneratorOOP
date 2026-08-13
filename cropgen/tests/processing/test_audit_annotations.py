@@ -1,3 +1,4 @@
+from cropgen.processing.helpers.helper_to_classes import is_path_graph
 from debugpy.launcher.debuggee import process
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 import re
@@ -7,59 +8,48 @@ from PIL import Image
 from shapely import Polygon, MultiPolygon
 from tqdm.auto import tqdm
 
-from cropgen.processing import AnnotatedPage, ImageBox, Paragraph, TextFragment
+from cropgen.processing import AnnotatedPage, Line, Paragraph
 from cropgen.tests.object_mothers import mother_pil_image
 from cropgen.tests.tests_helper import extract_height_width_from_task
 
 
-def _box_checks(box: ImageBox, paragraph: Paragraph | int, ann: AnnotatedPage):
-    assert isinstance(box, ImageBox)
-    assert isinstance(box.fragment, TextFragment)
-    assert isinstance(box.stroke_crop, Image.Image)
-    assert isinstance(box.task_id, int)
+def _line_checks(line: Line, paragraph: Paragraph | int, ann: AnnotatedPage):
+    assert isinstance(line, Line)
+    assert isinstance(line.stroke_crop, Image.Image)
+    assert isinstance(line.task_id, int)
     assert isinstance(
-        box.polygon, (Polygon, MultiPolygon)
+        line.polygon, (Polygon, MultiPolygon)
     )  # que pueda ser un multipolygon es una consecuencia de usar el módulo
-    assert isinstance(box.index, int)
+    assert isinstance(line.index, int)
 
-    assert box.task_id == ann.task_id
+    assert line.task_id == ann.task_id
 
-    assert len(box.associated_fragments) == 1
-    if box.true_rectangle:
-        assert len(set(box.polygon.exterior.coords)) == 4
-
-    if paragraph != -1:
-        assert isinstance(paragraph, Paragraph)
-        assert box.fragment.id in paragraph.text_fragments_ids
-
-
-def _fragment_checks(
-    fragment: TextFragment, paragraph: Paragraph | int, ann: AnnotatedPage
-):
-    assert isinstance(fragment, TextFragment)
-    assert isinstance(fragment.box, ImageBox)
-    assert isinstance(fragment.text, str)
-    assert fragment.text.strip()  # no vacío
-    assert fragment.task_id == ann.task_id
-    assert len(fragment.associated_boxes) == 1
-    assert isinstance(fragment.starting_index, int)
+    if line.true_rectangle:
+        assert len(set(line.polygon.exterior.coords)) == 4
 
     if paragraph != -1:
         assert isinstance(paragraph, Paragraph)
-        assert fragment.box.box_id in paragraph.image_boxes_ids
+        assert line.id in paragraph.line_ids
+
+    assert isinstance(line.text, str)
+    assert line.text.strip()  # no vacío
+    assert line.task_id == ann.task_id
+    assert isinstance(line.starting_index, int)
 
 
 def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
-    msg = f"No todos framgentos tienen asociado un int como starting_index: {[x.fragment.starting_index for x in ann.image_boxes.values()]}. Son los siguientes:"
+    msg = f"""
+    No todos framgentos tienen asociado un int como starting_index: 
+    {[x.starting_index for x in ann.lines.values()]}. Son los siguientes:"""
 
-    for fragment in ann.text_fragments.values():
-        if fragment.starting_index is None:
-            msg += "\n\t > " + fragment.text
+    for line in ann.lines.values():
+        if line.starting_index is None:
+            msg += "\n\t > " + line.text
 
     return msg
 
 
-def fragments_without_paragraph(annotated_page: AnnotatedPage) -> list[TextFragment]:
+def lines_without_paragraph(annotated_page: AnnotatedPage) -> list[Line]:
     """
     Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
         1. Son fragmentos aislados del resto durante las anotaciones.
@@ -70,22 +60,20 @@ def fragments_without_paragraph(annotated_page: AnnotatedPage) -> list[TextFragm
     in_paragraph = []
     out_paragraph = []
     for paragraph in annotated_page.paragraphs:
-        in_paragraph += [f.id for f in paragraph.text_fragments]
-    if len(in_paragraph) == len(annotated_page.text_fragments):
+        in_paragraph += [f.id for f in paragraph.lines]
+    if len(in_paragraph) == len(annotated_page.lines):
         return []
 
-    for f in annotated_page.text_fragments.values():
-        if f.id not in in_paragraph:
-            out_paragraph.append(f.id)
-    return [annotated_page.text_fragments[fragment_id] for fragment_id in out_paragraph]
+    for line in annotated_page.lines.values():
+        if line.id not in in_paragraph:
+            out_paragraph.append(line.id)
+    return [annotated_page.lines[line_id] for line_id in out_paragraph]
 
 
 @pytest.mark.audit
 def test_audit_annotations(paths):
-
     for task in tqdm(paths.lsi.simplified_tasks, desc="test_audit_annotations"):
         width, height = extract_height_width_from_task(task)
-
         image = mother_pil_image(width=width, height=height, color=(255, 255, 255))
 
         ann = AnnotatedPage.combine_annotations(
@@ -100,108 +88,60 @@ def test_audit_annotations(paths):
             ]
         )
 
-        seen_boxes = set()
-        seen_fragments = set()
-
-        # del antiguo test_sindex
+        seen_lines = set()
         first_sindices_of_paragraphs = []
-        sindices = [x.fragment.starting_index for x in ann.image_boxes.values()]
+
+        sindices = [x.starting_index for x in ann.lines.values()]
         if not all(isinstance(x, int) for x in sindices):
             raise AssertionError(_compose_error_msg_sindices(ann))
-        # hasta aquí (por ahora)
+
+        ann_graph_keys = set(ann.graph.keys())
 
         for paragraph in ann.paragraphs:
-            graph = set(ann.graph.keys())
-
             assert isinstance(paragraph, Paragraph)
-            assert paragraph._subgraph_is_Pk()
+
+            assert paragraph.subgraph is not None
+            assert is_path_graph(paragraph.subgraph)
 
             for order in range(len(paragraph)):
-                for subsubgraph_keys in paragraph.generate_conntected_subgraphs(order):
-                    assert set(subsubgraph_keys).issubset(graph)
+                for subsubgraph_keys in paragraph.generate_connected_subgraphs(order):
+                    assert set(subsubgraph_keys).issubset(ann_graph_keys)
 
-            seen_boxes_par = set()
-            seen_fragments_par = set()
+            seen_lines_par = set()
 
-            assert len(paragraph.image_boxes_ids) != 0
-            assert len(paragraph.image_boxes_ids) == len(paragraph.text_fragments_ids)
-            assert len(paragraph.image_boxes) == len(paragraph.text_fragments)
-            assert len(paragraph.image_boxes_ids) == len(paragraph.image_boxes)
+            assert len(paragraph.line_ids) != 0
+            assert len(paragraph.line_ids) == len(paragraph.lines)
 
-            for image_box in paragraph.image_boxes:
-                seen_boxes_par.add(image_box.box_id)
-                _box_checks(image_box, paragraph, ann)
+            for line in paragraph.lines:
+                seen_lines_par.add(line.id)
+                _line_checks(line, paragraph, ann)
 
-            for text_fragment in paragraph.text_fragments:
-                seen_fragments_par.add(text_fragment.id)
-                _fragment_checks(text_fragment, paragraph, ann)
+            assert seen_lines_par == set(paragraph.line_ids)
 
-            assert seen_boxes_par == set(paragraph.image_boxes_ids)
-            assert seen_fragments_par == set(paragraph.text_fragments_ids)
-
-            set_keys = set(paragraph.image_boxes_ids)
-
-            assert set_keys == seen_boxes_par
-
+            set_keys = set(paragraph.line_ids)
             assert isinstance(paragraph.subgraph, dict)
 
             for key in paragraph.subgraph.keys():
                 assert paragraph.subgraph[key].issubset(set_keys)
 
-            seen_boxes = seen_boxes.union(seen_boxes_par)
-            seen_fragments = seen_fragments.union(seen_fragments_par)
+            seen_lines.update(paragraph.line_ids)
 
-            # antiguo test_sindices
-            first_sindices_of_paragraphs.append(
-                paragraph.text_fragments[0].starting_index
-            )
-            sindices_par_fragments = [
-                f.starting_index for f in paragraph.text_fragments
-            ]
+            first_sindices_of_paragraphs.append(paragraph.lines[0].starting_index)
+            sindices_par = [line.starting_index for line in paragraph.lines]
 
-            assert all([isinstance(s, int) for s in sindices_par_fragments])
+            assert all(isinstance(s, int) for s in sindices_par)
+            assert -1 not in sindices_par
+            assert sorted(sindices_par) == sindices_par
 
-            indices_par_boxes = [b.index for b in paragraph.image_boxes]
-
-            assert all([isinstance(s, int) for s in indices_par_boxes])
-
-            assert (
-                -1 not in sindices_par_fragments
-            )  # solamente puede haber un -1 si no está conectado a nada
-
-            assert (
-                sorted(sindices_par_fragments)  # ty: ignore[invalid-argument-type]
-                == sindices_par_fragments
-            )  # a lo largo del código se asume que vienen así ordenados.
-
-            assert (
-                sorted(indices_par_boxes)  # ty: ignore[invalid-argument-type]
-                == indices_par_boxes
-            )  # llevan el mismo orden que los fragmentos
-
-            # antiguo test_paragraph_transcriptions
-            _, transcription_1, sindex_1 = ann.synthetic_sample(
-                paragraph.image_boxes_ids
-            )
+            transcription_1 = ann.synthetic_transcription(paragraph.line_ids)
             transcription_2 = paragraph.transcription(ann.line_separator)
-
             assert transcription_1 == transcription_2
+        for line in lines_without_paragraph(ann):
+            assert line.id not in seen_lines
+            seen_lines.add(line.id)
+            _line_checks(line, -1, ann)
 
-        # vuelta al audit_annotations inicial
-
-        for text_fragment in fragments_without_paragraph(ann):
-
-            assert text_fragment.id not in seen_fragments
-            seen_fragments.add(text_fragment.id)
-            _fragment_checks(text_fragment, -1, ann)
-
-            image_box = text_fragment.box
-            assert image_box.id not in seen_boxes
-            seen_boxes.add(image_box.id)
-            _box_checks(image_box, -1, ann)
-
-        assert seen_boxes == set(ann.image_boxes.keys())
-        assert seen_fragments == set(ann.text_fragments.keys())
+        assert seen_lines == set(ann.lines.keys())
 
     assert AnnotatedPage.n_annotation_errors == 0
 
@@ -220,7 +160,7 @@ def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
             ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
 
             for paragraph in ann.paragraphs:
-                for text_fragment in paragraph.text_fragments:
+                for text_fragment in paragraph.lines:
                     for match in re_letternumber.findall(text_fragment.text):
                         print(
                             f"({ann.task_id:>5}|{ann.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "

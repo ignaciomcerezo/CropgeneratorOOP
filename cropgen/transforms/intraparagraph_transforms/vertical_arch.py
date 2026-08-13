@@ -1,15 +1,11 @@
 from typing import Iterable
-from cropgen.processing.image_box import ImageBox
-from cropgen.transforms.layout_generator.transforms import IntraparagraphTransform
-from cropgen.processing import Paragraph
+from cropgen.transforms.transforms import IntraparagraphTransform, ParagraphInfo
+from cropgen.processing import Paragraph, Line
 from shapely.geometry import Polygon
 import shapely
 import numpy as np
 import cv2
 from PIL import Image
-from cropgen.transforms.layout_generator import (
-    ParagraphInfo,
-)
 
 
 class VerticalArch(IntraparagraphTransform):
@@ -22,7 +18,7 @@ class VerticalArch(IntraparagraphTransform):
         self.segmentation_thinness = segmentation_thinness
 
     def __call__(
-        self, line_group: Paragraph | Iterable[ImageBox]
+        self, line_group: Paragraph | Iterable[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
 
         x0 = min(box.left for box in line_group)

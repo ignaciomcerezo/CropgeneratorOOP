@@ -1,9 +1,8 @@
-from cropgen.processing.image_box import ImageBox
 from typing import Sequence
 from shapely.geometry import Polygon
 from PIL import Image
-from cropgen.processing import Paragraph
-from cropgen.transforms.layout_generator import (
+from cropgen.processing import Paragraph, Line
+from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     ParagraphInfo,
 )
@@ -28,7 +27,7 @@ class VerticalClearance(IntraparagraphTransform):
         self.modulate_by_probability = modulate_by_probability
 
     def __call__(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
 
         info = ParagraphInfo(line_group)
@@ -50,7 +49,7 @@ class VerticalClearance(IntraparagraphTransform):
         new_images = []
         new_polygons = []
 
-        for k, box in enumerate(line_group, start=1):
+        for k, line in enumerate(line_group, start=1):
             # -Delta moves upwards, as topmost vertex has the most negative y coordinate
 
             if k:
@@ -61,8 +60,8 @@ class VerticalClearance(IntraparagraphTransform):
             else:
                 displacement = -Delta / 2
 
-            new_polygons.append(translate(box.polygon, yoff=displacement))
+            new_polygons.append(translate(line.polygon, yoff=displacement))
 
-            new_images.append(box.stroke_crop)
+            new_images.append(line.stroke_crop)
 
         return new_images, new_polygons

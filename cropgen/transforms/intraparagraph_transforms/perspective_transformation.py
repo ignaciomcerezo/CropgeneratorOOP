@@ -1,8 +1,7 @@
 from shapely.geometry import Polygon
-from cropgen.processing.image_box import ImageBox
 from shapely.ops import transform
 from typing import Callable, Sequence
-from cropgen.processing import Paragraph
+from cropgen.processing import Paragraph, Line
 from cropgen.transforms.layout_generator import IntraparagraphTransform
 from PIL.ImageTransform import PerspectiveTransform
 import numpy as np
@@ -23,7 +22,7 @@ class PerspectiveTransformation(IntraparagraphTransform):
         )
 
     def __call__(
-        self, line_group: Paragraph | Sequence[ImageBox]
+        self, line_group: Paragraph | Sequence[Line]
     ) -> tuple[list[Image.Image], list[Polygon]]:
         shapely_configured_transform = _get_shapely_perspective_transform(
             *self.fwd_coefficients
@@ -33,15 +32,15 @@ class PerspectiveTransformation(IntraparagraphTransform):
         new_images = []
         new_polygons = []
 
-        for box in line_group:
-            new_polygons.append(transform(shapely_configured_transform, box.polygon))
+        for line in line_group:
+            new_polygons.append(transform(shapely_configured_transform, line.polygon))
 
-            original_width, original_height = box.stroke_crop.size
+            original_width, original_height = line.stroke_crop.size
             expected_size = _calculate_projected_size(
                 original_width, original_height, self.fwd_coefficients
             )
             new_images.append(
-                box.stroke_crop.transform(expected_size, image_configured_transform)
+                line.stroke_crop.transform(expected_size, image_configured_transform)
             )
 
         return new_images, new_polygons
@@ -50,7 +49,7 @@ class PerspectiveTransformation(IntraparagraphTransform):
 def _calculate_projected_size(
     width: int, height: int, fwd_coeffs: tuple[float, ...]
 ) -> tuple[int, int]:
-    """Projects image corners forward to determine the bounding box dimensions."""
+    """Projects image corners forward to determine the bounding line dimensions."""
     a, b, c, d, e, f, g, h = fwd_coeffs
     corners = [(0, 0), (width, 0), (width, height), (0, height)]
 

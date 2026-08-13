@@ -1,6 +1,6 @@
-from .layout_generator import (
+from .transforms import (
     IntraparagraphTransform,
     InterparagraphTransform,
     LinewiseTransform,
-    LayoutGenerator,
+    ParagraphInfo,
 )
