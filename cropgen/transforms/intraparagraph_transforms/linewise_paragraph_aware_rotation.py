@@ -42,10 +42,17 @@ class LinewiseParagraphAwareRotation(IntraparagraphTransform):
         self._metric = metric
 
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
-        info = LineGroupInfo(line_group)
+        info = LineGroupInfo.from_polygons(polygons)
 
         if self._relative is not None:
             rotation = info.avg_rotation * self._relative()
@@ -67,11 +74,8 @@ class LinewiseParagraphAwareRotation(IntraparagraphTransform):
                 case _:
                     raise ValueError(f"Unknown metric: {self._metric}")
 
-        new_images = []
-        new_polygons = []
-
-        for line in line_group:
-            orig_bounds = line.polygon.bounds
+        for i, (image, polygon) in enumerate(zip(images, polygons)):
+            orig_bounds = polygon.bounds
 
             x0, y0, x1, y1 = orig_bounds
             center = (
@@ -79,23 +83,20 @@ class LinewiseParagraphAwareRotation(IntraparagraphTransform):
                 (y0 + y1) / 2,
             )
 
-            new_poly = self.rotate_poly(
-                line.polygon,
+            polygons[i] = self.rotate_poly(
+                polygon,
                 rotation,
                 center,
             )
 
-            new_images.append(
-                self.rotate_img(
-                    line.stroke_crop,
-                    rotation,
-                    orig_bounds,
-                    new_poly.bounds,
-                )
+            images[i] = self.rotate_img(
+                image,
+                rotation,
+                orig_bounds,
+                polygons[i].bounds,
             )
-            new_polygons.append(new_poly)
 
-        return new_images, new_polygons
+        return images, polygons
 
     @staticmethod
     def rotate_poly(

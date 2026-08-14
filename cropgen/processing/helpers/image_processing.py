@@ -65,13 +65,18 @@ def extract_strokes(
     )
 
 
-def _resize_by_longest_side(img_array: np.ndarray, M: int):
+def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
     scale_factor = M / max(img_array.shape)
     size = (
         int(np.ceil(img_array.shape[0] * scale_factor)),
         int(np.ceil(img_array.shape[1] * scale_factor)),
     )
-    return cv2.resize(img_array, size)
+    if scale_factor < 1:
+        return cv2.resize(img_array, size, interpolation=cv2.INTER_AREA)
+    elif scale_factor > 1:
+        return cv2.resize(img_array, size, interpolation=cv2.INTER_CUBIC)
+    else:
+        return img_array
 
 
 def separate_background_and_stroke(
@@ -121,3 +126,51 @@ def separate_background_and_stroke(
     strokes = _resize_by_longest_side(strokes, out_longest_side)
 
     return Image.fromarray(clean_background), Image.fromarray(strokes)
+
+
+def crop_or_resize(
+    image: np.ndarray,
+    x0: int,
+    xf: int,
+    y0: int,
+    yf: int,
+    *,
+    can_crop: bool = True,
+) -> np.ndarray:
+    """
+    Transforms an image based on target spans.
+    - If can_crop is True and target < original: crops a window of target size.
+    - Otherwise, resizes the axis to target size when target != original.
+    """
+    h_max, w_max = image.shape[:2]
+    target_w = max(1, int(xf - x0))
+    target_h = max(1, int(yf - y0))
+
+    if can_crop and target_w < w_max:
+        if x0 < 0:
+            x_start, x_end = 0, target_w
+        elif x0 + target_w > w_max:
+            x_start, x_end = w_max - target_w, w_max
+        else:
+            x_start, x_end = x0, x0 + target_w
+        processed = image[:, x_start:x_end]
+    elif target_w != w_max:
+        interp = cv2.INTER_AREA if target_w < w_max else cv2.INTER_CUBIC
+        processed = cv2.resize(image, (target_w, image.shape[0]), interpolation=interp)
+    else:
+        processed = image
+
+    curr_h, curr_w = processed.shape[:2]
+    if can_crop and target_h < h_max:
+        if y0 < 0:
+            y_start, y_end = 0, target_h
+        elif y0 + target_h > h_max:
+            y_start, y_end = h_max - target_h, h_max
+        else:
+            y_start, y_end = y0, y0 + target_h
+        processed = processed[y_start:y_end, :]
+    elif target_h != curr_h:
+        interp = cv2.INTER_AREA if target_h < curr_h else cv2.INTER_CUBIC
+        processed = cv2.resize(processed, (curr_w, target_h), interpolation=interp)
+
+    return processed

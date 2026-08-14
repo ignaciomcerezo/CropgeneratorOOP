@@ -10,8 +10,10 @@ class Blur(LinewiseTransform):
     def __init__(self, radius: Parameter | float = 2.0):
         self.radius: Parameter = Parameter(radius)
 
-    def __call__(self, box: Line) -> tuple[Image.Image, Polygon]:
+    def __call__(
+        self, image: Image.Image, polygon: Polygon
+    ) -> tuple[Image.Image, Polygon]:
         return (
-            box.stroke_crop.filter(ImageFilter.GaussianBlur(self.radius())),
-            box.polygon,
+            image.filter(ImageFilter.GaussianBlur(self.radius())),
+            polygon,
         )

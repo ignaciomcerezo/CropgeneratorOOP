@@ -28,15 +28,22 @@ class VerticalClearance(IntraparagraphTransform):
         self.noise = add_probabilistic_noise
 
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
-        info = LineGroupInfo(line_group)
+        info = LineGroupInfo.from_polygons(polygons)
         vertical_size = abs(
             info.box_bounds[0][1] - info.box_bounds[-1][1]
         )  # topmost's topmost to botmost's topmost
 
-        if len(line_group) < 2:
+        if len(polygons) < 2:
             raise ValueError("Paragraph too small")
 
         Delta: float = (
@@ -45,12 +52,12 @@ class VerticalClearance(IntraparagraphTransform):
             else self.__relative() * vertical_size  # ty: ignore[call-non-callable]
         )  # total difference in size
 
-        delta_i = Delta / (len(line_group) - 1)
+        delta_i = Delta / (len(polygons) - 1)
 
         new_images = []
         new_polygons = []
 
-        for k, line in enumerate(line_group, start=1):
+        for k, (image, polygon) in enumerate(zip(images, polygons), start=1):
             # -Delta moves upwards, as topmost vertex has the most negative y coordinate
 
             if k:
@@ -59,8 +66,7 @@ class VerticalClearance(IntraparagraphTransform):
             else:
                 displacement = -Delta / 2
 
-            new_polygons.append(translate(line.polygon, yoff=displacement))
-
-            new_images.append(line.stroke_crop)
+            new_polygons.append(translate(polygon, yoff=displacement))
+            new_images.append(image)
 
         return new_images, new_polygons

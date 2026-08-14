@@ -27,8 +27,16 @@ class PerspectiveTransformation(IntraparagraphTransform):
         self.noise_y = Parameter(noise_y)
 
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
+
         noisy_destination_points = [
             (
                 x + self.noise_x(),
@@ -49,21 +57,19 @@ class PerspectiveTransformation(IntraparagraphTransform):
         )
         image_configured_transform = PerspectiveTransform(inv_coefficients)
 
-        new_images = []
-        new_polygons = []
+        for i, (image, polygon) in enumerate(zip(images, polygons)):
+            polygons[i] = transform(shapely_configured_transform, polygon)
 
-        for line in line_group:
-            new_polygons.append(transform(shapely_configured_transform, line.polygon))
-
-            original_width, original_height = line.stroke_crop.size
+            original_width, original_height = image.size
             expected_size = _calculate_projected_size(
                 original_width, original_height, fwd_coefficients
             )
-            new_images.append(
-                line.stroke_crop.transform(expected_size, image_configured_transform)
+            images[i] = image.transform(
+                expected_size,
+                image_configured_transform,
             )
 
-        return new_images, new_polygons
+        return images, polygons
 
 
 def _calculate_projected_size(

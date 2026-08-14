@@ -1,7 +1,7 @@
 from shapely.geometry import Point
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
-from typing import Literal, Optional
+from typing import Literal, Optional, TYPE_CHECKING, Any
 import re
 from collections.abc import Iterable
 from shapely.affinity import translate
@@ -18,8 +18,9 @@ from cropgen.processing.helpers.helper_to_classes import (
     get_union_rect,
     subdictionary,
 )
-from cropgen.processing.helpers.text_background_separator import (
+from cropgen.processing.helpers.image_processing import (
     separate_background_and_stroke,
+    crop_or_resize,
 )
 from cropgen.processing.helpers.text_regularization import (
     regularize_text,
@@ -38,6 +39,7 @@ from cropgen.shared.LSTypedDicts.simplified import (
 )
 from cropgen.shared.default_parameters import MAX_IMG_DIM, OPERATIONS_IMG_DIM
 from cropgen.shared.display import display
+from cropgen.transforms.on_the_fly_transform_manager import OCROnTheFlyTransformPack
 
 
 class AnnotatedPage:
@@ -377,15 +379,11 @@ class AnnotatedPage:
     def synthetic_manuscript(
         self,
         line_ids: set[str] | list[str] | Literal["all"],
+        *,
         tight_layout: bool = True,
         margin_size_px: int = 0,
+        on_the_fly_transforms_pack: OCROnTheFlyTransformPack | None = None,
     ) -> Image.Image:
-        """
-        Generates the collage of handwritten strokes given by a sequence of ImageBox ids, placing each
-        crop in its original place on the page, and using the background of the page, cropped or resized,
-        to fit.
-        """
-
         if line_ids == "all":
             line_ids = set(self.lines.keys())
 
@@ -398,58 +396,85 @@ class AnnotatedPage:
             line_ids = set(line_ids)
 
         lines = [self.lines[box_id] for box_id in line_ids]
+        strokes = [line.stroke_crop for line in lines]
+        polygons = [line.polygon for line in lines]
+        if on_the_fly_transforms_pack is not None:
+            strokes, polygons = on_the_fly_transforms_pack.transform(strokes, polygons)
+
+        if not strokes:
+            return self.background.copy()
+
+        min_x, min_y, max_x, max_y = get_union_rect(polygons)
+        bg_w, bg_h = self.background.width, self.background.height
 
         if tight_layout:
-            # we calculate the minimum bounding box thata contains our image boxes
-            x1, y1, x2, y2 = get_union_rect([box.polygon for box in lines])
-
-            #  (Floor is top/left, Ceil for bottom/right)
-            x1 = max(0, int(x1) - margin_size_px)
-            y1 = max(0, int(y1) - margin_size_px)
-            x2 = min(self.background.width, int(x2) + 1 + margin_size_px)
-            y2 = min(self.background.height, int(y2) + 1 + margin_size_px)
-
-            crop_width, crop_height = x2 - x1, y2 - y1
-            collage = self.background.crop((x1, y1, x2, y2))
+            x0 = int(min_x) - margin_size_px
+            xf = int(max_x) + 1 + margin_size_px
+            y0 = int(min_y) - margin_size_px
+            yf = int(max_y) + 1 + margin_size_px
+            can_crop = True
         else:
-            collage = self.background
-            x1 = 0
-            y1 = 0
+            x0 = min(0, int(min_x) - margin_size_px)
+            xf = max(bg_w, int(max_x) + 1 + margin_size_px)
+            y0 = min(0, int(min_y) - margin_size_px)
+            yf = max(bg_h, int(max_y) + 1 + margin_size_px)
+            can_crop = False
 
-        overlay: np.ndarray = np.full(np.asarray(collage).shape, 0)
-
-        for box in lines:
-            box_x0, box_y0, _, _ = box.polygon.bounds
-
-            # calculamos la posición relativa al nuevo lienzo
-            paste_x, paste_y = int(box_x0 - x1), int(box_y0 - y1)
-
-            stroke_rgba = np.asarray(box.stroke_crop.convert("RGBA"))
-
-            stroke = stroke_rgba[..., 0]
-            alpha = stroke_rgba[..., 3]
-
-            masked_stroke = stroke * (alpha / 255.0)
-
-            overlay[
-                paste_y : paste_y + box.stroke_crop.height,
-                paste_x : paste_x + box.stroke_crop.width,
-            ] += masked_stroke.astype(np.uint8)
-
-        # difference instead of addition as our strokes are reversed in intensity
-        collage = Image.fromarray(
-            np.clip(np.asarray(collage, dtype=np.float32) - overlay, 0, 255).astype(
-                np.uint8
-            )
+        bg_np = np.asarray(self.background)
+        transformed_bg = crop_or_resize(
+            bg_np, x0=x0, xf=xf, y0=y0, yf=yf, can_crop=can_crop
         )
 
-        return collage
+        canvas_h, canvas_w = transformed_bg.shape[:2]
+        overlay = np.zeros((canvas_h, canvas_w), dtype=np.float32)
+
+        for stroke_img, polygon in zip(strokes, polygons):
+            poly_x0, poly_y0, _, _ = polygon.bounds
+
+            paste_x = int(poly_x0 - x0)
+            paste_y = int(poly_y0 - y0)
+
+            stroke_rgba = np.asarray(stroke_img.convert("RGBA"), dtype=np.float32)
+            stroke_val = stroke_rgba[..., 0]
+            alpha = stroke_rgba[..., 3] / 255.0
+            masked_stroke = stroke_val * alpha
+
+            sw, sh = stroke_img.width, stroke_img.height
+
+            src_x0 = max(0, -paste_x)
+            src_y0 = max(0, -paste_y)
+            src_x1 = min(sw, canvas_w - paste_x)
+            src_y1 = min(sh, canvas_h - paste_y)
+
+            dst_x0 = max(0, paste_x)
+            dst_y0 = max(0, paste_y)
+            dst_x1 = min(canvas_w, paste_x + sw)
+            dst_y1 = min(canvas_h, paste_y + sh)
+
+            if dst_x1 > dst_x0 and dst_y1 > dst_y0:
+                overlay[dst_y0:dst_y1, dst_x0:dst_x1] += masked_stroke[
+                    src_y0:src_y1, src_x0:src_x1
+                ]
+
+        bg_float = transformed_bg.astype(np.float32)
+        if bg_float.ndim == 3 and bg_float.shape[2] in (3, 4):
+            final_array = np.clip(bg_float - overlay[..., None], 0, 255).astype(
+                np.uint8
+            )
+        else:
+            final_array = np.clip(bg_float - overlay, 0, 255).astype(np.uint8)
+
+        return Image.fromarray(final_array)
 
     def synthetic_transcription(
         self,
         line_ids: set[str] | list[str] | Literal["all"],
     ) -> str:
-        lines = [self.lines[line_id] for line_id in line_ids]
+        lines = (
+            [self.lines[line_id] for line_id in line_ids]
+            if line_ids != "all"
+            else list(self.lines.values())
+        )
 
         # using .starting_index has the same ordering as the reading order in image_boxes by design
         lines: list[Line] = sorted(
@@ -475,8 +500,10 @@ class AnnotatedPage:
     def synthetic_sample(
         self,
         line_ids: list["str"] | Literal["all"],
+        *,
         tight_layout: bool = True,
         margin_size_px: int = 0,
+        on_the_fly_transform_pack: OCROnTheFlyTransformPack | None = None,
     ) -> tuple[Image.Image, str, int]:
         """
         Given a list of ImageBox ids, returns:
@@ -491,7 +518,10 @@ class AnnotatedPage:
             line_ids = list(self.lines.keys())
 
         manuscript = self.synthetic_manuscript(
-            line_ids, tight_layout=tight_layout, margin_size_px=margin_size_px
+            line_ids,
+            tight_layout=tight_layout,
+            margin_size_px=margin_size_px,
+            on_the_fly_transforms_pack=on_the_fly_transform_pack,
         )
         transcription = self.synthetic_transcription(line_ids)
         starting_index = self.synthetic_starting_index(line_ids)
@@ -511,6 +541,8 @@ class AnnotatedPage:
         """
         Generates a synthetic sample with the polygons and minimum area rotated bounding box
         represented.
+        Using OCROnTheFlyTransforms is not supported, use LayoutGenerator to create a new transformed
+        annotation and run this method on that.
         """
         if not self.process_images:
             return Image.Image()
@@ -526,7 +558,9 @@ class AnnotatedPage:
 
         selected_boxes = [self.lines[line_id] for line_id in selected_ids]
 
-        collage = self.synthetic_manuscript(list(self.lines.keys()), crop_to_fit)
+        collage = self.synthetic_manuscript(
+            list(self.lines.keys()), tight_layout=crop_to_fit
+        )
 
         origin_x = (
             int(min(line.polygon.bounds[0] for line in self.lines.values()))

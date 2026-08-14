@@ -12,17 +12,19 @@ class LinewiseHorizontalStretch(LinewiseTransform):
 
         self.scale_factor = Parameter(scale_factor)
 
-    def __call__(self, box: Line) -> tuple[Image.Image, Polygon]:
-        image = box.stroke_crop
+    def __call__(
+        self, image: Image.Image, polygon: Polygon
+    ) -> tuple[Image.Image, Polygon]:
+        image = image
         stretched_image = image.resize(
             (max(1, round(image.width * abs(self.scale_factor()))), image.height),
             resample=Image.Resampling.BILINEAR,
         )
 
-        min_x, min_y, max_x, max_y = box.polygon.bounds
+        min_x, min_y, max_x, max_y = polygon.bounds
         center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
         stretched_polygon = scale(
-            box.polygon,
+            polygon,
             xfact=self.scale_factor,
             yfact=1.0,
             origin=center,

@@ -1,7 +1,6 @@
 from cropgen.shared.parameters import Parameter
-from typing import Iterable
+from typing import Sequence
 from cropgen.transforms.transforms import IntraparagraphTransform
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.processing import Paragraph, Line
 from shapely.geometry import Polygon
 import shapely
@@ -22,25 +21,32 @@ class VerticalArch(IntraparagraphTransform):
         self.segmentation_thinness = segmentation_thinness
 
     def __call__(
-        self, line_group: Paragraph | Iterable[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
-        x0 = min(box.left for box in line_group)
-        xf = max(box.right for box in line_group)
+        x0 = min(polygon.bounds[0] for polygon in polygons)
+        xf = max(polygon.bounds[2] for polygon in polygons)
 
         new_polygons = []
         new_images = []
 
-        for box in line_group:
-            orig_bounds = box.polygon.bounds
+        for image, polygon in zip(images, polygons):
+            orig_bounds = polygon.bounds
 
             amplitude = self.amplitude()
 
-            new_polygon = self._apply_arch_poly(box.polygon, amplitude, x0, xf)
+            new_polygon = self._apply_arch_poly(polygon, amplitude, x0, xf)
 
             new_images.append(
                 self._apply_arch_img(
-                    box.stroke_crop,
+                    image,
                     amplitude,
                     x0,
                     xf,

@@ -1,13 +1,15 @@
-from cropgen.processing.annotated_page import AnnotatedPage
-from cropgen.processing.line import Line
+from __future__ import annotations
 from shapely.geometry import Polygon
-from typing import Collection, Sequence
-from cropgen.processing import Paragraph, Line
+from typing import Collection, Sequence, TYPE_CHECKING
 from abc import ABC, abstractmethod
 import shapely
 from PIL import Image
 import numpy as np
 from shapely.affinity import translate
+from copy import copy
+
+if TYPE_CHECKING:
+    from cropgen.processing import AnnotatedPage, Paragraph, Line
 
 
 class LinewiseTransform(ABC):
@@ -17,25 +19,66 @@ class LinewiseTransform(ABC):
     """
 
     @abstractmethod
-    def __call__(self, box: Line) -> tuple[Image.Image, shapely.Polygon]:
+    def __call__(
+        self, image: Image.Image, polygon: Polygon
+    ) -> tuple[Image.Image, shapely.Polygon]:
         raise NotImplementedError
 
     def bulk_transform(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
         new_imgs, new_polygons = [], []
 
-        for box in line_group:
-            new_img, new_polygon = self(box)
+        for img, poly in zip(*self._extract_polygons_and_images(line_equivalent_group)):
+            new_img, new_polygon = self(img, poly)
             new_imgs.append(new_img)
             new_polygons.append(new_polygon)
 
         return new_imgs, new_polygons
 
-    def in_place(self, box: Line) -> None:
-        img, poly = self(box)
-        box.stroke_crop = img
-        box.polygon = poly
+    def in_place(self, line: Line) -> None:
+        """
+        Transforms the polygon and image of a Line instance in-place.
+        """
+        img, poly = self(line.stroke_crop, line.polygon)
+        line.stroke_crop = img
+        line.polygon = poly
+
+    @staticmethod
+    def _extract_polygons_and_images(
+        line_equivalent_group: (
+            Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[shapely.Polygon]]
+        ),
+    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+        if isinstance(line_equivalent_group, tuple) and isinstance(
+            line_equivalent_group[0], list
+        ):
+            return (
+                copy(line_equivalent_group[0]),
+                copy(line_equivalent_group[1]),
+            )  # ty: ignore[invalid-return-type]
+        return (
+            [
+                line.stroke_crop  # ty: ignore[unresolved-attribute]
+                for line in line_equivalent_group
+            ],
+            [
+                line.polygon  # ty: ignore[unresolved-attribute]
+                for line in line_equivalent_group
+            ],
+        )
+
+    @staticmethod
+    def _extract_polygon_and_image(line: Line) -> tuple[Image.Image, shapely.Polygon]:
+        return line.stroke_crop, line.polygon
 
 
 class IntraparagraphTransform(ABC):
@@ -47,7 +90,13 @@ class IntraparagraphTransform(ABC):
 
     @abstractmethod
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
         raise NotImplementedError
 
@@ -55,11 +104,44 @@ class IntraparagraphTransform(ABC):
     def from_linewise(transform: LinewiseTransform):
         return IntraparagraphFromLinewiseTransform(transform)
 
-    def in_place(self, line_group: Paragraph | Sequence[Line]) -> None:
+    def in_place(
+        self,
+        line_group: Paragraph | Sequence[Line],
+    ) -> None:
         imgs, polys = self(line_group)
         for line, img, poly in zip(line_group, imgs, polys):
             line.stroke_crop = img
             line.polygon = poly
+
+    @staticmethod
+    def _extract_polygons_and_images(
+        line_equivalent_group: (
+            Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[shapely.Polygon]]
+        ),
+    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+        if isinstance(line_equivalent_group, tuple) and isinstance(
+            line_equivalent_group[0], list
+        ):
+            return (
+                copy(line_equivalent_group[0]),
+                copy(line_equivalent_group[1]),
+            )  # ty: ignore[invalid-return-type]
+        return (
+            [
+                line.stroke_crop  # ty: ignore[unresolved-attribute]
+                for line in line_equivalent_group
+            ],
+            [
+                line.polygon  # ty: ignore[unresolved-attribute]
+                for line in line_equivalent_group
+            ],
+        )
+
+    @staticmethod
+    def _extract_polygon_and_image(line: Line) -> tuple[Image.Image, shapely.Polygon]:
+        return line.stroke_crop, line.polygon
 
 
 class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
@@ -71,9 +153,15 @@ class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
         self._transform = transform
 
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
-        return self._transform.bulk_transform(line_group)
+        return self._transform.bulk_transform(line_equivalent_group)
 
 
 class InterparagraphTransform(ABC):
@@ -85,7 +173,10 @@ class InterparagraphTransform(ABC):
 
     @abstractmethod
     def __call__(
-        self, *line_groups: Paragraph | Sequence[Line]
+        self,
+        *line_equivalent_groups: Paragraph
+        | Sequence[Line]
+        | tuple[Sequence[Image.Image], Sequence[Polygon]],
     ) -> tuple[list[list[Image.Image]], list[list[Polygon]]]:
         raise NotImplementedError
 

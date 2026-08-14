@@ -1,3 +1,4 @@
+from cropgen.transforms.on_the_fly_transform_manager import OCROnTheFlyTransformPack
 from dataclasses import dataclass
 from multiprocessing import Value
 from cropgen.transforms import (
@@ -12,10 +13,20 @@ import numpy as np
 orders_type = Collection[int | Literal["paragraph", "full"]]
 
 
-@dataclass(kw_only=True, slots=True)
-class _ClusterParameters:
-    tight_layout: bool = True
-    margin_size_px: int = 0
+_possible_cluster_args = [
+    "tight_layout",
+    "margin_size_px",
+    "use_previous_page_in_context",
+]
+_poss_cluster_args_literal = Literal[
+    "tight_layout", "margin_size_px", "use_previous_page_in_context"
+]
+
+_default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
+    "tight_layout": True,
+    "margin_size_px": 0,
+    "use_previous_page_in_context": False,
+}
 
 
 class OCRDataset(Dataset):
@@ -35,12 +46,14 @@ class OCRDataset(Dataset):
         orders: orders_type,
         intraparagraph_transforms: Collection[IntraparagraphTransform] | None = None,
         interparagraph_transforms: Collection[InterparagraphTransform] | None = None,
+        cluster_transforms: dict[_poss_cluster_args_literal, Any] | None = None,
     ):
         self.annotated_pages = annotations
         # temp
         self._orders = []
         self._use_paragraphs = False
         self._use_full_pages = False
+        self._transforms: OCROnTheFlyTransformPack | None = None
         self._update_orders(orders)  # the three previous attributes are updated here
 
         self._intraparagraph_transforms = (
@@ -49,7 +62,17 @@ class OCRDataset(Dataset):
         self._interparagraph_transforms = (
             list() if interparagraph_transforms is None else interparagraph_transforms
         )
-        self._cluster_params = _ClusterParameters()
+
+        self.cluster_params = _default_cluster_parameters.copy()
+        self.cluster_params.update(
+            cluster_transforms if cluster_transforms is not None else dict()
+        )
+
+        # TODO: implement layout generation: perhaps as a wrapper class of OCRDataset that has 2 different annotation lists:
+        # one is the original and the other is the layout-generated one. The rest should be more or less the same.
+
+    def __repr__(self):
+        return f"<OCRDataset ({len(self)} samples: {len(self.annotated_pages)} pages using orders {self.orders}>"
 
     @property
     def orders(self):
@@ -195,20 +218,23 @@ class OCRDataset(Dataset):
             if selected_box_ids is None:
                 raise RuntimeError(f"Failed to resolve sample target for index {index}")
 
-        # TODO: implement the transforms
-        target_ann = ann
+        synthetic_img, synthetic_transcription, sindex = ann.synthetic_sample(
+            selected_box_ids,
+            tight_layout=self.cluster_params["tight_layout"],
+            margin_size_px=self.cluster_params["margin_size_px"],
+            on_the_fly_transform_pack=self._transforms,
+        )
 
-        collage, text, sindex = target_ann.synthetic_sample(selected_box_ids)
-
-        # TODO: add context?
-
+        # TODO: improve context generation - implement the use_previous_page_in_context cluster parameter here
+        context = ann.synthetic_transcription("all")[:sindex]
         return {
-            "image": collage,
-            "text": text,
+            "image": synthetic_img,
+            "text": synthetic_transcription,
             "sindex": sindex,
+            "context": context,
             "order": order,
             "id": identifyer,
-            "page_id": target_ann.task_id,
+            "page_id": ann.task_id,
         }
 
     @staticmethod
@@ -247,6 +273,9 @@ class OCRDataset(Dataset):
             train += train_i
             test += test_i
         return OCRDataset(train, orders=orders), OCRDataset(test, orders=orders)
+
+    def set_transform(self, transform: OCROnTheFlyTransformPack | None):
+        self._transforms = transform
 
     @staticmethod
     def samples_in_annotation(

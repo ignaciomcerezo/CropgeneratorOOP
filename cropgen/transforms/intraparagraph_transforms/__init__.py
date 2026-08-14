@@ -3,4 +3,4 @@ from .linewise_paragraph_aware_rotation import LinewiseParagraphAwareRotation
 from .horizontal_movement import HorizontalMovement
 from .paragraphwise_rotation import ParagraphwiseRotation
 from .vertical_clearance import VerticalClearance
-from .perspective_transformation import PerspectiveTransform
+from .perspective_transformation import PerspectiveTransformation

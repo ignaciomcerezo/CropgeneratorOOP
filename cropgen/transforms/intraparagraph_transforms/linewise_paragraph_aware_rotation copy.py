@@ -1,3 +1,4 @@
+from cropgen.processing.helpers.helper_to_classes import calculate_reading_angle
 from cropgen.shared.parameters import Parameter
 from cropgen.processing.line import Line
 from cropgen.processing import Paragraph
@@ -29,13 +30,21 @@ class StraightenLines(IntraparagraphTransform):
         return
 
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
-        new_imgs = []
-        new_polys = []
-        for line in line_group:
 
-            orig_bounds = line.polygon.bounds
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
+
+        for i, (image, polygon) in enumerate(zip(images, polygons)):
+
+            orig_bounds = polygon.bounds
+            rotation = calculate_reading_angle(polygon)
 
             x0, y0, x1, y1 = orig_bounds
             center = (
@@ -43,19 +52,17 @@ class StraightenLines(IntraparagraphTransform):
                 (y0 + y1) / 2,
             )
 
-            new_poly = LinewiseParagraphAwareRotation().rotate_poly(
-                line.polygon,
-                line.rotation,
+            polygons[i] = LinewiseParagraphAwareRotation().rotate_poly(
+                polygon,
+                rotation,  # TODO: does this go with a - sign? - using LayoutGenerator and .manuscript with polygons should be obvious
                 center,
             )
 
-            new_imgs.append(
-                LinewiseParagraphAwareRotation.rotate_img(
-                    line.stroke_crop,
-                    line.rotation,
-                    orig_bounds,
-                    new_poly.bounds,
-                )
+            images[i] = LinewiseParagraphAwareRotation.rotate_img(
+                image,
+                rotation,  # TODO: does THIS? ¿?¿ - using LayoutGenerator and .manuscript with polygons should be obvious
+                orig_bounds,
+                polygons[i].bounds,
             )
-            new_polys.append(new_poly)
-        return new_imgs, new_polys
+
+        return images, polygons

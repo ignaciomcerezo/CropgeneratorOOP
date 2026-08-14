@@ -32,10 +32,16 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         self._metric = metric
 
     def __call__(
-        self, line_group: Paragraph | Sequence[Line]
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
-
-        info = LineGroupInfo(line_group)
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
+        info = LineGroupInfo.from_polygons(polygons)
 
         if self._relative is not None:
             rotation = info.avg_rotation * self._relative
@@ -55,30 +61,25 @@ class ParagraphwiseRotation(IntraparagraphTransform):
 
         centroid = info.centroid
 
-        new_images = []
-        new_polygons = []
+        for i, (image, polygon) in enumerate(zip(images, polygons)):
 
-        for line in line_group:
+            orig_bounds = polygon.bounds
 
-            orig_bounds = line.polygon.bounds
-
-            new_poly = self._rotate_poly(
-                line.polygon,
+            polygons[i] = self._rotate_poly(
+                polygon,
                 rotation,
                 centroid,
             )
 
-            new_img = self._rotate_img(
-                line.stroke_crop,
+            images[i] = self._rotate_img(
+                image,
                 rotation,
                 centroid,
                 orig_bounds,
-                new_poly.bounds,
+                polygons[i].bounds,
             )
-            new_images.append(new_img)
-            new_polygons.append(new_poly)
 
-        return new_images, new_polygons
+        return images, polygons
 
     @staticmethod
     def _rotate_poly(

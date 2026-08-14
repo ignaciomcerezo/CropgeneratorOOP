@@ -24,8 +24,12 @@ class CorrectIntersectionsHorizontally(InterparagraphTransform):
         self.clearance = absolute_clearance
 
     def __call__(
-        self, *line_groups: Paragraph | Sequence[Line]
+        self,
+        *line_groups: Paragraph
+        | Sequence[Line]
+        | tuple[Sequence[Image.Image], Sequence[Polygon]],
     ) -> tuple[list[list[Image.Image]], list[list[Polygon]]]:
+
         img_groups = [
             [line.stroke_crop for line in line_group] for line_group in line_groups
         ]

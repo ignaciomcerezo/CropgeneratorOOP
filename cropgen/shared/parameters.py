@@ -10,11 +10,9 @@ class Parameter:
 
     __slots__ = ("_value",)
 
-    # TODO: solve compatibility with NormalDistribution and UniformDistribution.
-
     def __init__(self, value: "Parameter | float | Callable[[], float]"):
         if isinstance(value, Parameter):
-            self._value = value._value
+            self._value = getattr(value, "_value", value)
         else:
             self._value = value
 
@@ -57,10 +55,3 @@ class UniformDistribution(Parameter):
 
     def __repr__(self):
         return f"<U({self._min},{self._max})>"
-
-
-def instanciate_if_parameter(value: Parameter | float) -> float:
-    if isinstance(value, Parameter):
-        return value()
-    else:
-        return value

@@ -11,28 +11,32 @@ def _union(geometries: Collection[shapely.Geometry]) -> Polygon:
     return shapely.unary_union(snapped_geoms)
 
 
-def _bounds(box: Line):
-    return (box.left, box.top, box.right, box.bot)
-
-
 class LineGroupInfo:
     """
     Some helpful data to calculate layouts.
     """
 
-    def __init__(self, line_group: Paragraph | Sequence[Line]):
+    def __init__(
+        self,
+        line_group: Paragraph | Sequence[Line],
+    ):
+        if not line_group:
+            raise ValueError("Empty line group.")
 
-        # x0,y0,xf,yf
         self.box_bounds: list[tuple[float, float, float, float]] = [
-            _bounds(box) for box in line_group
+            box.polygon.bounds for box in line_group
         ]
 
         self.area: float = _union([box.polygon for box in line_group]).area
 
         self.avg_rotation = (
-            1
-            / len(line_group)
-            * sum((box.rotation * box.polygon.area) for box in line_group)
+            0.0
+            if not line_group
+            else (
+                1
+                / len(line_group)
+                * sum((box.rotation * box.polygon.area) for box in line_group)
+            )
         )
 
         if not self.box_bounds:
@@ -106,3 +110,42 @@ class LineGroupInfo:
     @property
     def hs(self) -> list[float]:
         return [abs(y0 - yf) for (y0, yf) in zip(self.y0s, self.yfs)]
+
+    @classmethod
+    def from_polygons(cls, polygons: Sequence[Polygon]):
+        if not polygons:
+            raise ValueError(
+                "Cannot get geometric information from an empty sequence of polygons."
+            )
+
+        instance = object.__new__(cls)
+        instance.box_bounds = [polygon.bounds for polygon in polygons]
+        instance.area = _union(polygons).area
+        instance.avg_rotation = 0.0
+
+        if not instance.box_bounds:
+            instance.union_bounds = (0.0, 0.0, 0.0, 0.0)
+            instance.centroid = (0.0, 0.0)
+        else:
+            min_x = min(b[0] for b in instance.box_bounds)
+            min_y = min(b[1] for b in instance.box_bounds)
+            max_x = max(b[2] for b in instance.box_bounds)
+            max_y = max(b[3] for b in instance.box_bounds)
+            instance.union_bounds = (min_x, min_y, max_x, max_y)
+            instance.centroid = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+
+        instance.n_points = len(polygons)
+        instance.box_x_deltas = [
+            instance.box_bounds[i + 1][0] - instance.box_bounds[i][0]
+            for i in range(len(polygons) - 1)
+        ]
+        instance.box_y_deltas = [
+            instance.box_bounds[i + 1][1] - instance.box_bounds[i][1]
+            for i in range(len(polygons) - 1)
+        ]
+        instance.union_polygon = _union(polygons)
+        instance.center = (
+            (instance.x0 + instance.xf) / 2,
+            (instance.y0 + instance.yf) / 2,
+        )
+        return instance
