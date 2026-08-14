@@ -184,15 +184,15 @@ class Paragraph:
         terminal_vertices = [
             line
             for line in self.lines
-            if len(self.subgraph[line.id]) == 1  # ty:ignore[not-subscriptable]
+            if len(self.subgraph[line.id]) == 1
         ]
         assert len(terminal_vertices) == 2
 
         top_line = min(
             terminal_vertices,
             key=lambda line: (
-                line.corrected_centroid[1],  # ty: ignore[not-subscriptable]
-                line.corrected_centroid[0],  # ty: ignore[not-subscriptable]
+                line.corrected_centroid[1], 
+                line.corrected_centroid[0], 
             ),
         )
 
@@ -207,7 +207,7 @@ class Paragraph:
                 neighbor_id
                 for neighbor_id in self.subgraph[
                     current_id
-                ]  # ty:ignore[not-subscriptable]
+                ]
                 if neighbor_id != previous_id and neighbor_id not in visited
             ]
             assert len(next_candidates) == 1

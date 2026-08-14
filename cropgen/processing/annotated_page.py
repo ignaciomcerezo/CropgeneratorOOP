@@ -36,7 +36,7 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedResultItem,
     SimplifiedTextCorrectionResult,
 )
-from cropgen.shared.default_parameters import MAX_IMG_DIM
+from cropgen.shared.default_parameters import MAX_IMG_DIM, OPERATIONS_IMG_DIM
 from cropgen.shared.display import display
 
 
@@ -49,7 +49,8 @@ class AnnotatedPage:
     n_annotation_errors: int = 0
     warn_unrotate: bool = True
     warn_process_images: bool = True
-    max_img_dimension: int = MAX_IMG_DIM
+    working_img_longest_side: int = MAX_IMG_DIM
+    _stroke_separation_img_longest_side: int = OPERATIONS_IMG_DIM
     __slots__ = (
         "lines",
         "background",
@@ -84,23 +85,18 @@ class AnnotatedPage:
         self.task_id = int(ann.task)
         results: list[SimplifiedResultItem] = ann.result
 
+        img = img.convert("L")
+
         if process_images:
-            img = img.convert("L")
-            self.background, self.stroke = separate_background_and_stroke(img)
-
-            w, h = img.size
-            scale_factor = AnnotatedPage.max_img_dimension / max(w, h)
-            size = (
-                int(np.ceil(w * scale_factor)),
-                int(np.ceil(h * scale_factor)),
+            self.background, self.stroke = separate_background_and_stroke(
+                img,
+                out_longest_side=AnnotatedPage.working_img_longest_side,
+                processing_longest_side=AnnotatedPage._stroke_separation_img_longest_side,
             )
-
-            self.background = self.background.resize(size)
-            self.stroke = self.stroke.resize(size)
 
         else:
             # blanks
-            self.background = self.stroke = img.convert(mode="L")
+            self.background = self.stroke = img
 
         self.process_images = process_images
         self.line_separator = line_separtor
@@ -360,7 +356,10 @@ class AnnotatedPage:
                 sindex += len(line.text) + len(self.line_separator)
 
     def __repr__(self):
-        return f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, last updated by {self.updater} at {self.last_update_time}>"
+        return (
+            f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, "
+            f"last updated by {self.updater} at {self.last_update_time}>"
+        )
 
     def _build_intersection_graph(self) -> None:
         lines = list(self.lines.values())
@@ -606,7 +605,10 @@ class AnnotatedPage:
             for line in [paragraph[i] for i in range(1, len(paragraph))]:
                 shape = shape.union(line.polygon)
 
-            paragraph.centroid = (shape.centroid.x, shape.centroid.y)
+            paragraph.centroid = (  # ty: ignore[invalid-assignment]
+                shape.centroid.x,
+                shape.centroid.y,
+            )
 
             theta_rad = -np.radians(-paragraph.avg_rotation)
             cos_theta = float(np.cos(theta_rad))

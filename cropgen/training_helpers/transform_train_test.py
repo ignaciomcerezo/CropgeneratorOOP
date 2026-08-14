@@ -54,7 +54,7 @@
 
 
 # try:
-#     import torchvision.transforms as tvt  # ty: ignore[unresolved-import]
+#     import torchvision.transforms as tvt
 
 #     def transform_train(
 #         batch,

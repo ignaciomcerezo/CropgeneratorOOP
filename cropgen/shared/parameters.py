@@ -23,7 +23,7 @@ class Parameter:
             return self._value
 
         elif callable(self._value):
-            return self._value()  # ty: ignore[call-top-callable, invalid-return-type]
+            return self._value()
 
         else:
             raise ValueError(
