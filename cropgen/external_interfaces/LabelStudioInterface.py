@@ -292,6 +292,7 @@ class LabelStudioInterface:
             img,
             usernames_labelstudio=self.usernames,
             process_images=True,
+            page=img_path.stem if img_path else None,
         )
 
     @property
@@ -318,6 +319,7 @@ class LabelStudioInterface:
                     img,
                     usernames_labelstudio=self.usernames,
                     process_images=True,
+                    page=img_path.stem if img_path else None,
                 )
                 for ann in task.annotations
             ]

@@ -66,6 +66,7 @@ class AnnotatedPage:
         "annotation_unique_id",
         "process_images",
         "line_separator",
+        "page",
     )
 
     def __init__(
@@ -75,6 +76,7 @@ class AnnotatedPage:
         usernames_labelstudio: list[str] | None = None,
         line_separtor: str = "\n",
         process_images: bool = True,
+        page: str | None = None,
     ):
 
         if not (process_images) and AnnotatedPage.warn_process_images:
@@ -100,6 +102,7 @@ class AnnotatedPage:
             # blanks
             self.background = self.stroke = img
 
+        self.page = page
         self.process_images = process_images
         self.line_separator = line_separtor
 
@@ -358,8 +361,11 @@ class AnnotatedPage:
                 sindex += len(line.text) + len(self.line_separator)
 
     def __repr__(self):
+        pageif = (
+            f"(page {self.page})" if self.page is not None else "(unknown page name)"
+        )
         return (
-            f"<Annotation of task {self.task_id} of order {self.order}. Completed by {self.completer}, "
+            f"<Annotation of task {self.task_id} {pageif} of order {self.order}. Completed by {self.completer}, "
             f"last updated by {self.updater} at {self.last_update_time}>"
         )
 
