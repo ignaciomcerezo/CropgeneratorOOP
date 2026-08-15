@@ -27,14 +27,11 @@ class LineGroupInfo:
 
         self.rotations = [line.rotation for line in line_group]
 
+        total_area = sum(box.polygon.area for box in line_group)
         self.avg_rotation = (
             0.0
-            if not line_group
-            else (
-                1
-                / len(line_group)
-                * sum((box.rotation * box.polygon.area) for box in line_group)
-            )
+            if not line_group or total_area == 0
+            else sum(box.rotation * box.polygon.area for box in line_group) / total_area
         )
 
         if not self.box_bounds:
@@ -120,13 +117,15 @@ class LineGroupInfo:
         instance.box_bounds = [polygon.bounds for polygon in polygons]
         instance.area = LineGroupInfo.polygon_union(polygons).area
         instance.rotations = [calculate_reading_angle(poly) for poly in polygons]
+        total_area = sum(polygon.area for polygon in polygons)
         instance.avg_rotation = (
-            1
-            / len(polygons)
-            * sum(
-                (rotation * polygon.area)
+            0.0
+            if total_area == 0
+            else sum(
+                rotation * polygon.area
                 for rotation, polygon in zip(instance.rotations, polygons)
             )
+            / total_area
         )
 
         if not instance.box_bounds:

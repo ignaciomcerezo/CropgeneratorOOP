@@ -65,6 +65,42 @@ def extract_strokes(
     )
 
 
+def extract_border_mask(
+    image_array: np.ndarray,
+    dark_threshold: int = 50,
+    border_margin: int = 10,
+) -> np.ndarray:
+    """Detects dark connected components attached to or near the image edges."""
+    if image_array.ndim == 3:
+        gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = image_array
+
+    _, dark_mask = cv2.threshold(gray, dark_threshold, 255, cv2.THRESH_BINARY_INV)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        dark_mask, connectivity=8
+    )
+
+    h, w = gray.shape
+    border_mask = np.zeros((h, w), dtype=np.uint8)
+
+    for label in range(1, num_labels):
+        x, y, comp_w, comp_h, _ = stats[label]
+
+        touches_edge = (
+            x <= border_margin
+            or y <= border_margin
+            or (x + comp_w) >= (w - border_margin)
+            or (y + comp_h) >= (h - border_margin)
+        )
+
+        if touches_edge:
+            border_mask[labels == label] = 255
+
+    return border_mask
+
+
 def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
     scale_factor = M / max(img_array.shape)
     size = (
@@ -106,14 +142,18 @@ def separate_background_and_stroke(
         min_area,  # , max_area
     )
 
+    border_mask = extract_border_mask(image_array)
+
+    combined_mask = cv2.bitwise_or(stroke_mask, border_mask)
+
     if inpaint_dilation > 0:
         kernel = cv2.getStructuringElement(
             cv2.MORPH_ELLIPSE,
             (inpaint_dilation * 2 + 1, inpaint_dilation * 2 + 1),
         )
-        inpaint_mask = cv2.dilate(stroke_mask, kernel, iterations=1)
+        inpaint_mask = cv2.dilate(combined_mask, kernel, iterations=1)
     else:
-        inpaint_mask = stroke_mask
+        inpaint_mask = combined_mask
 
     clean_background = cv2.inpaint(
         np.asarray(image_array, dtype=np.uint8),

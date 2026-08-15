@@ -72,14 +72,20 @@ class AvoidLineIntersections(IntraparagraphTransform):
             angles = np.radians(np.asarray(rot, dtype=float))
             angle = np.mean(angles)
 
-        # Coordinates are y-down (image/document convention), so a reading
-        # direction that is visually 90 degrees counterclockwise from the
-        # horizontal rotation corresponds to angle - pi/2 in cos/sin terms,
-        # not angle + pi/2.
         reading_dir = np.array(
             [np.cos(angle - np.pi / 2), np.sin(angle - np.pi / 2)],
             dtype=float,
         )
+
+        centers = np.array(
+            [[polygon.centroid.x, polygon.centroid.y] for polygon in polygons],
+            dtype=float,
+        )
+        projections_by_index = centers @ reading_dir
+        slope = np.polyfit(np.arange(n), projections_by_index, 1)[0]
+
+        if slope < 0:
+            reading_dir = -reading_dir
 
         union_polygon = LineGroupInfo.polygon_union(polygons)
 
@@ -91,14 +97,16 @@ class AvoidLineIntersections(IntraparagraphTransform):
             dtype=float,
         )
 
-        centers = np.array(
-            [[polygon.centroid.x, polygon.centroid.y] for polygon in polygons],
-            dtype=float,
-        )
+        # centers = np.array(
+        #     [[polygon.centroid.x, polygon.centroid.y] for polygon in polygons],
+        #     dtype=float,
+        # )
 
-        centroid_coordinates = (centers - union_centroid) @ reading_dir
+        # centroid_coordinates = (centers - union_centroid) @ reading_dir
 
-        order = np.argsort(centroid_coordinates)
+        # order = np.argsort(centroid_coordinates)
+
+        order = list(range(len(polygons)))
 
         left_extent = np.empty(n, dtype=float)
         right_extent = np.empty(n, dtype=float)
@@ -116,18 +124,17 @@ class AvoidLineIntersections(IntraparagraphTransform):
 
         pairwise_displacements = np.zeros(n, dtype=float)
 
-        for k in range(1, n):
-            previous = order[k - 1]
-            current = order[k]
+        for i in range(1, n):
+            true_gap = polygons[i - 1].distance(polygons[i])
 
-            overlap = right_extent[previous] - left_extent[current] + self.delta
+            if true_gap < self.delta:
+                overlap = right_extent[i - 1] - left_extent[i] + self.delta
 
-            if overlap > 0:
-                pairwise_displacements[k] = overlap
+                if overlap > 0:
+                    pairwise_displacements[i] = overlap
 
         displacement_along_line = np.cumsum(pairwise_displacements)
 
-        # we center the displacement field so the group does not drift in the reading direction
         displacement_along_line -= np.mean(displacement_along_line)
 
         for k, i in enumerate(order):

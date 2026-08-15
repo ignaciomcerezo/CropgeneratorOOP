@@ -204,6 +204,8 @@ class AnnotatedPage:
                 graph[line_id] = set(neighbours)
         ann._graph = graph
 
+        ann._correct_text_and_set_sindices()
+
         return ann
 
     @staticmethod
@@ -422,7 +424,10 @@ class AnnotatedPage:
                 raise ValueError("There are duplicate box ids in synthetic_manuscript.")
             line_ids = set(line_ids)
 
-        lines = [self.lines[box_id] for box_id in line_ids]
+        lines = sorted(
+            [self.lines[box_id] for box_id in line_ids],
+            key=lambda line: line.starting_index,
+        )  # ty: ignore[no-matching-overload]
         strokes = [line.stroke_crop for line in lines]
         polygons = [line.polygon for line in lines]
         if img_poly_transform is not None:
@@ -651,10 +656,10 @@ class AnnotatedPage:
                 line.polygon = translate(line.polygon, xoff=-min_x, yoff=-min_y)
 
         for paragraph in self.paragraphs:
-
+            total_area = sum(line.polygon.area for line in self.lines.values())
             paragraph.avg_rotation = (
                 1
-                / len(paragraph)
+                / total_area
                 * sum(line.rotation * line.polygon.area for line in paragraph)
             )
             shape = paragraph[0].polygon
