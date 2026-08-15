@@ -38,7 +38,11 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedResultItem,
     SimplifiedTextCorrectionResult,
 )
-from cropgen.shared.default_parameters import MAX_IMG_DIM, OPERATIONS_IMG_DIM
+from cropgen.shared.default_parameters import (
+    MAX_IMG_DIM,
+    OPERATIONS_IMG_DIM,
+    INPAINTING_IMG_DIM,
+)
 from cropgen.shared.display import display
 
 ocr_transform = Callable[
@@ -58,6 +62,7 @@ class AnnotatedPage:
     warn_process_images: bool = True
     working_img_longest_side: int = MAX_IMG_DIM
     _stroke_separation_img_longest_side: int = OPERATIONS_IMG_DIM
+    _inpainting_img_longest_side: int = INPAINTING_IMG_DIM
     __slots__ = (
         "lines",
         "background",
@@ -104,6 +109,7 @@ class AnnotatedPage:
                 img,
                 out_longest_side=AnnotatedPage.working_img_longest_side,
                 processing_longest_side=AnnotatedPage._stroke_separation_img_longest_side,
+                inpaint_longest_side=AnnotatedPage._inpainting_img_longest_side,
             )
         elif stroke is not None and background is not None:
             self.stroke = stroke

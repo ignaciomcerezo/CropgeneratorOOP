@@ -119,13 +119,14 @@ def separate_background_and_stroke(
     image: Image.Image,
     out_longest_side: int,
     processing_longest_side: int,
+    inpaint_longest_side: int,
     *,
     background_diameter: int = 15,
     small_diameter: int | None = None,  #  1
     threshold: float = 8.0,
     min_area: int = 3,
     inpaint_dilation: int = 3,
-    inpaint_radius: int = 3,
+    inpaint_radius: int = 1,
     # max_area: int = 10000,
 ) -> tuple[Image.Image, Image.Image]:
     """
@@ -154,6 +155,9 @@ def separate_background_and_stroke(
         inpaint_mask = cv2.dilate(combined_mask, kernel, iterations=1)
     else:
         inpaint_mask = combined_mask
+
+    # inpaint_mask = _resize_by_longest_side(inpaint_mask, inpaint_longest_side)
+    # image_array = _resize_by_longest_side(image_array, inpaint_longest_side)
 
     clean_background = cv2.inpaint(
         np.asarray(image_array, dtype=np.uint8),

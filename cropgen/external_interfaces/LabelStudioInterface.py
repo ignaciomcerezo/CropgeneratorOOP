@@ -447,12 +447,6 @@ class LabelStudioInterface:
             task, subindex=subindex, process_images=process_images
         )
 
-    @property
-    def annotated_pages(self) -> list[AnnotatedPage]:
-        return self.get_annotated_pages(
-            process_images=True, use_cache=True, show_progress=True
-        )
-
     @staticmethod
     def _get_page_from_task(task: SimplifiedTask | LabelStudioTask) -> str:
         return Path(unquote(task.data.image_url)).stem
