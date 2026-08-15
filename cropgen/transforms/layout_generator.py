@@ -11,7 +11,9 @@ from copy import deepcopy
 
 
 class LayoutGenerator:
-    def __init__(self):
+    def __init__(
+        self,
+    ):
         self._transform_index = 0
 
         self.intra_transforms_to_all: list[tuple[IntraparagraphTransform, int]] = []
@@ -82,17 +84,6 @@ class LayoutGenerator:
         background = new_ann.background.resize(
             size=(w, h), resample=Image.Resampling.BICUBIC
         )
+        new_ann.background = background
 
-        return AnnotatedPage.from_paragraphs(
-            paragraphs=new_ann.paragraphs,
-            task_id=new_ann.task_id,
-            background=background,
-            completer=new_ann.completer,
-            last_update_time=new_ann.last_update_time,
-            updater=new_ann.updater,
-            annotation_unique_id=hash(
-                " ".join(p.transcription() for p in new_ann.paragraphs)
-            ),
-            line_separator=new_ann.line_separator,
-            process_images=new_ann.process_images,
-        )
+        return new_ann

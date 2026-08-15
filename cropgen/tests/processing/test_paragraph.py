@@ -18,7 +18,9 @@ n_paragraphs = [1] * len(one_paragraph) + [2] * len(two_paragraphs)
 pages = [format(x) for x in one_paragraph] + [format(x) for x in two_paragraphs]
 
 
-@pytest.mark.parametrize(("page", "supposed_paragraphs"), zip(pages, n_paragraphs))
+@pytest.mark.parametrize(
+    ("task_id_subindex_combo", "supposed_paragraphs"), zip(pages, n_paragraphs)
+)
 def test_paragraph_v1(
     paths: PathBundle,
     task_id_subindex_combo: tuple[int, int],

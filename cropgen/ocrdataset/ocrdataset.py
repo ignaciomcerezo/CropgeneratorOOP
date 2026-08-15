@@ -8,11 +8,20 @@ from cropgen.transforms import (
     InterparagraphTransform,
 )
 from cropgen.processing.annotated_page import AnnotatedPage
-from typing import Collection, Literal, Any, Sequence, Sequence, Optional, get_args
+from typing import (
+    Collection,
+    Literal,
+    Any,
+    Sequence,
+    Sequence,
+    Optional,
+    get_args,
+    Callable,
+)
 from torch.utils.data import Dataset
 import numpy as np
 
-orders_type = Collection[int | Literal["paragraph", "full"]]
+orders_type = Collection[int | Literal["paragraph", "page"]]
 
 
 _poss_cluster_args_literal = Literal[
@@ -30,6 +39,16 @@ _default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
     )
 }
 
+_default_getitem_output_literal = Literal[
+    "image",
+    "text",
+    "sindex",
+    "context",
+    "order",
+    "id",
+    "page_id",
+]
+
 
 class OCRDataset(Dataset):
     """
@@ -37,8 +56,10 @@ class OCRDataset(Dataset):
     (of type AnnotatedPage) and a collecion of orders that will be used to sample the pages.
 
     When an item is requested, the dataset deterministically chooses an item (taken from all
-    possible contiguous clusters of lines of length one of the orders provided) and returns the
-    crop, its transcription, and other data.
+    possible contiguous clusters of lines of length one of the orders provided), transforms it using
+    the transform given (via .set_transform()) and returns the crop, its transcription, and other data.
+
+    The output may be formatted using .set_formatter().
     """
 
     def __init__(
@@ -48,7 +69,7 @@ class OCRDataset(Dataset):
         orders: orders_type,
         cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
     ):
-        self.annotated_pages = annotations
+        self._annotated_pages = annotations
         # temp
         self._orders = []
         self._use_paragraphs = False
@@ -61,18 +82,23 @@ class OCRDataset(Dataset):
             cluster_transform_params if cluster_transform_params is not None else dict()
         )
 
-        # TODO: implement layout generation: perhaps as a wrapper class of OCRDataset that has 2 different annotation lists:
-        # one is the original and the other is the layout-generated one. The rest should be more or less the same.
-
     def __repr__(self):
-        return f"<OCRDataset ({len(self)} samples: {len(self.annotated_pages)} pages using orders {self.orders}>"
+        return f"<OCRDataset ({len(self)} samples: {len(self._annotated_pages)} pages using orders {self.orders}>"
+
+    @property
+    def pages(self) -> list[str | None]:
+        return [ann.page for ann in self._annotated_pages]
+
+    @property
+    def ids(self) -> list[int]:
+        return [ann.task_id for ann in self._annotated_pages]
 
     @property
     def orders(self):
         return self._orders
 
     @orders.setter
-    def orders(self, value):
+    def orders(self, value: Sequence[int | Literal["paragraph", "page"]]):
         self._update_orders(value)
 
     @property
@@ -91,14 +117,14 @@ class OCRDataset(Dataset):
 
     def _update_orders(
         self,
-        new_orders: Collection[int | Literal["paragraph", "full"]],
+        new_orders: Collection[int | Literal["paragraph", "page"]],
     ):
         for order in new_orders:
             if (
                 (isinstance(order, float))
                 or (
                     isinstance(order, str)
-                    and ((order != "full") and (order != "paragraph"))
+                    and ((order != "page") and (order != "paragraph"))
                 )
                 or (isinstance(order, int) and (order < 1))
             ):
@@ -111,12 +137,12 @@ class OCRDataset(Dataset):
         if self._use_paragraphs:
             pseudo_old_orders.add("paragraph")
         if self._use_full_pages:
-            pseudo_old_orders.add("full")
+            pseudo_old_orders.add("page")
 
         if set(new_orders) != pseudo_old_orders:
             self._orders = [x for x in new_orders if isinstance(x, int)]
             self._use_paragraphs = "paragraph" in new_orders
-            self._use_full_pages = "full" in new_orders
+            self._use_full_pages = "page" in new_orders
             self._recalculate_size_and_probabilities()
 
     def update_stage(
@@ -131,7 +157,7 @@ class OCRDataset(Dataset):
         page_prefix_sums: list[int] = []
         running_total: int = 0
 
-        for ann in self.annotated_pages:
+        for ann in self._annotated_pages:
             par_counts: list[int] = []
 
             for par in ann.paragraphs:
@@ -161,7 +187,7 @@ class OCRDataset(Dataset):
     def __len__(self) -> int:
         return self._size
 
-    def __getitem__(self, index: int) -> dict[str, Any]:
+    def __getitem__(self, index: int):
         """
         Chooses a line cluster / paragraph / full page according to the available orders.
         Each sample is chosen uniformly, and applies the layout transforms defined.
@@ -175,11 +201,11 @@ class OCRDataset(Dataset):
         page_offset = int(self._page_prefix_sums[page_idx - 1]) if page_idx > 0 else 0
         rel_idx = index - page_offset
 
-        ann: AnnotatedPage = self.annotated_pages[page_idx]
+        ann: AnnotatedPage = self._annotated_pages[page_idx]
 
         if self._use_full_pages and rel_idx == self._page_sample_counts[page_idx] - 1:
             selected_box_ids = list(ann.lines.keys())
-            order = "full"
+            order = "page"
             identifyer = f"pg{page_idx}"
         else:
             par_prefix = self._par_prefix_sums[page_idx]
@@ -222,8 +248,12 @@ class OCRDataset(Dataset):
         )
 
         # TODO: improve context generation - implement the use_previous_page_in_context cluster parameter here
-        context = ann.synthetic_transcription("all")[:sindex]
-        return {
+        if sindex > 0:
+            context = ann.synthetic_transcription("all")[:sindex]
+        else:
+            context = ""
+
+        sample: dict[_default_getitem_output_literal, Any] = {
             "image": synthetic_img,
             "text": synthetic_transcription,
             "sindex": sindex,
@@ -232,6 +262,11 @@ class OCRDataset(Dataset):
             "id": identifyer,
             "page_id": ann.task_id,
         }
+
+        if self._formatter is None:
+            return sample
+        else:
+            return self._formatter(sample)
 
     @staticmethod
     def from_split(
@@ -294,9 +329,15 @@ class OCRDataset(Dataset):
                 "Only accepts transforms as None (no transform) or instances of OCROnTheFlyTransformPack."
             )
 
+    def set_formatter(
+        self,
+        formatter: Callable[[dict[_default_getitem_output_literal, Any]], Any] | None,
+    ):
+        self._formatter = formatter
+
     @staticmethod
     def samples_in_annotation(
-        ann: AnnotatedPage, orders: Collection[int | Literal["paragraph", "full"]]
+        ann: AnnotatedPage, orders: Collection[int | Literal["paragraph", "page"]]
     ):
         return (
             sum(
@@ -308,14 +349,14 @@ class OCRDataset(Dataset):
                 for paragraph in ann.paragraphs
             )
             + len(ann.paragraphs) * (("paragraph") in orders)
-            + ("full" in orders)
+            + ("page" in orders)
         )
 
     @staticmethod
     def montecarlo_ann_split(
         annotations: list[AnnotatedPage],
         p=0.95,
-        orders: Collection[int | Literal["paragraph", "full"]] = [1],
+        orders: Collection[int | Literal["paragraph", "page"]] = [1],
         n_trials: int = 1000,
     ) -> tuple[list[AnnotatedPage], list[AnnotatedPage]]:
 
