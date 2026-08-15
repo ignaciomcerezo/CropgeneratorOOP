@@ -40,11 +40,13 @@ class StraightenLines(IntraparagraphTransform):
     ) -> tuple[list[Image.Image], list[Polygon]]:
 
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
+        info = LineGroupInfo.from_polygons(polygons)
 
-        for i, (image, polygon) in enumerate(zip(images, polygons)):
+        for i, (image, polygon, rotation) in enumerate(
+            zip(images, polygons, info.rotations)
+        ):
 
             orig_bounds = polygon.bounds
-            rotation = calculate_reading_angle(polygon)
 
             x0, y0, x1, y1 = orig_bounds
             center = (

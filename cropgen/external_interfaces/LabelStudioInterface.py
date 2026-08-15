@@ -1,3 +1,4 @@
+from typing import Annotated
 from cropgen.shared.LSTypedDicts.results import ImageBaseResult
 from label_studio_sdk import Client
 import json
@@ -16,6 +17,7 @@ from pathlib import Path
 from cropgen.processing.annotated_page import AnnotatedPage
 from PIL import Image, ImageOps
 import numpy as np
+from urllib.parse import unquote
 
 
 class LabelStudioInterface:
@@ -266,15 +268,54 @@ class LabelStudioInterface:
                 items.extend(tsk.annotations)
         return items
 
-    def get_annotated_page(self, index: int, subindex: int = 0) -> AnnotatedPage:
-        task = [task for task in self.simplified_tasks if int(task.id) == index][0]
-
-        if subindex >= len(task.annotations):
+    def get_annotated_page(
+        self,
+        *,
+        task_id: int | None = None,
+        page: str | None = None,
+        subindex: int | None = None,
+    ) -> AnnotatedPage:
+        """
+        Returns the annotated page instance corresponding to the index/page and the subindex specified.
+        Subindex is the index of the annotation in the task corresponding to the index/page specified.
+        """
+        if (task_id is not None) and (page is not None):
             raise ValueError(
-                f"No enough annotations on this task: {len(task.annotations)=} <= {subindex=}"
+                f"Only of of task_id and page must be specified, but got {task_id=} and {page=}"
+            )
+        elif task_id is not None:
+            possible_tasks = [
+                task for task in self.simplified_tasks if int(task.id) == task_id
+            ]
+        else:
+            possible_tasks = [
+                task
+                for task in self.simplified_tasks
+                if self._get_page_from_task(task) == page
+            ]
+
+        specifier_str = f"{task_id=}" if task_id is not None else f"{page=}"
+
+        if len(possible_tasks) == 0:
+            raise IndexError(
+                f"There is no task verifying {specifier_str}. Make sure the index is correct, if given a task_id, or the page format is correct, if given a page."
+            )
+        elif len(possible_tasks) != 1:
+            raise IndexError(
+                f"There are too many ({len(possible_tasks)}) tasks verifying the given condition {specifier_str}."
             )
 
-        annotation = task.annotations[subindex]
+        task = possible_tasks[0]
+
+        if subindex is not None and subindex >= len(task.annotations):
+            raise ValueError(
+                f"No enough annotations on task of {specifier_str}: {len(task.annotations)=} <= {subindex=}."
+            )
+
+        if subindex is not None:
+            valid_annotations = [task.annotations[subindex]]
+        else:
+            valid_annotations = task.annotations
 
         img_path = self.paths.get_image_path_from_task(task)
 
@@ -287,13 +328,27 @@ class LabelStudioInterface:
         except Exception as e:
             raise ValueError(f"Error cargando {img_path}: {e}")
 
-        return AnnotatedPage(
-            annotation,
-            img,
-            usernames_labelstudio=self.usernames,
-            process_images=True,
-            page=img_path.stem if img_path else None,
-        )
+        if len(valid_annotations) == 1:
+            return AnnotatedPage(
+                valid_annotations[0],
+                img,
+                usernames_labelstudio=self.usernames,
+                process_images=True,
+                page=self._get_page_from_task(task),
+            )
+        else:
+            return AnnotatedPage.combine_annotations(
+                *[
+                    AnnotatedPage(
+                        ann,
+                        img,
+                        self.usernames,
+                        process_images=True,
+                        page=self._get_page_from_task(task),
+                    )
+                    for ann in valid_annotations
+                ]
+            )
 
     @property
     def annotated_pages(self) -> list[AnnotatedPage]:
@@ -319,7 +374,7 @@ class LabelStudioInterface:
                     img,
                     usernames_labelstudio=self.usernames,
                     process_images=True,
-                    page=img_path.stem if img_path else None,
+                    page=self._get_page_from_task(task),
                 )
                 for ann in task.annotations
             ]
@@ -332,3 +387,10 @@ class LabelStudioInterface:
                 print(f"Aviso: La tarea {task.id} no tiene anotaciones.")
 
         return pages
+
+    @staticmethod
+    def _get_page_from_task(task: SimplifiedTask | LabelStudioTask) -> str:
+        return Path(unquote(task.data.image_url)).stem
+
+    def page_names(self):
+        return tuple([self._get_page_from_task(task) for task in self.simplified_tasks])

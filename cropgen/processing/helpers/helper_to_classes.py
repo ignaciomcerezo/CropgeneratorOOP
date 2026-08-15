@@ -4,7 +4,7 @@ import hashlib  # para los identificadores únicos de subgrafos
 from shapely import Polygon, box as boxshape
 import numpy as np
 from cropgen.shared.LSTypedDicts.values import RectangleValue, PolygonValue
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 
 def calculate_polygon(x, y, w, h, rotation):
@@ -221,7 +221,7 @@ def calculate_reading_angle(polygon: Polygon) -> float:
     return angle_deg
 
 
-def get_union_rect(polys: list[Polygon]):
+def get_union_rect(polys: Sequence[Polygon]):
     """
     Dada una lista coordenadas de cajas imagen con el formato
     (x1, y1, x2, y2), devuelve la bounding box que las contiene a todas.

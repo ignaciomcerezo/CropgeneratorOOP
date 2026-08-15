@@ -1,7 +1,8 @@
 from cropgen.shared.parameters import Parameter
 from typing import Sequence
 from cropgen.transforms.transforms import IntraparagraphTransform
-from cropgen.processing import Paragraph, Line
+from cropgen.processing.paragraph import Paragraph
+from cropgen.processing.line import Line
 from shapely.geometry import Polygon
 import shapely
 import numpy as np

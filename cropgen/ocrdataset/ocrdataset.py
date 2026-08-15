@@ -1,3 +1,5 @@
+from warnings import warn
+from cropgen.transforms.transforms import LinewiseTransform
 from cropgen.transforms.on_the_fly_transform_manager import OCROnTheFlyTransformPack
 from dataclasses import dataclass
 from multiprocessing import Value
@@ -6,26 +8,26 @@ from cropgen.transforms import (
     InterparagraphTransform,
 )
 from cropgen.processing.annotated_page import AnnotatedPage
-from typing import Collection, Literal, Any, Sequence, Sequence, Optional
+from typing import Collection, Literal, Any, Sequence, Sequence, Optional, get_args
 from torch.utils.data import Dataset
 import numpy as np
 
 orders_type = Collection[int | Literal["paragraph", "full"]]
 
 
-_possible_cluster_args = [
+_poss_cluster_args_literal = Literal[
     "tight_layout",
     "margin_size_px",
     "use_previous_page_in_context",
+    "avoid_intersections",
 ]
-_poss_cluster_args_literal = Literal[
-    "tight_layout", "margin_size_px", "use_previous_page_in_context"
-]
+_default_cluster_param_values = (True, 0, False, True)
 
 _default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
-    "tight_layout": True,
-    "margin_size_px": 0,
-    "use_previous_page_in_context": False,
+    arg: value
+    for arg, value in zip(
+        get_args(_poss_cluster_args_literal), _default_cluster_param_values
+    )
 }
 
 
@@ -44,9 +46,7 @@ class OCRDataset(Dataset):
         annotations: Sequence[AnnotatedPage],
         *,
         orders: orders_type,
-        intraparagraph_transforms: Collection[IntraparagraphTransform] | None = None,
-        interparagraph_transforms: Collection[InterparagraphTransform] | None = None,
-        cluster_transforms: dict[_poss_cluster_args_literal, Any] | None = None,
+        cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
     ):
         self.annotated_pages = annotations
         # temp
@@ -56,16 +56,9 @@ class OCRDataset(Dataset):
         self._transforms: OCROnTheFlyTransformPack | None = None
         self._update_orders(orders)  # the three previous attributes are updated here
 
-        self._intraparagraph_transforms = (
-            list() if intraparagraph_transforms is None else intraparagraph_transforms
-        )
-        self._interparagraph_transforms = (
-            list() if interparagraph_transforms is None else interparagraph_transforms
-        )
-
-        self.cluster_params = _default_cluster_parameters.copy()
-        self.cluster_params.update(
-            cluster_transforms if cluster_transforms is not None else dict()
+        self._cluster_params = _default_cluster_parameters.copy()
+        self._cluster_params.update(
+            cluster_transform_params if cluster_transform_params is not None else dict()
         )
 
         # TODO: implement layout generation: perhaps as a wrapper class of OCRDataset that has 2 different annotation lists:
@@ -81,6 +74,20 @@ class OCRDataset(Dataset):
     @orders.setter
     def orders(self, value):
         self._update_orders(value)
+
+    @property
+    def cluster_params(self):
+        return self._cluster_params.copy()
+
+    def set_cluster_param(
+        self, cluster_param_name: _poss_cluster_args_literal, value: Any
+    ):
+        if value is not None:
+            self._cluster_params[cluster_param_name] = value
+        else:
+            self._cluster_params[cluster_param_name] = _default_cluster_parameters[
+                cluster_param_name
+            ]
 
     def _update_orders(
         self,
@@ -112,22 +119,11 @@ class OCRDataset(Dataset):
             self._use_full_pages = "full" in new_orders
             self._recalculate_size_and_probabilities()
 
-    def _update_transforms(
-        self,
-        intraparagraph_transforms: Collection[IntraparagraphTransform],
-        interparagraph_transforms: Collection[InterparagraphTransform],
-    ):
-        self._intraparagraph_transforms = intraparagraph_transforms
-        self._interparagraph_transforms = interparagraph_transforms
-
     def update_stage(
         self,
         new_orders: list[int],
-        intraparagraph_transforms: Collection[IntraparagraphTransform],
-        interparagraph_transforms: Collection[InterparagraphTransform],
     ):
         self._update_orders(new_orders)
-        self._update_transforms(intraparagraph_transforms, interparagraph_transforms)
 
     def _recalculate_size_and_probabilities(self):
         page_sample_counts: list[int] = []
@@ -220,9 +216,9 @@ class OCRDataset(Dataset):
 
         synthetic_img, synthetic_transcription, sindex = ann.synthetic_sample(
             selected_box_ids,
-            tight_layout=self.cluster_params["tight_layout"],
-            margin_size_px=self.cluster_params["margin_size_px"],
-            on_the_fly_transform_pack=self._transforms,
+            tight_layout=self._cluster_params["tight_layout"],
+            margin_size_px=self._cluster_params["margin_size_px"],
+            img_poly_transform=self._transforms,
         )
 
         # TODO: improve context generation - implement the use_previous_page_in_context cluster parameter here
@@ -274,8 +270,29 @@ class OCRDataset(Dataset):
             test += test_i
         return OCRDataset(train, orders=orders), OCRDataset(test, orders=orders)
 
-    def set_transform(self, transform: OCROnTheFlyTransformPack | None):
-        self._transforms = transform
+    def set_transform(
+        self,
+        transforms: OCROnTheFlyTransformPack | None,
+    ):
+        if transforms is None:
+            self._transforms = transforms
+            return
+        elif isinstance(transforms, OCROnTheFlyTransformPack):
+            if (
+                transforms._avoid_intersections
+                != self.cluster_params["avoid_intersections"]
+            ):
+                warn(
+                    "Overwriting the transforms avoid_intersection parameter in acordance with cluster_params."
+                )
+                transforms._avoid_intersections = self.cluster_params[
+                    "avoid_intersections"
+                ]
+            self._transforms = transforms
+        else:
+            raise ValueError(
+                "Only accepts transforms as None (no transform) or instances of OCROnTheFlyTransformPack."
+            )
 
     @staticmethod
     def samples_in_annotation(

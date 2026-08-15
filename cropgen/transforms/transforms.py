@@ -189,3 +189,25 @@ class InterparagraphTransform(ABC):
             for line, img, poly in zip(line_group, img_group, poly_group):
                 line.stroke_crop = img
                 line.polygon = poly
+
+    @staticmethod
+    def _extract_polygon_and_image_groups(
+        line_equivalent_groups: tuple[
+            Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]],
+            ...,
+        ],
+    ) -> tuple[list[list[Image.Image]], list[list[Polygon]]]:
+
+        groups = [
+            IntraparagraphTransform._extract_polygons_and_images(element)
+            for element in line_equivalent_groups
+        ]
+        image_groups = []
+        polygon_groups = []
+        for group in groups:
+            image_groups.append(group[0])
+            polygon_groups.append(group[1])
+
+        return image_groups, polygon_groups

@@ -1,7 +1,8 @@
-from shapely.geometry import Point
+from copy import deepcopy
+from shapely.geometry import Point, Polygon
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
-from typing import Literal, Optional, TYPE_CHECKING, Any
+from typing import Literal, Optional, TYPE_CHECKING, Any, Sequence, Callable
 import re
 from collections.abc import Iterable
 from shapely.affinity import translate
@@ -39,7 +40,11 @@ from cropgen.shared.LSTypedDicts.simplified import (
 )
 from cropgen.shared.default_parameters import MAX_IMG_DIM, OPERATIONS_IMG_DIM
 from cropgen.shared.display import display
-from cropgen.transforms.on_the_fly_transform_manager import OCROnTheFlyTransformPack
+
+ocr_transform = Callable[
+    [list[Image.Image], list[Polygon]],
+    tuple[list[Image.Image], list[Polygon]],
+]
 
 
 class AnnotatedPage:
@@ -143,6 +148,7 @@ class AnnotatedPage:
         updater: str = "Unknown",
         last_update_time: str = "",
         annotation_unique_id: Optional[int] = None,
+        page: str | None = None,
     ) -> "AnnotatedPage":
         """
         Alternate constructor that builds an AnnotatedPage directly from a list of already
@@ -153,39 +159,42 @@ class AnnotatedPage:
                 "Cannot build an AnnotatedPage from an empty list of paragraphs."
             )
 
-        page: "AnnotatedPage" = object.__new__(AnnotatedPage)
+        ann: "AnnotatedPage" = object.__new__(AnnotatedPage)
 
-        page.paragraphs = list(paragraphs)
-        page.task_id = task_id
-        page.line_separator = line_separator
-        page.process_images = process_images
-        page.background = (
+        ann.paragraphs = sorted(
+            deepcopy(paragraphs), key=lambda paragraph: paragraph.lines[0].top
+        )
+        for index, paragraph in enumerate(ann.paragraphs):
+            paragraph.index = index
+        ann.task_id = task_id
+        ann.line_separator = line_separator
+        ann.process_images = process_images
+        ann.background = (
             background if background is not None else Image.fromarray(np.zeros((1, 1)))
         )
-        page.stroke = (
-            stroke if stroke is not None else Image.fromarray(np.zeros((1, 1)))
-        )
-        page.completer = completer
-        page.updater = updater
-        page.last_update_time = last_update_time
-        page.annotation_unique_id = (
+        ann.stroke = stroke if stroke is not None else Image.fromarray(np.zeros((1, 1)))
+        ann.completer = completer
+        ann.updater = updater
+        ann.last_update_time = last_update_time
+        ann.annotation_unique_id = (
             annotation_unique_id
             if annotation_unique_id is not None
             else hash(last_update_time)
         )
+        ann.page = page
 
-        page.lines = {}
-        for paragraph in page.paragraphs:
+        ann.lines = {}
+        for paragraph in ann.paragraphs:
             for line in paragraph.lines:
-                if line.id in page.lines:
+                if line.id in ann.lines:
                     raise ValueError(
                         f"Duplicate line id {line.id!r} found while combining paragraphs "
                         "into a single AnnotatedPage."
                     )
-                page.lines[line.id] = line
+                ann.lines[line.id] = line
 
         graph: dict[str, set[str]] = {}
-        for paragraph in page.paragraphs:
+        for paragraph in ann.paragraphs:
             if paragraph.subgraph is None:
                 raise ValueError(
                     "Every paragraph passed to from_paragraphs must carry a subgraph in "
@@ -193,9 +202,9 @@ class AnnotatedPage:
                 )
             for line_id, neighbours in paragraph.subgraph.items():
                 graph[line_id] = set(neighbours)
-        page._graph = graph
+        ann._graph = graph
 
-        return page
+        return ann
 
     @staticmethod
     def combine_annotations(*annotations: "AnnotatedPage") -> "AnnotatedPage":
@@ -220,6 +229,13 @@ class AnnotatedPage:
             for paragraph in annotation.paragraphs
         ]
 
+        if (not len(set(ann.page for ann in annotations)) == 1) or (
+            not len(set(ann.task_id for ann in annotations))
+        ):
+            raise ValueError(
+                "Can only commbine annotations from the same page and task."
+            )
+
         all_paragraphs.sort(key=lambda paragraph: paragraph.top)
 
         first = annotations[0]
@@ -235,6 +251,7 @@ class AnnotatedPage:
             updater=first.updater,
             last_update_time=first.last_update_time,
             annotation_unique_id=first.annotation_unique_id,
+            page=annotations[0].page,
         )
 
     @property
@@ -388,7 +405,7 @@ class AnnotatedPage:
         *,
         tight_layout: bool = True,
         margin_size_px: int = 0,
-        on_the_fly_transforms_pack: OCROnTheFlyTransformPack | None = None,
+        img_poly_transform: ocr_transform | None = None,
     ) -> Image.Image:
         if line_ids == "all":
             line_ids = set(self.lines.keys())
@@ -397,6 +414,10 @@ class AnnotatedPage:
             return Image.Image()
 
         if not isinstance(line_ids, set):
+            if not isinstance(line_ids, list):
+                raise ValueError(
+                    f"line_ids must be a set[str], list[str] or Literal['all'], but got {type(line_ids)}"
+                )
             if len(line_ids) != len(set(line_ids)):
                 raise ValueError("There are duplicate box ids in synthetic_manuscript.")
             line_ids = set(line_ids)
@@ -404,8 +425,8 @@ class AnnotatedPage:
         lines = [self.lines[box_id] for box_id in line_ids]
         strokes = [line.stroke_crop for line in lines]
         polygons = [line.polygon for line in lines]
-        if on_the_fly_transforms_pack is not None:
-            strokes, polygons = on_the_fly_transforms_pack.transform(strokes, polygons)
+        if img_poly_transform is not None:
+            strokes, polygons = img_poly_transform(strokes, polygons)
 
         if not strokes:
             return self.background.copy()
@@ -509,7 +530,7 @@ class AnnotatedPage:
         *,
         tight_layout: bool = True,
         margin_size_px: int = 0,
-        on_the_fly_transform_pack: OCROnTheFlyTransformPack | None = None,
+        img_poly_transform: ocr_transform | None = None,
     ) -> tuple[Image.Image, str, int]:
         """
         Given a list of ImageBox ids, returns:
@@ -527,7 +548,7 @@ class AnnotatedPage:
             line_ids,
             tight_layout=tight_layout,
             margin_size_px=margin_size_px,
-            on_the_fly_transforms_pack=on_the_fly_transform_pack,
+            img_poly_transform=img_poly_transform,
         )
         transcription = self.synthetic_transcription(line_ids)
         starting_index = self.synthetic_starting_index(line_ids)
@@ -542,7 +563,7 @@ class AnnotatedPage:
         polygon_color: tuple[int, int, int] = (255, 0, 0),
         mbr_color: tuple[int, int, int] = (0, 255, 0),
         line_width: int = 3,
-        crop_to_fit: bool = False,
+        crop_to_fit: bool = True,
     ) -> Image.Image:
         """
         Generates a synthetic sample with the polygons and minimum area rotated bounding box
@@ -562,19 +583,15 @@ class AnnotatedPage:
                 "No se puede representar una secuencia vacía de image_box_ids."
             )
 
-        selected_boxes = [self.lines[line_id] for line_id in selected_ids]
+        selected_lines = [self.lines[line_id] for line_id in selected_ids]
 
-        collage = self.synthetic_manuscript(
-            list(self.lines.keys()), tight_layout=crop_to_fit
-        )
+        collage = self.synthetic_manuscript(line_ids, tight_layout=crop_to_fit)
 
         origin_x = (
-            int(min(line.polygon.bounds[0] for line in self.lines.values()))
-            * crop_to_fit
+            int(min(line.polygon.bounds[0] for line in selected_lines)) * crop_to_fit
         )
         origin_y = (
-            int(min(line.polygon.bounds[1] for line in self.lines.values()))
-            * crop_to_fit
+            int(min(line.polygon.bounds[1] for line in selected_lines)) * crop_to_fit
         )
 
         # Usamos el mismo anclaje que synthetic_manuscript para convertir coordenadas globales a locales.
@@ -582,18 +599,18 @@ class AnnotatedPage:
 
         draw = ImageDraw.Draw(collage)
 
-        for box in selected_boxes:
+        for line in selected_lines:
             if represent_polygon:
                 polygon_points = [
                     (float(x - origin_x), float(y - origin_y))
-                    for x, y in box.polygon.exterior.coords
+                    for x, y in line.polygon.exterior.coords
                 ]
                 draw.line(polygon_points, fill=polygon_color, width=line_width)
 
             if represent_mbr:
                 mbr_points = [
                     (float(x - origin_x), float(y - origin_y))
-                    for x, y in box.polygon.minimum_rotated_rectangle.exterior.coords
+                    for x, y in line.polygon.minimum_rotated_rectangle.exterior.coords
                 ]
                 draw.line(mbr_points, fill=mbr_color, width=line_width)
 

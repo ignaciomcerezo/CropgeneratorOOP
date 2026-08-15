@@ -1,3 +1,6 @@
+from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections import (
+    AvoidLineIntersections,
+)
 from shapely.geometry import Polygon
 from cropgen.transforms.transforms import LinewiseTransform
 from cropgen.transforms import IntraparagraphTransform
@@ -6,11 +9,12 @@ from PIL import Image
 
 
 class OCROnTheFlyTransformPack:
-    def __init__(self):
+    def __init__(self, avoid_intersections: bool = True):
         self._linewise: list[LinewiseTransform] = []
         self._linewise_p: list[float] = []
         self._intraparagraph: list[IntraparagraphTransform] = []
         self._intraparagraph_p: list[float] = []
+        self._avoid_intersections = avoid_intersections
 
     def add_linewise(self, transform: LinewiseTransform, probability: float = 1):
         if (probability > 1) or (probability < 0):
@@ -26,7 +30,10 @@ class OCROnTheFlyTransformPack:
         self._intraparagraph.append(transform)
         self._intraparagraph_p.append(probability)
 
-    # TODO: add collision toggle (solve_collisions) and implement it in .transform()
+    def __call__(
+        self, images: list[Image.Image], polygons: list[Polygon]
+    ) -> tuple[list[Image.Image], list[Polygon]]:
+        return self.transform(images, polygons)
 
     def transform(
         self, images: list[Image.Image], polygons: list[Polygon]
@@ -40,5 +47,9 @@ class OCROnTheFlyTransformPack:
         for intraparagraph, p in zip(self._intraparagraph, self._intraparagraph_p):
             if (p == 1) or ((p <= 1) and (rand() < p)):
                 images, polygons = intraparagraph((images, polygons))
+
+        if self._avoid_intersections:
+            ali = AvoidLineIntersections(0.5)
+            images, polygons = ali((images, polygons))
 
         return images, polygons

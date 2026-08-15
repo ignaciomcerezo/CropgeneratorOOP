@@ -1,2 +1,1 @@
-from .correct_intersections_horizontally import CorrectIntersectionsHorizontally
-from .correct_intersections_vertically import CorrectIntersectionsVertically
+from .avoid_paragraph_intersections import AvoidParagraphIntersections

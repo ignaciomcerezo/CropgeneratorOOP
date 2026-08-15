@@ -1,6 +1,6 @@
 from cropgen.processing.annotated_page import AnnotatedPage
 from cropgen.processing.line import Line
-from typing import Sequence
+from typing import Sequence, Callable
 import pytest
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.shared.PathBundle import PathBundle
@@ -9,7 +9,9 @@ from cropgen.tests.tests_helper import load_ann
 one_paragraph = [1, 2, 3, 4, (11, 0), 13, 14, 17, 18, (11, 1)]
 two_paragraphs = [9, 10, 12, 15, 16]
 
-format = lambda x: x if isinstance(x, tuple) else (x, 0)
+format: Callable[[int | tuple[int, int]], tuple[int, int]] = lambda x: (
+    x if isinstance(x, tuple) else (x, 0)
+)
 
 
 n_paragraphs = [1] * len(one_paragraph) + [2] * len(two_paragraphs)
@@ -19,15 +21,16 @@ pages = [format(x) for x in one_paragraph] + [format(x) for x in two_paragraphs]
 @pytest.mark.parametrize(("page", "supposed_paragraphs"), zip(pages, n_paragraphs))
 def test_paragraph_v1(
     paths: PathBundle,
-    page: tuple[int, int],
+    task_id_subindex_combo: tuple[int, int],
     supposed_paragraphs,
 ):
+    task_id, subindex = task_id_subindex_combo
     lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
-    ann: AnnotatedPage = lsi.get_annotated_page(*page)
+    ann: AnnotatedPage = lsi.get_annotated_page(task_id=task_id, subindex=subindex)
     n_par = len(ann.paragraphs)
     assert n_par == (
         supposed_paragraphs
-    ), f"Se esperaban {supposed_paragraphs} párrafos en la anotación {ann} de la página {page}, pero tiene {n_par}."
+    ), f"Se esperaban {supposed_paragraphs} párrafos en la anotación {ann} de la página {task_id_subindex_combo}, pero tiene {n_par}."
 
 
 def test_paragraph_v2(

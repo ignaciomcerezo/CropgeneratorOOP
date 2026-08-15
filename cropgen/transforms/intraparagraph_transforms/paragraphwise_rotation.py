@@ -44,7 +44,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         info = LineGroupInfo.from_polygons(polygons)
 
         if self._relative is not None:
-            rotation = info.avg_rotation * self._relative
+            rotation = info.avg_rotation * self._relative()
         else:
             if self._absolute is None:
                 raise ValueError("Either relative or absolute must be provided")

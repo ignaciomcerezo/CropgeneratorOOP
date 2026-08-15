@@ -1,14 +1,10 @@
+from cropgen.processing.helpers.helper_to_classes import calculate_reading_angle
 import shapely
 from shapely import Polygon
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
 from typing import Collection, Sequence
 from PIL import Image
-
-
-def _union(geometries: Collection[shapely.Geometry]) -> Polygon:
-    snapped_geoms = [shapely.set_precision(g, grid_size=1e-6) for g in geometries]
-    return shapely.unary_union(snapped_geoms)
 
 
 class LineGroupInfo:
@@ -27,7 +23,9 @@ class LineGroupInfo:
             box.polygon.bounds for box in line_group
         ]
 
-        self.area: float = _union([box.polygon for box in line_group]).area
+        self.area: float = self.polygon_union([box.polygon for box in line_group]).area
+
+        self.rotations = [line.rotation for line in line_group]
 
         self.avg_rotation = (
             0.0
@@ -59,7 +57,7 @@ class LineGroupInfo:
             self.box_bounds[i + 1][1] - self.box_bounds[i][1]
             for i in range(len(line_group) - 1)
         ]
-        self.union_polygon = _union([box.polygon for box in line_group])
+        self.union_polygon = self.polygon_union([box.polygon for box in line_group])
 
         self.center = ((self.x0 + self.xf) / 2, (self.y0 + self.yf) / 2)
 
@@ -112,7 +110,7 @@ class LineGroupInfo:
         return [abs(y0 - yf) for (y0, yf) in zip(self.y0s, self.yfs)]
 
     @classmethod
-    def from_polygons(cls, polygons: Sequence[Polygon]):
+    def from_polygons(cls, polygons: Sequence[Polygon]) -> "LineGroupInfo":
         if not polygons:
             raise ValueError(
                 "Cannot get geometric information from an empty sequence of polygons."
@@ -120,8 +118,16 @@ class LineGroupInfo:
 
         instance = object.__new__(cls)
         instance.box_bounds = [polygon.bounds for polygon in polygons]
-        instance.area = _union(polygons).area
-        instance.avg_rotation = 0.0
+        instance.area = LineGroupInfo.polygon_union(polygons).area
+        instance.rotations = [calculate_reading_angle(poly) for poly in polygons]
+        instance.avg_rotation = (
+            1
+            / len(polygons)
+            * sum(
+                (rotation * polygon.area)
+                for rotation, polygon in zip(instance.rotations, polygons)
+            )
+        )
 
         if not instance.box_bounds:
             instance.union_bounds = (0.0, 0.0, 0.0, 0.0)
@@ -143,9 +149,14 @@ class LineGroupInfo:
             instance.box_bounds[i + 1][1] - instance.box_bounds[i][1]
             for i in range(len(polygons) - 1)
         ]
-        instance.union_polygon = _union(polygons)
+        instance.union_polygon = LineGroupInfo.polygon_union(polygons)
         instance.center = (
             (instance.x0 + instance.xf) / 2,
             (instance.y0 + instance.yf) / 2,
         )
         return instance
+
+    @staticmethod
+    def polygon_union(polygons: Collection[Polygon]) -> Polygon:
+        snapped_geoms = [shapely.set_precision(g, grid_size=1e-6) for g in polygons]
+        return shapely.unary_union(snapped_geoms)
