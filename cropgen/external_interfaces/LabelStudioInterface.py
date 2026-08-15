@@ -18,6 +18,7 @@ from cropgen.processing.annotated_page import AnnotatedPage
 from PIL import Image, ImageOps
 import numpy as np
 from urllib.parse import unquote
+from tqdm.auto import tqdm
 
 
 class LabelStudioInterface:
@@ -54,6 +55,10 @@ class LabelStudioInterface:
         self.simplified_export_filepath = paths.simplified_filepath
         self.online = online
         self.project_id = project_id
+        self._raw_tasks_cache: list[LabelStudioTask] | None = None
+        self._simplified_tasks_cache: list[SimplifiedTask] | None = None
+        self._annotated_pages_cache: list[AnnotatedPage] | None = None
+        self._task_image_path_cache: dict[int, Path | None] = {}
 
         exists_raw = paths.raw_export_filepath.exists()
         exists_sim = paths.simplified_filepath.exists()
@@ -199,39 +204,169 @@ class LabelStudioInterface:
         simplify_and_save(
             self.paths.raw_export_filepath, self.paths.simplified_filepath
         )
+        self._invalidate_caches()
         return True
+
+    def _invalidate_caches(self) -> None:
+        self._raw_tasks_cache = None
+        self._simplified_tasks_cache = None
+        self._annotated_pages_cache = None
+        self._task_image_path_cache = {}
 
     @property
     def raw_tasks(self) -> list[LabelStudioTask]:
         """
         Devuelve la lista de tareas raw descargadas de Label Studio
         """
-        raw_tasks = [
-            LabelStudioTask.model_validate(task_dict)
-            for task_dict in json.loads(
-                self.raw_export_filepath.read_text(encoding="utf-8")
-            )
-        ]
+        if self._raw_tasks_cache is None:
+            raw_tasks = [
+                LabelStudioTask.model_validate(task_dict)
+                for task_dict in json.loads(
+                    self.raw_export_filepath.read_text(encoding="utf-8")
+                )
+            ]
 
-        raw_tasks.sort(key=lambda task: task.id)
+            raw_tasks.sort(key=lambda task: task.id)
+            self._raw_tasks_cache = raw_tasks
 
-        return raw_tasks
+        return self._raw_tasks_cache
 
     @property
     def simplified_tasks(self) -> list[SimplifiedTask]:
         """
         Devuelve la lista de tareas simplificadas descargadas de Label Studio
         """
-        simplified_tasks = [
-            SimplifiedTask.model_validate(task_dict)
-            for task_dict in json.loads(
-                self.simplified_export_filepath.read_text(encoding="utf-8")
+        if self._simplified_tasks_cache is None:
+            simplified_tasks = [
+                SimplifiedTask.model_validate(task_dict)
+                for task_dict in json.loads(
+                    self.simplified_export_filepath.read_text(encoding="utf-8")
+                )
+            ]
+
+            simplified_tasks.sort(key=lambda task: task.id)
+            self._simplified_tasks_cache = simplified_tasks
+
+        return self._simplified_tasks_cache
+
+    def _get_image_path_from_task_cached(self, task: SimplifiedTask) -> Path | None:
+        task_id = int(task.id)
+        if task_id not in self._task_image_path_cache:
+            self._task_image_path_cache[task_id] = self.paths.get_image_path_from_task(
+                task
             )
+        return self._task_image_path_cache[task_id]
+
+    def _load_task_image(self, task: SimplifiedTask) -> Image.Image:
+        img_path = self._get_image_path_from_task_cached(task)
+
+        if img_path is None:
+            raise ValueError(f"No hay imagen para la tarea {task.id}")
+
+        try:
+            with Image.open(img_path) as img:
+                return ImageOps.exif_transpose(img).copy()
+        except Exception as e:
+            raise ValueError(f"Error cargando {img_path}: {e}")
+
+    def _build_annotated_page_from_task(
+        self,
+        task: SimplifiedTask,
+        *,
+        subindex: int | None = None,
+        process_images: bool = True,
+    ) -> AnnotatedPage:
+        if subindex is not None and subindex >= len(task.annotations):
+            raise ValueError(
+                f"No enough annotations on task of task_id={task.id}: {len(task.annotations)=} <= {subindex=}."
+            )
+
+        valid_annotations = (
+            [task.annotations[subindex]] if subindex is not None else task.annotations
+        )
+
+        if len(valid_annotations) == 0:
+            raise ValueError(f"Aviso: La tarea {task.id} no tiene anotaciones.")
+
+        img = self._load_task_image(task)
+        page_name = self._get_page_from_task(task)
+
+        if len(valid_annotations) == 1:
+            return AnnotatedPage(
+                valid_annotations[0],
+                img,
+                usernames_labelstudio=self.usernames,
+                process_images=process_images,
+                page=page_name,
+            )
+
+        if not process_images:
+            return AnnotatedPage.combine_annotations(
+                *[
+                    AnnotatedPage(
+                        ann,
+                        img,
+                        usernames_labelstudio=self.usernames,
+                        process_images=False,
+                        page=page_name,
+                    )
+                    for ann in valid_annotations
+                ]
+            )
+
+        # Reuse stroke/background from the first annotation to avoid re-running
+        # expensive image separation for every annotation in the same task.
+        first = AnnotatedPage(
+            valid_annotations[0],
+            img,
+            usernames_labelstudio=self.usernames,
+            process_images=True,
+            page=page_name,
+        )
+
+        others = [
+            AnnotatedPage(
+                ann,
+                img,
+                usernames_labelstudio=self.usernames,
+                page=page_name,
+                stroke=first.stroke,
+                background=first.background,
+            )
+            for ann in valid_annotations[1:]
         ]
 
-        simplified_tasks.sort(key=lambda task: task.id)
+        return AnnotatedPage.combine_annotations(first, *others)
 
-        return simplified_tasks
+    def get_annotated_pages(
+        self,
+        *,
+        process_images: bool = True,
+        use_cache: bool = True,
+        show_progress: bool = True,
+    ) -> list[AnnotatedPage]:
+        if process_images and use_cache and self._annotated_pages_cache is not None:
+            return self._annotated_pages_cache
+
+        pages: list[AnnotatedPage] = []
+        iterator = (
+            tqdm(self.simplified_tasks) if show_progress else self.simplified_tasks
+        )
+
+        for task in iterator:
+            try:
+                pages.append(
+                    self._build_annotated_page_from_task(
+                        task, process_images=process_images
+                    )
+                )
+            except ValueError as e:
+                print(e)
+
+        if process_images and use_cache:
+            self._annotated_pages_cache = pages
+
+        return pages
 
     def users(self) -> list[str]:
         """
@@ -274,6 +409,7 @@ class LabelStudioInterface:
         task_id: int | None = None,
         page: str | None = None,
         subindex: int | None = None,
+        process_images: bool = True,
     ) -> AnnotatedPage:
         """
         Returns the annotated page instance corresponding to the index/page and the subindex specified.
@@ -307,86 +443,15 @@ class LabelStudioInterface:
 
         task = possible_tasks[0]
 
-        if subindex is not None and subindex >= len(task.annotations):
-            raise ValueError(
-                f"No enough annotations on task of {specifier_str}: {len(task.annotations)=} <= {subindex=}."
-            )
-
-        if subindex is not None:
-            valid_annotations = [task.annotations[subindex]]
-        else:
-            valid_annotations = task.annotations
-
-        img_path = self.paths.get_image_path_from_task(task)
-
-        if img_path is None:
-            raise ValueError(f"No hay imagen para la tarea {task.id}")
-
-        try:
-            img = Image.open(img_path)
-            img = ImageOps.exif_transpose(img)
-        except Exception as e:
-            raise ValueError(f"Error cargando {img_path}: {e}")
-
-        if len(valid_annotations) == 1:
-            return AnnotatedPage(
-                valid_annotations[0],
-                img,
-                usernames_labelstudio=self.usernames,
-                process_images=True,
-                page=self._get_page_from_task(task),
-            )
-        else:
-            return AnnotatedPage.combine_annotations(
-                *[
-                    AnnotatedPage(
-                        ann,
-                        img,
-                        self.usernames,
-                        process_images=True,
-                        page=self._get_page_from_task(task),
-                    )
-                    for ann in valid_annotations
-                ]
-            )
+        return self._build_annotated_page_from_task(
+            task, subindex=subindex, process_images=process_images
+        )
 
     @property
     def annotated_pages(self) -> list[AnnotatedPage]:
-
-        pages: list[AnnotatedPage] = []
-        for task in self.simplified_tasks:
-            img_path = self.paths.get_image_path_from_task(task)
-
-            if img_path is None:
-                print(f"No hay imagen para la tarea {task.id}")
-                continue
-
-            try:
-                img = Image.open(img_path)
-                img = ImageOps.exif_transpose(img)
-            except Exception as e:
-                print(f"Error cargando {img_path}: {e}")
-                continue
-
-            annotations = [
-                AnnotatedPage(
-                    ann,
-                    img,
-                    usernames_labelstudio=self.usernames,
-                    process_images=True,
-                    page=self._get_page_from_task(task),
-                )
-                for ann in task.annotations
-            ]
-
-            if len(annotations) > 1:
-                pages.append(AnnotatedPage.combine_annotations(*annotations))
-            elif len(annotations) == 1:
-                pages.append(annotations[0])
-            else:
-                print(f"Aviso: La tarea {task.id} no tiene anotaciones.")
-
-        return pages
+        return self.get_annotated_pages(
+            process_images=True, use_cache=True, show_progress=True
+        )
 
     @staticmethod
     def _get_page_from_task(task: SimplifiedTask | LabelStudioTask) -> str:

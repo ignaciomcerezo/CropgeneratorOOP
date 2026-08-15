@@ -82,6 +82,8 @@ class AnnotatedPage:
         line_separtor: str = "\n",
         process_images: bool = True,
         page: str | None = None,
+        stroke: Image.Image | None = None,
+        background: Image.Image | None = None,
     ):
 
         if not (process_images) and AnnotatedPage.warn_process_images:
@@ -94,14 +96,18 @@ class AnnotatedPage:
         self.task_id = int(ann.task)
         results: list[SimplifiedResultItem] = ann.result
 
-        img = img.convert("L")
+        if img.mode != "L":
+            img = img.convert("L")
 
-        if process_images:
+        if process_images and any(a is None for a in [stroke, background]):
             self.background, self.stroke = separate_background_and_stroke(
                 img,
                 out_longest_side=AnnotatedPage.working_img_longest_side,
                 processing_longest_side=AnnotatedPage._stroke_separation_img_longest_side,
             )
+        elif stroke is not None and background is not None:
+            self.stroke = stroke
+            self.background = background
 
         else:
             # blanks
