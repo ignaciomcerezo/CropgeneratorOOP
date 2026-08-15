@@ -1,17 +1,16 @@
 # cropgen
 
-`cropgen` is a Python package for generating training datasets from annotated document images. It converts full-page images and Label Studio annotations into cropped image/text pairs suitable for vision-language model fine-tuning, and also includes supporting utilities for training workflows.
+`cropgen` is a Python package for generating OCR training datasets from annotated document images. It provides a PyTorch-compatible `OCRDataset` class that samples variable-length sequences of document lines with optional augmentation transforms.
 
 ## Overview
 
-This repository provides the first stage of a dataset generation pipeline for handwritten document transcription. It is designed to:
+This repository provides dataset generation and augmentation for handwritten document OCR. It is designed to:
 
 - ingest Label Studio annotation exports,
-- extract and normalize image crops,
-- align each crop with its corresponding transcription,
-- generate augmented samples from neighboring lines,
-- prepare datasets in a `datasets.Dataset`-friendly format,
-- and support downstream training with custom helpers such as collators and callbacks.
+- extract and normalize image crops with automatic layout analysis,
+- produce an `OCRDataset` that samples contiguous line sequences at training time,
+- apply trainable augmentation transforms (line-wise, intra-paragraph, inter-paragraph),
+- handle complex geometry with automatic intersection correction and stroke/background separation.
 
 ## Main components
 
@@ -19,16 +18,16 @@ This repository provides the first stage of a dataset generation pipeline for ha
   Shared data structures and utilities used across the pipeline.
 
 - **`cropgen.external_interfaces`**  
-  Interfaces to external systems such as Label Studio and remote storage.
+  Interfaces to external systems: Label Studio for annotations and Oracle Cloud for storage.
 
 - **`cropgen.processing`**  
-  Core processing logic for turning annotations into image/text samples.
+  Core processing logic for turning annotations into image/text samples with geometric analysis.
 
-- **`cropgen.splitter`**  
-  Dataset splitting logic, including train/test separation.
+- **`cropgen.ocrdataset`**  
+  The main `OCRDataset` class for training, with configurable line-sequence sampling and clustering.
 
-- **`cropgen.training_helpers`**  
-  Helpers for training, such as collators, callbacks, and evaluation utilities.
+- **`cropgen.transforms`**  
+  Image and geometry augmentation transforms: linewise (distortion, stretching), intra-paragraph (paragraph layout modifications), and inter-paragraph (multi-line sampling, moving paragraphs).
 
 - **`cropgen.tests`**  
   Test suite for validating the pipeline.
@@ -42,12 +41,13 @@ This repository provides the first stage of a dataset generation pipeline for ha
 
 ## Intended use
 
-The package is meant for workflows where:
+The package is intended for OCR training workflows where:
 
-- source documents are already annotated in Label Studio,
-- line-level crops and transcriptions must be produced automatically,
-- synthetic multi-line samples are useful,
-- and the resulting dataset will be used to fine-tune a multimodal model.
+- source documents are annotated in Label Studio,
+- variable-length sequences of document lines are needed (single lines, paragraphs, full pages),
+- on-the-fly augmentation is desired during training,
+- geometric transforms (rotation, scaling, distortion) should be applied to line crops,
+- and the dataset integrates with `torch.utils.data.Dataset` for PyTorch training.
 
 ## Installation
 

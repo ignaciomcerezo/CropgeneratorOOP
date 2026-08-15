@@ -1,4 +1,5 @@
-from typing import Optional
+from cropgen.processing.line import Line
+from typing import Optional, Iterator
 
 import numpy as np
 from PIL import Image
@@ -6,19 +7,15 @@ from shapely import coverage_union_all
 from shapely import Polygon
 from shapely.affinity import affine_transform
 
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.TextFragment import TextFragment
-from cropgen.processing.helpers.image_processing import unrotate_image
 from cropgen.processing.helpers.helper_to_classes import (
-    compose_collage,
     is_path_graph,
 )
 
 
 class Paragraph:
     __slots__ = (
-        "image_boxes",
-        "text_fragments",
+        "lines",
+        "line_ids",
         "centroid",
         "total_words",
         "avg_rotation",
@@ -26,8 +23,6 @@ class Paragraph:
         "left",
         "right",
         "bot",
-        "image_boxes_ids",
-        "text_fragments_ids",
         "task_id",
         "index",
         "subgraph",
@@ -35,65 +30,52 @@ class Paragraph:
 
     def __init__(
         self,
-        image_boxes: list[ImageBox] | None = None,
-        text_fragments: list[TextFragment] | None = None,
+        lines: list[Line] | None = None,
         task_id: int | None = None,
         index: int | None = None,
         subgraph: dict[str, set[str]] | None = None,
     ):
-        assert (
-            image_boxes or text_fragments
-        ), "O bien image_boxes o bien text_fragments debe ser una lista no vacía"
 
-        if image_boxes and text_fragments:
-            assert set([box.fragment for box in image_boxes]) == set(
-                [fragment.box for fragment in text_fragments]
-            ), "Si se dan tanto image_boxes como text_fragments, deben corresponderse entre ellos."
+        if not lines:
+            raise ValueError("Lines cannot be empty.")
 
-        if not image_boxes:
-            assert isinstance(text_fragments, list)
-            image_boxes: list[ImageBox] = [f.box for f in text_fragments]
-        elif not text_fragments:
-            assert isinstance(image_boxes, list)
-            text_fragments: list[TextFragment] = [b.fragment for b in image_boxes]
-
-        self.image_boxes: list[ImageBox] = image_boxes
-        self.text_fragments: list[TextFragment] = text_fragments
+        self.lines = lines
         self.task_id: int | None = task_id
         self.index: int | None = index
         self.subgraph: Optional[dict[str, set[str]]] = subgraph
 
         self._calculate_total_area_and_centroid()
 
-        self._sort_image_boxes_using_centroid_and_subgraph()
+        self._sort_lines_using_centroid_and_subgraph()
 
-        # reordenamos
-        self.text_fragments = [box.fragment for box in self.image_boxes]
+        self.line_ids = [line.id for line in self.lines]
 
-        self.image_boxes_ids = [box.id for box in self.image_boxes]
-        self.text_fragments_ids = [fragment.id for fragment in self.text_fragments]
+    def __iter__(self) -> Iterator[Line]:
+        for x in self.lines:
+            yield x
 
-    def __lt__(
-        self, other: "Paragraph"
-    ):  # para poder ordenar automáticamente usando list.sort o sorted()
+    def __getitem__(self, index) -> Line:
+        return self.lines[index]
+
+    def __lt__(self, other: "Paragraph"):
         return (self.top, self.left) < (other.top, other.left)
 
     def __gt__(self, other: "Paragraph"):
         return (self.top, self.left) > (other.top, other.left)
 
     def transcription(self, separator: str = " "):
-        return separator.join([fragment.text for fragment in self.text_fragments])
+        return separator.join([fragment.text for fragment in self.lines])
 
     def __len__(self):
-        return len(self.image_boxes_ids)
+        return len(self.line_ids)
 
     def __repr__(self):
         return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
 
     def union_polygon(self) -> Polygon:
-        return coverage_union_all([box.polygon for box in self.image_boxes])
+        return coverage_union_all([line.polygon for line in self.lines])
 
-    def corrected_polygon(self, box: ImageBox):
+    def corrected_polygon(self, line: Line):
         t: float = np.radians(self.avg_rotation)
         a: float = np.cos(t)
         b: float = -np.sin(t)
@@ -101,7 +83,7 @@ class Paragraph:
         d: float = np.cos(t)
         x_c: float = -float(self.centroid[0])
         y_c: float = -float(self.centroid[1])
-        return affine_transform(box.polygon, [a, b, c, d, -x_c, -y_c])
+        return affine_transform(line.polygon, [a, b, c, d, -x_c, -y_c])
 
     @staticmethod
     def _get_average_rotation(
@@ -113,26 +95,25 @@ class Paragraph:
         sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
         return -float(np.degrees(np.arctan2(sum_sin, sum_cos)))
 
-    def generate_conntected_subgraphs(
+    def generate_connected_subgraphs(
         self, order: int, max_subgraphs_to_generate: Optional[int] = None
     ) -> list[list[str]]:
         """
         genera los subgrafos conexos.
         !!! - Asume que el subgrafo es de tipo camino, pero no lo comprueba! para eso están los tests
         """
-        if len(self.image_boxes_ids) < order:
+        if len(self.line_ids) < order:
             return []
         if (max_subgraphs_to_generate is not None) and (
-            max_subgraphs_to_generate < (len(self.image_boxes_ids) - order + 1)
+            max_subgraphs_to_generate < (len(self.line_ids) - order + 1)
         ):
             random_sequence = np.random.choice(
-                range(len(self.image_boxes) - order + 1), size=max_subgraphs_to_generate
+                range(len(self.lines) - order + 1), size=max_subgraphs_to_generate
             )
-            return [self.image_boxes_ids[i : i + order] for i in random_sequence]
+            return [self.line_ids[i : i + order] for i in random_sequence]
         else:
             return [
-                self.image_boxes_ids[i : i + order]
-                for i in range(len(self.image_boxes) - order + 1)
+                self.line_ids[i : i + order] for i in range(len(self.lines) - order + 1)
             ]
 
     def _calculate_total_area_and_centroid(self):
@@ -140,11 +121,11 @@ class Paragraph:
         self.total_words: int = 0
         total_area = 0
 
-        for image_box in self.image_boxes:
-            self.total_words += len(image_box.fragment.text.split())
-            area = image_box.polygon.area
+        for line in self.lines:
+            self.total_words += len(line.text.split())
+            area = line.polygon.area
 
-            self.centroid += np.array(image_box.centroid()) * area
+            self.centroid += np.array(line.centroid()) * area
             total_area += area
 
         assert self.total_words > 0, "Se ha pasado un párrafo sin palabras."
@@ -152,27 +133,27 @@ class Paragraph:
         self.centroid /= total_area
 
         self.avg_rotation = self._get_average_rotation(
-            [box.rotation for box in self.image_boxes],
-            [box.polygon.area for box in self.image_boxes],
+            [line.rotation for line in self.lines],
+            [line.polygon.area for line in self.lines],
         )
 
-        self.top: float = min([box.top for box in self.image_boxes])
-        self.left: float = min([box.left for box in self.image_boxes])
-        self.bot = max([box.bot for box in self.image_boxes])
-        self.right = max([box.right for box in self.image_boxes])
+        self.top: float = min([line.top for line in self.lines])
+        self.left: float = min([line.left for line in self.lines])
+        self.bot = max([line.bot for line in self.lines])
+        self.right = max([line.right for line in self.lines])
 
-    def _subgraph_is_Pk(self) -> bool:
-        return self.subgraph is not None and is_path_graph(self.subgraph)
+    def _sort_lines_using_centroid_and_subgraph(self) -> None:
 
-    def _sort_image_boxes_using_centroid_and_subgraph(self):
+        if self.subgraph is None:
+            raise ValueError("Cannot sort lines for a paragraph with a null subgraph.")
         theta_rad = -np.radians(-self.avg_rotation)
         cos_theta = np.cos(theta_rad)
         sin_theta = np.sin(theta_rad)
 
         cx_para, cy_para = self.centroid
 
-        for image_box in self.image_boxes:
-            cx, cy = image_box.centroid()
+        for line in self.lines:
+            cx, cy = line.centroid()
 
             dx = cx - cx_para
             dy = cy - cy_para
@@ -180,61 +161,56 @@ class Paragraph:
             corrected_x = dx * cos_theta - dy * sin_theta + cx_para
             corrected_y = dx * sin_theta + dy * cos_theta + cy_para
 
-            image_box.corrected_centroid = (
+            line.corrected_centroid = (
                 corrected_x,
                 corrected_y,
             )
 
-        if (
-            not self._subgraph_is_Pk()
+        if not is_path_graph(
+            self.subgraph
         ):  # si no es un grafo camino, empleamos el orden de lectura dado por las proyecciones
-            self.image_boxes = sorted(
-                self.image_boxes,
-                key=lambda box: (
-                    box.corrected_centroid[1],  # ty: ignore[not-subscriptable]
-                    box.corrected_centroid[0],  # ty: ignore[not-subscriptable]
+            self.lines = sorted(
+                self.lines,
+                key=lambda line: (
+                    line.corrected_centroid[1],
+                    line.corrected_centroid[0],
                 ),
             )
-            return self.image_boxes
+            return
 
-        if len(self.image_boxes) == 1:
-            return self.image_boxes
+        if len(self.lines) == 1:
+            return
 
         terminal_vertices = [
-            box
-            for box in self.image_boxes
-            if len(self.subgraph[box.id]) == 1  # ty:ignore[not-subscriptable]
+            line for line in self.lines if len(self.subgraph[line.id]) == 1
         ]
         assert len(terminal_vertices) == 2
 
-        top_box = min(
+        top_line = min(
             terminal_vertices,
-            key=lambda box: (
-                box.corrected_centroid[1],  # ty: ignore[not-subscriptable]
-                box.corrected_centroid[0],  # ty: ignore[not-subscriptable]
+            key=lambda line: (
+                line.corrected_centroid[1],
+                line.corrected_centroid[0],
             ),
         )
 
-        boxes_by_id = {box.id: box for box in self.image_boxes}
-        ordered_boxes = [top_box]
-        visited = {top_box.id}
+        lines_by_id = {line.id: line for line in self.lines}
+        ordered_lines = [top_line]
+        visited = {top_line.id}
         previous_id: str | None = None
-        current_id = top_box.id
+        current_id = top_line.id
 
-        while len(ordered_boxes) < len(self.image_boxes):
+        while len(ordered_lines) < len(self.lines):
             next_candidates = [
                 neighbor_id
-                for neighbor_id in self.subgraph[
-                    current_id
-                ]  # ty:ignore[not-subscriptable]
+                for neighbor_id in self.subgraph[current_id]
                 if neighbor_id != previous_id and neighbor_id not in visited
             ]
             assert len(next_candidates) == 1
 
             next_id = next_candidates[0]
-            ordered_boxes.append(boxes_by_id[next_id])
+            ordered_lines.append(lines_by_id[next_id])
             visited.add(next_id)
             previous_id, current_id = current_id, next_id
 
-        self.image_boxes = ordered_boxes
-        return self.image_boxes
+        self.lines = ordered_lines

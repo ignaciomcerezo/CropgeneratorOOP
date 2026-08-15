@@ -13,7 +13,7 @@ from cropgen.tests.object_mothers import mother_pil_image
 # load_dotenv()
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
-from cropgen.processing.AnnotatedPage import AnnotatedPage
+from cropgen.processing import AnnotatedPage
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 
@@ -68,9 +68,7 @@ def number_of_matches(
 
     filters = {x: list(str(y) for y in filters[x]) for x in filters.keys()}
 
-    tasks = paths.lsi.simplified_tasks
-
-    AnnotatedPage.min_nodes_for_big_box_removal = 500
+    tasks = paths.lsi.simplified_tasks  # ty: ignore[unresolved-attribute]
 
     total_matches = [0] * len(re_patterns)
 
@@ -97,10 +95,14 @@ def number_of_matches(
             for pttrn_index, re_pattern in enumerate(re_patterns):
 
                 # Primero con unrotate = True (comprobación de los recortes individuales)
-                Ann = AnnotatedPage(ann, img, usernames_labelstudio=paths.lsi.usernames)
+                Ann = AnnotatedPage(
+                    ann,
+                    img,
+                    usernames_labelstudio=paths.lsi.usernames,  # ty: ignore[unresolved-attribute]
+                )
 
-                for fragment in Ann.text_fragments.values():
-                    does_match = re_pattern.search(fragment.text)
+                for line in Ann.lines.values():
+                    does_match = re_pattern.search(line.text)
                     if does_match and show_where:
 
                         print(
@@ -110,10 +112,10 @@ def number_of_matches(
                         ends = []
                         b_prev = 0
 
-                        print(f"\t{fragment.text}")
+                        print(f"\t{line.text}")
                         print("\t", end="")
 
-                        matches = list(re_pattern.finditer(fragment.text))
+                        matches = list(re_pattern.finditer(line.text))
                         for match in matches:
                             a, b = match.span()
                             print(" " * (a - b_prev) + "^" * (b - a), end="")

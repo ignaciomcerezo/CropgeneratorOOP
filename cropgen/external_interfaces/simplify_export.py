@@ -297,12 +297,12 @@ def load_simplified_export(paths: PathBundle) -> List[SimplifiedTask]:
         raise ValueError(f"Error leyendo el archivo {path=}. {e}")
 
     if isinstance(data, list):
-        return data  # type: ignore
+        return data
 
     if isinstance(data, dict):  # buscamos los diferentes resultados
         for k in ("tasks", "data", "results"):
             if isinstance(data.get(k), list):
-                return data[k]  # type: ignore
+                return data[k]
 
     raise ValueError(
         "El tipo de archivo que se ha especificado no tiene la estructura esperada."

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Any
-from unsloth import FastVisionModel
+from unsloth import FastVisionModel  # ty: ignore[unresolved-import]
 
 
 @dataclass(kw_only=True, slots=True, frozen=True)

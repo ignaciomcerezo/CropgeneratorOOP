@@ -1,86 +1,111 @@
-from cropgen.processing.Paragraph import Paragraph
-from shapely.geometry import Polygon
-from shapely import affinity
-import shapely
+from cropgen.shared.parameters import Parameter
+from cropgen.processing.line import Line
+from cropgen.processing import Paragraph
+from typing import Optional, Literal, Sequence
+
+from cropgen.transforms.transforms import (
+    IntraparagraphTransform,
+)
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
+
 import numpy as np
 import cv2
+import shapely
+from shapely.geometry import Polygon
+from shapely.affinity import rotate
+
 from PIL import Image
 
-from cropgen.ocrdataset.layout_generator.transforms import (
-    IntraparagraphTransform,
-    _ParagraphInfo,
-)
 
-
-class ParagraphwiseRotation(IntraparagraphTransform):
+class LinewiseParagraphAwareRotation(IntraparagraphTransform):
     """
-    Rotates a whole paragraph around its centroid.
+    Rotates the lines of a paragraph individually.
     """
 
+    # TODO: solve some problems with the center selection (absolute = 30 for lsi.get_annotated_page(11))
     def __init__(
         self,
         *,
-        relative: float | None = None,
-        absolute: float | None = None,
-        metric: str = "degrees",
+        relative: Optional[float | Parameter] = None,
+        absolute: Optional[float | Parameter] = None,
+        metric: Literal[
+            "degrees",
+            "pi radians",
+            "radians",
+        ] = "degrees",
     ):
         if relative is None and absolute is None:
             raise ValueError("Either relative or absolute rotations must be provided")
 
-        self._relative = relative
-        self._absolute = absolute
+        self._relative = Parameter(relative) if relative is not None else None
+        self._absolute = Parameter(absolute) if absolute is not None else None
         self._metric = metric
 
-    def __call__(self, paragraph: Paragraph):
+    def __call__(
+        self,
+        line_equivalent_group: (
+            Paragraph
+            | Paragraph
+            | Sequence[Line]
+            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+        ),
+    ) -> tuple[list[Image.Image], list[Polygon]]:
+        images, polygons = self._extract_polygons_and_images(line_equivalent_group)
+
+        info = LineGroupInfo.from_polygons(polygons)
 
         if self._relative is not None:
-            rotation = paragraph.avg_rotation * self._relative
+            rotation = info.avg_rotation * self._relative()
+
         else:
             if self._absolute is None:
                 raise ValueError("Either relative or absolute must be provided")
 
             match self._metric:
                 case "degrees":
-                    rotation = self._absolute
+                    rotation = self._absolute()
+
                 case "radians":
-                    rotation = self._absolute / np.pi * 180
+                    rotation = self._absolute() / np.pi * 180
+
                 case "pi radians":
-                    rotation = self._absolute * 180
+                    rotation = self._absolute() * 180
+
                 case _:
                     raise ValueError(f"Unknown metric: {self._metric}")
 
-        centroid = _ParagraphInfo(paragraph).centroid
+        for i, (image, polygon) in enumerate(zip(images, polygons)):
+            orig_bounds = polygon.bounds
 
-        for box in paragraph.image_boxes:
-
-            orig_bounds = box.polygon.bounds
-
-            new_poly = self._rotate_poly(
-                box.polygon,
-                rotation,
-                centroid,
+            x0, y0, x1, y1 = orig_bounds
+            center = (
+                (x0 + x1) / 2,
+                (y0 + y1) / 2,
             )
 
-            box.stroke_crop = self._rotate_img(
-                box.stroke_crop,
+            polygons[i] = self.rotate_poly(
+                polygon,
                 rotation,
-                centroid,
+                center,
+            )
+
+            images[i] = self.rotate_img(
+                image,
+                rotation,
                 orig_bounds,
-                new_poly.bounds,
+                polygons[i].bounds,
             )
 
-            box.polygon = new_poly
-
-        return paragraph
+        return images, polygons
 
     @staticmethod
-    def _rotate_poly(
+    def rotate_poly(
         poly: Polygon,
         angle: float,
         center: tuple[float, float],
     ) -> Polygon:
 
-        return shapely.affinity.rotate(
+        return rotate(
             poly,
             angle,
             origin=center,
@@ -88,10 +113,9 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         )
 
     @staticmethod
-    def _rotate_img(
+    def rotate_img(
         pil_img: Image.Image,
         angle: float,
-        center: tuple[float, float],
         orig_bounds: tuple[float, float, float, float],
         new_bounds: tuple[float, float, float, float],
     ) -> Image.Image:
@@ -105,6 +129,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
             1,
             int(np.ceil(new_x1 - new_x0)),
         )
+
         new_height = max(
             1,
             int(np.ceil(new_y1 - new_y0)),
@@ -118,9 +143,14 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         x_global = new_x0 + x_d
         y_global = new_y0 + y_d
 
-        cx, cy = center
+        orig_x1 = orig_bounds[2]
+        orig_y1 = orig_bounds[3]
+
+        cx = (orig_x0 + orig_x1) / 2
+        cy = (orig_y0 + orig_y1) / 2
 
         theta = np.radians(angle)
+
         c = np.cos(theta)
         s = np.sin(theta)
 

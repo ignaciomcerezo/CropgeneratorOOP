@@ -73,3 +73,9 @@ unsloth = { git = "https://github.com/unslothai/unsloth.git" }
 dev = [
     "cropgen",
 ]
+
+
+[pytest]
+markers = [
+    "audit: marks tests as an audit to the structure of the annotations.",
+]

@@ -44,8 +44,6 @@ def setup(
         if lsi is None
         else lsi
     )
-    if online:
-        lsi.fetch_and_simplify()
 
     paths.lsi = lsi
     paths.obi = obi

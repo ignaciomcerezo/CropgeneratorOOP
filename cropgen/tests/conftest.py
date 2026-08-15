@@ -14,7 +14,7 @@ from cropgen.shared.PathBundle import PathBundle
 
 @pytest.fixture(scope="session")
 def paths() -> PathBundle:
-    return PathBundle(Path(os.getcwd()).parents[1])
+    return PathBundle(Path(os.getcwd()))
 
 
 @pytest.fixture(scope="session")

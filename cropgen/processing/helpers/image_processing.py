@@ -1,128 +1,216 @@
-from shapely.geometry import Polygon
-from typing import Literal, Collection
-from PIL import Image
 import cv2
 import numpy as np
+from PIL import Image
 
 
-def unrotate_image(img, rotation_degrees) -> Image.Image:
-    """
-    Des-rota una imagen, quitando también la máscara transparente.
-    """
-    unrotated = img.rotate(rotation_degrees, resample=Image.BICUBIC, expand=True)
+def extract_strokes(
+    page_image_array: np.ndarray,
+    background_diameter: int = 15,
+    small_diameter: int | None = None,  # 1 or 3 before
+    threshold: float = 8.0,
+    min_area: int = 3,
+    # max_area: int = 10000,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-    bbox = unrotated.getbbox()  # solamente la parte no transparente
+    if page_image_array.dtype != np.uint8:
+        page_image_array = page_image_array.astype(np.uint8)
 
-    if bbox:
-        return unrotated.crop(bbox)
-
-    return unrotated
-
-
-def get_dominant_color(pil_img) -> tuple[int, int, int]:
-    """
-    Calcula el color dominante de una imagen. Realiza el siguiente proceso:
-    - Reduce la imagen para que quepa en 50 x 50 píxeles manteniendo las proporciones.
-    - Reduce la cantidad de colores a los 5 dominantes, cuantizándola.
-    - Devuelve el más común.
-    Se emplea para usar como color de fondo en recortes de forma rápida.
-    """
-    try:
-        img_copy = pil_img.copy()
-        img_copy.thumbnail((50, 50), resample=Image.Resampling.BICUBIC)
-
-        paletted = img_copy.quantize(colors=5)
-        colors = paletted.getcolors()
-
-        if not colors:
-            print("Error postcuantización de la imagen")
-            return 255, 255, 255
-
-        dominant_count, dominant_index = max(colors, key=lambda x: x[0])
-
-        palette: list[int] = paletted.getpalette()
-        start = dominant_index * 3
-        return (palette[start], palette[start + 1], palette[start + 2])
-
-    except Exception as E:
-        print(f"Error durante la cuantización de la imagen - {E}")
-        return 255, 255, 255
-
-
-KERNELS = {
-    "diamond": cv2.MORPH_DIAMOND,
-    "circle": cv2.MORPH_ELLIPSE,
-    "cross": cv2.MORPH_CROSS,
-    "rect": cv2.MORPH_RECT,
-}
-
-KERNEL_TYPES = Literal["diamond", "circle", "cross", "rect"]
-
-# better version in text_background_separator.py
-# def get_background_and_residual(
-#     image: Image.Image, kernel_name="rect", diameter: int = 35
-# ) -> tuple[Image.Image, Image.Image]:
-#     """
-#     Extracts the low-frequency background and signed high-frequency residual
-#     """
-#     img_float = np.array(image, dtype=np.float32)
-
-#     kernel = cv2.getStructuringElement(KERNELS[kernel_name], (diameter, diameter))
-
-#     bg_float = cv2.morphologyEx(img_float, cv2.MORPH_CLOSE, kernel)
-
-#     signed_residual = img_float - bg_float
-
-#     return Image.fromarray(bg_float), Image.fromarray(signed_residual)
-
-
-def polygon2pts(polygon: Polygon):
-    """Converts a Shapely Polygon exterior boundary to OpenCV int32 coordinates."""
-    coords = np.array(polygon.exterior.coords, dtype=np.float32)
-    return [np.int32(coords)]
-
-
-def get_polygon_mask(
-    image_shape: tuple[int, int], polygons: Collection[Polygon]
-) -> np.ndarray:
-    mask = np.zeros(image_shape[:2], dtype=np.uint8)
-    for poly in polygons:
-        coords = np.array(poly.exterior.coords[:-1], dtype=np.int32)
-        cv2.fillPoly(mask, [coords], 255)
-    return mask
-
-
-def crop_to_polygon(img: Image.Image, poly: Polygon) -> Image.Image:
-    """Crops an image according to a polygon"""
-    image_arr = np.array(img)
-    mask = get_polygon_mask(image_arr.shape, [poly])
-
-    image_arr[mask == 0] = 0
-
-    return Image.fromarray(image_arr)
-
-
-def inpaint_exterior_line_ring(
-    image: Image.Image,
-    polygons: Collection[Polygon],
-    ring_width: int = 15,
-) -> Image.Image:
-    image_arr = np.array(image)
-
-    poly_mask = get_polygon_mask(image_arr.shape, polygons)
-
-    kernel_size = 2 * ring_width + 1
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-
-    dilated_mask = cv2.dilate(poly_mask, kernel)
-    exterior_ring_mask = cv2.subtract(dilated_mask, poly_mask)
-
-    inpaint_radius = max(3, ring_width // 2)
-    return Image.fromarray(
-        cv2.inpaint(
-            image_arr,
-            exterior_ring_mask,
-            inpaintRadius=inpaint_radius,
-            flags=cv2.INPAINT_TELEA,
-        )
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (background_diameter, background_diameter),
     )
+
+    background = cv2.morphologyEx(
+        page_image_array,
+        cv2.MORPH_CLOSE,
+        kernel,
+    )
+
+    residual = cv2.subtract(background, page_image_array)
+
+    _, mask = cv2.threshold(residual, threshold, 255, cv2.THRESH_BINARY)
+
+    if small_diameter is not None:
+        small_kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (small_diameter, small_diameter),
+        )
+
+        mask = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_OPEN,
+            small_kernel,
+        )
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask,
+        connectivity=8,
+    )
+
+    areas = stats[:, cv2.CC_STAT_AREA]
+    valid_labels = areas >= min_area  # & (areas <= max_area)
+    valid_labels[0] = False
+
+    conn = np.zeros(num_labels, dtype=np.uint8)
+    conn[valid_labels] = 255
+
+    clean_mask = conn[labels]  # ty: ignore[invalid-argument-type]
+
+    stroke_residual = cv2.bitwise_and(residual, residual, mask=clean_mask)
+
+    return (
+        background,
+        stroke_residual,
+        clean_mask,
+    )
+
+
+def extract_border_mask(
+    image_array: np.ndarray,
+    dark_threshold: int = 50,
+    border_margin: int = 10,
+) -> np.ndarray:
+    """Detects dark connected components attached to or near the image edges."""
+    if image_array.ndim == 3:
+        gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = image_array
+
+    _, dark_mask = cv2.threshold(gray, dark_threshold, 255, cv2.THRESH_BINARY_INV)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        dark_mask, connectivity=8
+    )
+
+    h, w = gray.shape
+    border_mask = np.zeros((h, w), dtype=np.uint8)
+
+    for label in range(1, num_labels):
+        x, y, comp_w, comp_h, _ = stats[label]
+
+        touches_edge = (
+            x <= border_margin
+            or y <= border_margin
+            or (x + comp_w) >= (w - border_margin)
+            or (y + comp_h) >= (h - border_margin)
+        )
+
+        if touches_edge:
+            border_mask[labels == label] = 255
+
+    return border_mask
+
+
+def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
+    scale_factor = M / max(img_array.shape)
+    size = (
+        int(np.ceil(img_array.shape[0] * scale_factor)),
+        int(np.ceil(img_array.shape[1] * scale_factor)),
+    )
+    if scale_factor < 1:
+        return cv2.resize(img_array, size, interpolation=cv2.INTER_AREA)
+    elif scale_factor > 1:
+        return cv2.resize(img_array, size, interpolation=cv2.INTER_CUBIC)
+    else:
+        return img_array
+
+
+def separate_background_and_stroke(
+    image: Image.Image,
+    out_longest_side: int,
+    processing_longest_side: int,
+    *,
+    background_diameter: int = 15,
+    small_diameter: int | None = None,  #  1
+    threshold: float = 8.0,
+    min_area: int = 3,
+    inpaint_dilation: int = 3,
+    inpaint_radius: int = 3,
+    # max_area: int = 10000,
+) -> tuple[Image.Image, Image.Image]:
+    """
+    Separates a black and white page image or scan into its stroke and background components.
+    """
+
+    image_array = _resize_by_longest_side(np.asarray(image), processing_longest_side)
+
+    _, strokes, stroke_mask = extract_strokes(
+        image_array,
+        background_diameter,
+        small_diameter,
+        threshold,
+        min_area,  # , max_area
+    )
+
+    border_mask = extract_border_mask(image_array)
+
+    combined_mask = cv2.bitwise_or(stroke_mask, border_mask)
+
+    if inpaint_dilation > 0:
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE,
+            (inpaint_dilation * 2 + 1, inpaint_dilation * 2 + 1),
+        )
+        inpaint_mask = cv2.dilate(combined_mask, kernel, iterations=1)
+    else:
+        inpaint_mask = combined_mask
+
+    clean_background = cv2.inpaint(
+        np.asarray(image_array, dtype=np.uint8),
+        inpaint_mask,
+        inpaintRadius=inpaint_radius,
+        flags=cv2.INPAINT_TELEA,
+    )
+
+    clean_background = _resize_by_longest_side(clean_background, out_longest_side)
+    strokes = _resize_by_longest_side(strokes, out_longest_side)
+
+    return Image.fromarray(clean_background), Image.fromarray(strokes)
+
+
+def crop_or_resize(
+    image: np.ndarray,
+    x0: int,
+    xf: int,
+    y0: int,
+    yf: int,
+    *,
+    can_crop: bool = True,
+) -> np.ndarray:
+    """
+    Transforms an image based on target spans.
+    - If can_crop is True and target < original: crops a window of target size.
+    - Otherwise, resizes the axis to target size when target != original.
+    """
+    h_max, w_max = image.shape[:2]
+    target_w = max(1, int(xf - x0))
+    target_h = max(1, int(yf - y0))
+
+    if can_crop and target_w < w_max:
+        if x0 < 0:
+            x_start, x_end = 0, target_w
+        elif x0 + target_w > w_max:
+            x_start, x_end = w_max - target_w, w_max
+        else:
+            x_start, x_end = x0, x0 + target_w
+        processed = image[:, x_start:x_end]
+    elif target_w != w_max:
+        interp = cv2.INTER_AREA if target_w < w_max else cv2.INTER_CUBIC
+        processed = cv2.resize(image, (target_w, image.shape[0]), interpolation=interp)
+    else:
+        processed = image
+
+    curr_h, curr_w = processed.shape[:2]
+    if can_crop and target_h < h_max:
+        if y0 < 0:
+            y_start, y_end = 0, target_h
+        elif y0 + target_h > h_max:
+            y_start, y_end = h_max - target_h, h_max
+        else:
+            y_start, y_end = y0, y0 + target_h
+        processed = processed[y_start:y_end, :]
+    elif target_h != curr_h:
+        interp = cv2.INTER_AREA if target_h < curr_h else cv2.INTER_CUBIC
+        processed = cv2.resize(processed, (curr_w, target_h), interpolation=interp)
+
+    return processed

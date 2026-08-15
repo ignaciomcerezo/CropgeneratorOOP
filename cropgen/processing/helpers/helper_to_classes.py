@@ -4,19 +4,7 @@ import hashlib  # para los identificadores únicos de subgrafos
 from shapely import Polygon, box as boxshape
 import numpy as np
 from cropgen.shared.LSTypedDicts.values import RectangleValue, PolygonValue
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from cropgen.processing.ImageBox import ImageBox
-
-
-def get_deterministic_id(text, length: int = 8):
-    """
-    Genera un identificador 'único' (módulo colisión de hash) y determinista
-    a partir de un texto dado usando SHA-256.
-    """
-    hash_object = hashlib.sha256(text.encode("utf-8"))
-    return hash_object.hexdigest()[:length]
+from typing import TYPE_CHECKING, Sequence
 
 
 def calculate_polygon(x, y, w, h, rotation):
@@ -57,48 +45,8 @@ def calculate_polygon(x, y, w, h, rotation):
     return Polygon(corners), corners
 
 
-def calculate_polygon_angle(poly):
-    """
-    Calcula el ángulo de rotación del polígono basándose en su
-    rectángulo mínimo orientado (minimum bounding box de shapely).
-    Asume que el lado más largo del rectángulo corresponde a la orientación del texto.
-    """
-    rect = poly.minimum_rotated_rectangle
-
-    coords = list(rect.exterior.coords)
-
-    p0, p1 = coords[0], coords[1]
-    dist_a = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-
-    p2 = coords[2]
-    dist_b = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-
-    # determinamos cuál es el lado "largo" (la base del texto)
-    if dist_a > dist_b:
-        # vector p0 -> p1
-        dx = p1[0] - p0[0]
-        dy = p1[1] - p0[1]
-    else:
-        # vector p1 -> p2
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
-
-    # ángulo en grados
-    angle = math.degrees(math.atan2(dy, dx))
-
-    # normalizams teniendo en cuenta que la lectura es de izq. a derecha
-    if angle < -45:
-        angle += 180
-    elif angle > 135:
-        angle -= 180
-
-    return angle
-
-
 def get_rotated_region(
     val: PolygonValue | RectangleValue,
-    page_width: float | int,
-    page_height: float | int,
     residual: Image.Image,
 ) -> tuple[Image.Image, Polygon, float, bool]:
     """
@@ -108,6 +56,7 @@ def get_rotated_region(
     - rotation: rotación (en grados) de nuestra región. Si era un rectángulo, es la rotación manual, si no se calcula usando heurísticos.
     - polygon_tool: booleano que representa si la región se hizo usando la herramienta polígono (True) o no.
     """
+    page_width, page_height = residual.size
 
     def _crop_with_alpha(
         source: Image.Image,
@@ -272,7 +221,7 @@ def calculate_reading_angle(polygon: Polygon) -> float:
     return angle_deg
 
 
-def get_union_rect(polys: list[Polygon]):
+def get_union_rect(polys: Sequence[Polygon]):
     """
     Dada una lista coordenadas de cajas imagen con el formato
     (x1, y1, x2, y2), devuelve la bounding box que las contiene a todas.
@@ -313,63 +262,6 @@ def get_connected_components(adj: dict[str, set]):
             # añadimos la componente conexa
             components.append(comp)
     return components
-
-
-def compose_collage(
-    image_boxes: list["ImageBox"],
-    background: Image.Image,
-    tight_layout: bool = True,
-) -> Image.Image:
-    """
-    Generates the corresponding collage of lines from the image boxes and a backgroud fill color.
-    If min_bounding_boxes is provided, each element is taken to be the coordinates where the leftmost
-    topmost point of the bounding box of each line will be placed. If not provided, it takes that
-    information from the image_box instances themselves.
-    """
-
-    if tight_layout:
-        # calculamos la región mínima de la imagen que contiene todas las cajas
-        x1, y1, x2, y2 = get_union_rect([box.polygon for box in image_boxes])
-
-        # Convertimos a enteros (Floor para arriba-izq, Ceil para abajo-der para asegurar cobertura)
-        x1, y1 = int(x1), int(y1)
-        x2, y2 = int(x2) + 1, int(y2) + 1
-
-        crop_width, crop_height = x2 - x1, y2 - y1
-        collage = background.crop((x1, y1, x2, y2))
-    else:
-        collage = background
-        x1 = 0
-        y1 = 0
-
-    overlay: np.ndarray = np.full(np.asarray(collage).shape, 0)
-
-    for box in image_boxes:
-        box_x0, box_y0, _, _ = box.polygon.bounds
-
-        # calculamos la posición relativa al nuevo lienzo
-        paste_x, paste_y = int(box_x0 - x1), int(box_y0 - y1)
-
-        stroke_rgba = np.asarray(box.stroke_crop.convert("RGBA"))
-
-        stroke = stroke_rgba[..., 0]
-        alpha = stroke_rgba[..., 3]
-
-        masked_stroke = stroke * (alpha / 255.0)
-
-        overlay[
-            paste_y : paste_y + box.stroke_crop.height,
-            paste_x : paste_x + box.stroke_crop.width,
-        ] += masked_stroke.astype(np.uint8)
-
-    # difference instead of addition as our strokes are reversed in intensity
-    collage = Image.fromarray(
-        np.clip(np.asarray(collage, dtype=np.float32) - overlay, 0, 255).astype(
-            np.uint8
-        )
-    )
-
-    return collage
 
 
 def subdictionary(nodes, adj) -> dict[str, set[str]]:

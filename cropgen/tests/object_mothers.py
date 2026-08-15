@@ -5,16 +5,13 @@ import numpy as np
 from PIL import Image
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from cropgen.processing.AnnotatedPage import AnnotatedPage
-from cropgen.processing.ImageBox import ImageBox
-from cropgen.processing.Paragraph import Paragraph
-from cropgen.processing.TextFragment import TextFragment
+from cropgen.processing import AnnotatedPage, Line, Paragraph
 from cropgen.shared.LSTypedDicts.aggregates import (
     RawAnnotation,
     TaskData,
     LabelStudioTask,
 )
-from cropgen.shared.LSTypedDicts.results import (
+from cropgen.shared.LSTypedDicts import (
     BaseResult,
     ImageBaseResult,
     TextRegionResult,
@@ -22,15 +19,11 @@ from cropgen.shared.LSTypedDicts.results import (
     RectangleResult,
     PolygonResult,
     RelationResult,
-)
-from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTextCorrectionValue,
     SimplifiedTextCorrectionResult,
     SimplifiedAnnotation,
     SimplifiedTask,
     SimplifiedResultItem,
-)
-from cropgen.shared.LSTypedDicts.values import (
     TextRegionValue,
     TextCorrectionValue,
     RectangleValue,
@@ -733,45 +726,20 @@ def mother_simplified_task(
     )
 
 
-def mother_text_fragment(
-    id: Optional[str] = None,
-    text: Optional[str] = None,
-    task_id: Optional[int] = None,
-    text_length: Optional[int] = None,
-    has_association: bool = True,
-) -> TextFragment:
-    if text is None:
-        text: str = "".join(
-            random.choices(
-                random_id(),
-                k=text_length if text_length is not None else random.randint(3, 10),
-            )
-        )
-    text_fragment = TextFragment(
-        id=id if id is not None else f"frag{random.randint(1, 1000)}",
-        text=text,
-        task_id=task_id if task_id is not None else random.randint(1, 1000),
-    )
-    if has_association:
-        associated_box = mother_image_box(has_association=False)
-        text_fragment.associate_box(associated_box)
-        associated_box.associate_fragment(text_fragment)
-    return text_fragment
-
-
-def mother_image_box(
-    id: Optional[str] = None,
+def mother_line(
+    box_id: Optional[str] = None,
     stroke_crop: Optional[Image.Image] = None,
     polygon: Optional[ShapelyPolygon] = None,
     rotation: Optional[float] = None,
-    unrotated: Optional[bool] = None,
     task_id: Optional[int] = None,
     true_rectangle: Optional[bool] = None,
     n_points: Optional[int] = None,
     points: Optional[list[tuple[float, float]]] = None,
     pil_image_kwargs: Optional[dict[str, Any]] = None,
-    has_association: bool = True,
-) -> ImageBox:
+    fragment_id: Optional[str] = None,
+    text: Optional[str] = None,
+    text_length: Optional[int] = None,
+) -> Line:
     stroke_crop: Image.Image = (
         stroke_crop
         if stroke_crop is not None
@@ -788,54 +756,45 @@ def mother_image_box(
             ]
         )
         polygon: ShapelyPolygon = ShapelyPolygon(points)
-    image_box = ImageBox(
-        id=id if id is not None else f"box{random.randint(1, 1000)}",
+
+    if text is None:
+        text: str = "".join(
+            random.choices(
+                random_id(),
+                k=text_length if text_length is not None else random.randint(3, 10),
+            )
+        )
+    return Line(
+        box_id=box_id if box_id is not None else f"box{random.randint(1, 1000)}",
         stroke_crop=stroke_crop,
         polygon=polygon,
         rotation=rotation if rotation is not None else random.uniform(0, 360),
-        unrotated=unrotated if unrotated is not None else random.choice([True, False]),
         task_id=task_id if task_id is not None else random.randint(1, 1000),
         true_rectangle=(
             true_rectangle
             if true_rectangle is not None
             else random.choice([True, False])
         ),
+        fragment_id=(
+            fragment_id if fragment_id is not None else f"frag{random.randint(1, 1000)}"
+        ),
+        text=text,
     )
-    if has_association:
-        associated_fragment = mother_text_fragment(has_association=False)
-        image_box.associate_fragment(associated_fragment)
-        associated_fragment.associate_box(image_box)
-    return image_box
 
 
 def mother_paragraph(
-    image_boxes: Optional[list[ImageBox]] = None,
-    text_fragments: Optional[list[TextFragment]] = None,
+    lines: Optional[list[Line]] = None,
     task_id: Optional[int] = None,
     index: Optional[int] = None,
     subgraph: Optional[dict[str, set[str]]] = None,
-    fragment: Optional[TextFragment] = None,
-    box: Optional[ImageBox] = None,
-    text_fragment_kwargs: Optional[dict[str, Any]] = None,
-    image_box_kwargs: Optional[dict[str, Any]] = None,
+    line_kwargs: Optional[dict[str, Any]] = None,
 ) -> Paragraph:
-    if image_boxes is None and text_fragments is None:
-        fragment: TextFragment = (
-            fragment
-            if fragment is not None
-            else mother_text_fragment(**(text_fragment_kwargs or {}))
-        )
-        box: ImageBox = (
-            box if box is not None else mother_image_box(**(image_box_kwargs or {}))
-        )
-        if not box.associated_fragments:
-            box.associate_fragment(fragment)
-        image_boxes = [box]
-        text_fragments = []
-        subgraph = subgraph if subgraph is not None else {box.id: set()}
+    if lines is None:
+        line = mother_line(**(line_kwargs or {}))
+        lines = [line]
+        subgraph = subgraph if subgraph is not None else {line.id: set()}
     return Paragraph(
-        image_boxes=image_boxes,
-        text_fragments=text_fragments,
+        lines=lines,
         task_id=task_id if task_id is not None else random.randint(1, 1000),
         index=index if index is not None else random.randint(0, 10),
         subgraph=subgraph,
@@ -896,6 +855,5 @@ def mother_annotated_page(
     return AnnotatedPage(
         ann,
         img,
-        unrotate=unrotate if unrotate is not None else random.choice([True, False]),
         usernames_labelstudio=usernames_labelstudio,
     )
