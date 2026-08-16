@@ -1,6 +1,7 @@
 from __future__ import annotations
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from shapely.geometry import Polygon
-from typing import Collection, Sequence, TYPE_CHECKING
+from typing import Collection, Sequence, TYPE_CHECKING, Literal
 from abc import ABC, abstractmethod
 import shapely
 from PIL import Image
@@ -12,7 +13,14 @@ if TYPE_CHECKING:
     from cropgen.processing import AnnotatedPage, Paragraph, Line
 
 
-class LinewiseTransform(ABC):
+class OCRTransform(ABC):
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class LinewiseTransform(OCRTransform):
     """
     Base class used to modify single linges, for example single line
     distortions and stretching.
@@ -81,7 +89,7 @@ class LinewiseTransform(ABC):
         return line.stroke_crop, line.polygon
 
 
-class IntraparagraphTransform(ABC):
+class IntraparagraphTransform(OCRTransform):
     """
     Base class used to modify layouts for individual paragraphs.
     For example line shears or paragraph rotations. or line-by-line distortions could be
@@ -164,7 +172,7 @@ class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
         return self._transform.bulk_transform(line_equivalent_group)
 
 
-class InterparagraphTransform(ABC):
+class InterparagraphTransform(OCRTransform):
     """
     Base class used to modify layouts for complete documents.
     For example this could be used to separate paragraphs between them,

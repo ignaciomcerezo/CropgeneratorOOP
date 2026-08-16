@@ -7,12 +7,6 @@ from typing import Optional
 from PIL import Image
 from shapely import Polygon, box as boxshape
 from shapely.affinity import scale
-
-from cropgen.processing.helpers.PairingErrors import (
-    RepeatedSameAssociationError,
-    MultipleAssociationError,
-    NoAssociationError,
-)
 from cropgen.processing.helpers.helper_to_classes import (
     get_rotated_region,
 )
@@ -22,13 +16,11 @@ from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 @dataclass(slots=True, kw_only=True)
 class Line:
     """
-    Contenedor de la información sobre las selecciones en la imagen hechas durante las anotaciones. Contiene información
-    sobre el polígono dibujado, la rotación del polígono, el fragmentos asociado, el recorte correspondiente.
+    Contains teh information about a single line: the polygon it occupies in the page, its stroke crop and its transcription.
     """
 
     box_id: str
     fragment_id: str
-    # crop: Image.Image
     stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
@@ -52,28 +44,28 @@ class Line:
         return f"<Line with box {self.box_id} and fragment {self.fragment_id} of task {self.task_id}>"
 
     def centroid(self) -> tuple[float, float]:
-        """Devuelve el centroide del pológono asociado a esta caja-imagen."""
+        """Centroid of the associated polygon."""
         pol_centroid = self.polygon.centroid
         return pol_centroid.x, pol_centroid.y
 
     @property
     def top(self):
-        """Coordenada y menor del polígono asociado."""
+        """Lowest y coordinate (documents usually are y-down)."""
         return self.polygon.bounds[1]
 
     @property
     def left(self):
-        """Coordenada x menor del polígono asociado."""
+        """Lowest x coordinate."""
         return self.polygon.bounds[0]
 
     @property
     def right(self):
-        """Coordenada x mayor del polígono asociado."""
+        """Greatest x coordinate."""
         return self.polygon.bounds[2]
 
     @property
     def bot(self):
-        """Coordenada y mayor del polígono asociado."""
+        """Greatest y coordinate (documents usually are y-down)."""
         return self.polygon.bounds[3]
 
     @staticmethod

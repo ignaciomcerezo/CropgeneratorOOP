@@ -8,12 +8,7 @@ from collections.abc import Iterable
 from shapely.affinity import translate
 import numpy as np
 from PIL import Image, ImageDraw
-from cropgen.processing.helpers.PairingErrors import (
-    NoAssociationError,
-    MultipleAssociationError,
-    RepeatedSameAssociationError,
-    SameToSameAssociation,
-)
+
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
     get_union_rect,
@@ -302,6 +297,8 @@ class AnnotatedPage:
                     f"A relation in {self.task_id} connects a non-box non-fragment object."
                 )
 
+        seen_boxes: set[str] = set()
+        seen_fragments: set[str] = set()
         for r in results:
             if isinstance(r, RelationResult):  # if the result is a relation
                 source_id, target_id = r.from_id, r.to_id
@@ -329,6 +326,18 @@ class AnnotatedPage:
                             f"(Task {self.task_id}) unrecognized association in annotation."
                         )
 
+                if box_id in seen_boxes:
+                    raise ValueError(
+                        f"(Task {self.task_id}) box {box_id} has multiple associated fragments."
+                    )
+                if txt_id in seen_fragments:
+                    raise ValueError(
+                        f"(Task {self.task_id}) fragment {txt_id} has multiple associated boxes."
+                    )
+
+                seen_boxes.add(box_id)
+                seen_fragments.add(txt_id)
+
                 boxres = id2boxres[box_id]
                 txtres = id2txtres[txt_id]
 
@@ -339,7 +348,7 @@ class AnnotatedPage:
                 self.lines[line.id] = line
 
         if (len(self.lines) != len(id2boxres)) or (len(self.lines) != len(id2txtres)):
-            raise NoAssociationError(
+            raise ValueError(
                 f"(Task {self.task_id}) Some boxes/fragments have no associated other."
             )
 

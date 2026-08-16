@@ -1,3 +1,15 @@
+from cropgen.transforms.transforms import (
+    LinewiseTransform,
+    IntraparagraphFromLinewiseTransform,
+)
+from typing import Literal
+from cropgen.transforms.interparagraph_transforms.avoid_paragraph_intersections import (
+    AvoidParagraphIntersections,
+)
+from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections import (
+    AvoidLineIntersections,
+)
+from collections import defaultdict
 from PIL import Image
 from cropgen.processing.helpers.helper_to_classes import get_union_rect
 from cropgen.processing import Paragraph
@@ -11,26 +23,72 @@ from copy import deepcopy
 
 
 class LayoutGenerator:
+    """
+    Applies a series of transform to an annotated page to generate a new one.
+    Used in LayoutOCRDataset.
+    """
+
     def __init__(
         self,
+        avoid_intersections: bool = True,
     ):
         self._transform_index = 0
 
         self.intra_transforms_to_all: list[tuple[IntraparagraphTransform, int]] = []
         self.intra_transforms_specific: dict[
             int, list[tuple[IntraparagraphTransform, int]]
-        ] = dict()
+        ] = defaultdict(lambda: list())
 
         self.inter_transforms: list[InterparagraphTransform] = []
+        self._avoid_intersections = avoid_intersections
 
-    def add_intra_to_all(self, *transforms: IntraparagraphTransform):
+    def add_transform(
+        self,
+        *transforms: InterparagraphTransform
+        | IntraparagraphTransform
+        | LinewiseTransform,
+        scope: Literal["all"] | int = "all",
+    ):
+        for transform in transforms:
+            self._validate_transforms(transform, scope)
+
+        for transform in transforms:
+            if isinstance(transform, InterparagraphTransform):
+                self._add_inter(transform)
+                return
+
+            transform = (
+                transform
+                if isinstance(transform, IntraparagraphTransform)
+                else IntraparagraphFromLinewiseTransform(transform)
+            )
+            if scope == "all":
+                self._add_intra_to_all(transform)
+            else:
+                self._add_intra_to_one(transform, scope)
+
+    @staticmethod
+    def _validate_transforms(transform, scope: Literal["all"] | int):
+        if isinstance(transform, InterparagraphTransform) and scope != "all":
+            raise ValueError(
+                "Cannot pass instances of InterparagraphTransforms when scope != 'all'."
+            )
+        if not isinstance(
+            transform,
+            (IntraparagraphTransform, InterparagraphTransform, LinewiseTransform),
+        ):
+            raise ValueError(
+                "Can only use instances of InterparagraphTransform, IntraparagraphTransform or LinewiseTransform."
+            )
+
+    def _add_intra_to_all(self, *transforms: IntraparagraphTransform):
         self.intra_transforms_to_all.extend(
             (transform, i)
             for i, transform in enumerate(transforms, start=self._transform_index)
         )
         self._transform_index += len(transforms)
 
-    def add_intra_to_one(
+    def _add_intra_to_one(
         self, transform: IntraparagraphTransform, paragraph_index: int
     ):
 
@@ -39,7 +97,7 @@ class LayoutGenerator:
         )
         self._transform_index += 1
 
-    def add_inter(self, layout: InterparagraphTransform):
+    def _add_inter(self, layout: InterparagraphTransform):
         self.inter_transforms.append(layout)
 
     def apply(self, ann: AnnotatedPage) -> AnnotatedPage:
@@ -53,6 +111,7 @@ class LayoutGenerator:
             self.intra_transforms_specific
             or self.inter_transforms
             or self.intra_transforms_to_all
+            or self._avoid_intersections
         ):
             return new_ann
 
@@ -74,6 +133,15 @@ class LayoutGenerator:
 
         polygons = [box.polygon for box in new_ann.lines.values()]
         polygons.extend(paragraph.union_polygon() for paragraph in new_ann.paragraphs)
+
+        if self._avoid_intersections:
+            ali = AvoidLineIntersections(0.5)
+            api = AvoidParagraphIntersections(0.5)
+
+            for paragraph in new_ann.paragraphs:
+                ali.in_place(paragraph)
+
+            api.in_place(*new_ann.paragraphs)
 
         x1, y1, x2, y2 = get_union_rect(polygons)
 

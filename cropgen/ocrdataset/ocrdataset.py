@@ -1,6 +1,6 @@
 from warnings import warn
 from cropgen.transforms.transforms import LinewiseTransform
-from cropgen.transforms.on_the_fly_transform_manager import OCROnTheFlyTransformPack
+from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
 from dataclasses import dataclass
 from multiprocessing import Value
 from cropgen.transforms import (
@@ -22,7 +22,6 @@ from torch.utils.data import Dataset
 import numpy as np
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
-
 
 _poss_cluster_args_literal = Literal[
     "tight_layout",
@@ -48,6 +47,8 @@ _default_getitem_output_literal = Literal[
     "id",
     "page_id",
 ]
+
+_formatter_signature = Callable[[dict[_default_getitem_output_literal, Any]], Any]
 
 
 class OCRDataset(Dataset):
@@ -76,6 +77,7 @@ class OCRDataset(Dataset):
         self._use_full_pages = False
         self._transforms: OCROnTheFlyTransformPack | None = None
         self._update_orders(orders)  # the three previous attributes are updated here
+        self._formatter: _formatter_signature | None = None
 
         self._cluster_params = _default_cluster_parameters.copy()
         self._cluster_params.update(
@@ -129,7 +131,7 @@ class OCRDataset(Dataset):
                 or (isinstance(order, int) and (order < 1))
             ):
                 raise ValueError(
-                    f"Value {order} found inside orders. Only ints > 1, 'paragraph' and 'full' are acceptable orders."
+                    f"Value '{order}' found inside value for orders. Only ints > 1, 'paragraph' and 'page' are acceptable orders."
                 )
 
         pseudo_old_orders = set(self._orders)
@@ -331,7 +333,7 @@ class OCRDataset(Dataset):
 
     def set_formatter(
         self,
-        formatter: Callable[[dict[_default_getitem_output_literal, Any]], Any] | None,
+        formatter: _formatter_signature | None,
     ):
         self._formatter = formatter
 

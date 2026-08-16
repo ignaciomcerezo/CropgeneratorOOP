@@ -1,16 +1,16 @@
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
+from shapely.geometry import MultiPolygon
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo, Vector2D
 from typing import Any, Literal, Sequence, cast
 import numpy as np
 from numpy.random import permutation
 from PIL import Image
 from shapely import Polygon, STRtree
 from shapely.affinity import translate
+import numpy.typing as npt
 
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
 from cropgen.transforms.transforms import IntraparagraphTransform
-
-Vector2D = np.ndarray[tuple[Literal[2], Any]]
 
 
 class AvoidLineIntersections(IntraparagraphTransform):
@@ -19,11 +19,9 @@ class AvoidLineIntersections(IntraparagraphTransform):
         self,
         delta: float = 0.5,
         max_iterations: int = 1000,
-        only_reading_direction: bool = True,
     ):
         self.delta = delta
         self.max_iterations = max_iterations
-        self.only_reading_direction = only_reading_direction
 
     def __call__(
         self,
@@ -34,58 +32,33 @@ class AvoidLineIntersections(IntraparagraphTransform):
         images, raw_polygons = self._extract_polygons_and_images(line_equivalent_group)
         polygon_list = list(raw_polygons)
 
-        info = LineGroupInfo.from_polygons(polygon_list)
-
         polygons, _ = self.call_polygons(
             polygon_list,
-            info.avg_rotation,
-            self.only_reading_direction,
         )
         return images.copy(), polygons
 
     def call_polygons(
         self,
         polygons: list[Polygon],
-        rot: float | Sequence[float] | None = None,
-        project_to_reading_direction: bool = True,
-        binary_iterations=32,
-        contact_epsilon=1e-8,
+        *,
+        binary_iterations: int = 32,
+        contact_epsilon: float = 1e-8,
     ) -> tuple[list[Polygon], list[Vector2D]]:
 
         n = len(polygons)
 
-        original_center = LineGroupInfo.from_polygons(polygons).center
+        LGinfo = LineGroupInfo.from_polygons(polygons)
+
+        original_center = LGinfo.center
 
         cumulative_shifts: list[Vector2D] = [
             np.zeros(2, dtype=float) for _ in polygons
         ]  # ty: ignore[invalid-assignment]
 
+        reading_dir = LGinfo.reading_direction
+
         if n <= 1:
             return polygons, cumulative_shifts
-
-        if not project_to_reading_direction or rot is None:
-            return polygons, cumulative_shifts
-
-        if isinstance(rot, (int, float)):
-            angle = np.radians(rot)
-        else:
-            angles = np.radians(np.asarray(rot, dtype=float))
-            angle = np.mean(angles)
-
-        reading_dir = np.array(
-            [np.cos(angle - np.pi / 2), np.sin(angle - np.pi / 2)],
-            dtype=float,
-        )
-
-        centers = np.array(
-            [[polygon.centroid.x, polygon.centroid.y] for polygon in polygons],
-            dtype=float,
-        )
-        projections_by_index = centers @ reading_dir
-        slope = np.polyfit(np.arange(n), projections_by_index, 1)[0]
-
-        if slope < 0:
-            reading_dir = -reading_dir
 
         union_polygon = LineGroupInfo.polygon_union(polygons)
 
@@ -96,15 +69,6 @@ class AvoidLineIntersections(IntraparagraphTransform):
             ],
             dtype=float,
         )
-
-        # centers = np.array(
-        #     [[polygon.centroid.x, polygon.centroid.y] for polygon in polygons],
-        #     dtype=float,
-        # )
-
-        # centroid_coordinates = (centers - union_centroid) @ reading_dir
-
-        # order = np.argsort(centroid_coordinates)
 
         order = list(range(len(polygons)))
 
@@ -133,9 +97,16 @@ class AvoidLineIntersections(IntraparagraphTransform):
                 if overlap > 0:
                     pairwise_displacements[i] = overlap
 
-        displacement_along_line = np.cumsum(pairwise_displacements)
+        # Cumulative forward-only push introduced to clear the coarse,
+        # 1D-projected overlaps. This is what the refinement pass below is
+        # allowed to walk back per line: never more, since going further
+        # would move a line past its original, pre-transform position,
+        # which was never the actual problem.
+        raw_forward_push: np.ndarray = np.cumsum(pairwise_displacements)
 
-        displacement_along_line -= np.mean(displacement_along_line)
+        displacement_along_line: np.ndarray = raw_forward_push - np.mean(
+            raw_forward_push
+        )
 
         for k, i in enumerate(order):
             scalar_shift = displacement_along_line[k]
@@ -143,7 +114,7 @@ class AvoidLineIntersections(IntraparagraphTransform):
             if abs(scalar_shift) < 1e-12:
                 continue
 
-            movement = scalar_shift * reading_dir
+            movement: Vector2D = scalar_shift * reading_dir
 
             polygons[i] = translate(
                 polygons[i],
@@ -151,7 +122,7 @@ class AvoidLineIntersections(IntraparagraphTransform):
                 yoff=movement[1],
             )
 
-            cumulative_shifts[i] += movement
+            cumulative_shifts[i] += movement  # ty: ignore[unsupported-operator]
 
         for k in range(1, n):
             i = order[k]
@@ -173,33 +144,41 @@ class AvoidLineIntersections(IntraparagraphTransform):
 
                 return False
 
-            hi = max(self.delta, 1e-6)
+            # The coarse pass never pushed this line forward at all, so
+            # there's nothing to walk back.
+            max_reversal: float = raw_forward_push[k]
 
-            while not intersects_previous(hi):
-                hi *= 2.0
-
-                if hi > 1e6:
-                    break
-
-            if hi > 1e6:
+            if max_reversal <= 1e-12:
                 continue
 
-            lo = 0.0
+            if not intersects_previous(max_reversal):
+                # Even undoing the *entire* coarse push doesn't produce an
+                # intersection with any earlier line. That means the coarse
+                # 1D-projected-overlap estimate was simply wrong for this
+                # pair (typically because the lines are offset enough
+                # perpendicular to reading_dir that they don't really
+                # overlap in 2D) — cancel the push entirely rather than
+                # silently keeping it, which is what let lines get shoved
+                # far enough forward to land beside their neighbour instead
+                # of staying below it.
+                displacement = max_reversal
+            else:
+                lo, hi = 0, max_reversal
 
-            for _ in range(binary_iterations):
-                mid = 0.5 * (lo + hi)
+                for _ in range(binary_iterations):
+                    mid = 0.5 * (lo + hi)
 
-                if intersects_previous(mid):
-                    hi = mid
-                else:
-                    lo = mid
+                    if intersects_previous(mid):
+                        hi = mid
+                    else:
+                        lo = mid
 
-            displacement = max(0.0, lo - contact_epsilon)
+                displacement = max(0.0, lo - contact_epsilon)
 
             if displacement <= 0:
                 continue
 
-            movement = -displacement * reading_dir
+            movement = reading_dir * (-displacement)
 
             polygons[i] = translate(
                 polygon,
@@ -219,7 +198,3 @@ class AvoidLineIntersections(IntraparagraphTransform):
             )
 
         return polygons, cumulative_shifts
-
-    @staticmethod
-    def _poly_centroid_asarray(polygon: Polygon) -> Vector2D:
-        return np.array([polygon.centroid.x, polygon.centroid.y], dtype=float)

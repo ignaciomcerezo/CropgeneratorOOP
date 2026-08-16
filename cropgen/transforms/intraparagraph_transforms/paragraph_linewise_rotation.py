@@ -17,7 +17,7 @@ from shapely.affinity import rotate
 from PIL import Image
 
 
-class LinewiseParagraphAwareRotation(IntraparagraphTransform):
+class ParagraphLinewiseRotation(IntraparagraphTransform):
     """
     Rotates the lines of a paragraph individually.
     """
@@ -25,20 +25,16 @@ class LinewiseParagraphAwareRotation(IntraparagraphTransform):
     # TODO: solve some problems with the center selection (absolute = 30 for lsi.get_annotated_page(11))
     def __init__(
         self,
+        absolute: float | Parameter,
         *,
-        relative: Optional[float | Parameter] = None,
-        absolute: Optional[float | Parameter] = None,
         metric: Literal[
             "degrees",
             "pi radians",
             "radians",
         ] = "degrees",
     ):
-        if relative is None and absolute is None:
-            raise ValueError("Either relative or absolute rotations must be provided")
 
-        self._relative = Parameter(relative) if relative is not None else None
-        self._absolute = Parameter(absolute) if absolute is not None else None
+        self._absolute = Parameter(absolute)
         self._metric = metric
 
     def __call__(
@@ -52,27 +48,18 @@ class LinewiseParagraphAwareRotation(IntraparagraphTransform):
     ) -> tuple[list[Image.Image], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
-        info = LineGroupInfo.from_polygons(polygons)
+        match self._metric:
+            case "degrees":
+                rotation = self._absolute()
 
-        if self._relative is not None:
-            rotation = info.avg_rotation * self._relative()
+            case "radians":
+                rotation = self._absolute() / np.pi * 180
 
-        else:
-            if self._absolute is None:
-                raise ValueError("Either relative or absolute must be provided")
+            case "pi radians":
+                rotation = self._absolute() * 180
 
-            match self._metric:
-                case "degrees":
-                    rotation = self._absolute()
-
-                case "radians":
-                    rotation = self._absolute() / np.pi * 180
-
-                case "pi radians":
-                    rotation = self._absolute() * 180
-
-                case _:
-                    raise ValueError(f"Unknown metric: {self._metric}")
+            case _:
+                raise ValueError(f"Unknown metric: {self._metric}")
 
         for i, (image, polygon) in enumerate(zip(images, polygons)):
             orig_bounds = polygon.bounds

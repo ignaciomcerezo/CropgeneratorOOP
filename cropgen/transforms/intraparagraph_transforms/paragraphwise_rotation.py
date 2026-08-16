@@ -59,7 +59,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
                 case _:
                     raise ValueError(f"Unknown metric: {self._metric}")
 
-        centroid = info.centroid
+        center = info.center
 
         for i, (image, polygon) in enumerate(zip(images, polygons)):
 
@@ -68,13 +68,13 @@ class ParagraphwiseRotation(IntraparagraphTransform):
             polygons[i] = self._rotate_poly(
                 polygon,
                 rotation,
-                centroid,
+                center,
             )
 
             images[i] = self._rotate_img(
                 image,
                 rotation,
-                centroid,
+                center,
                 orig_bounds,
                 polygons[i].bounds,
             )

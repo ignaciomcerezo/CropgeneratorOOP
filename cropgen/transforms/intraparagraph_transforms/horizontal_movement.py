@@ -21,7 +21,14 @@ from shapely.affinity import translate
 import numpy as np
 from PIL import Image
 
-NOISES = Literal["linear", "wave", "from_amplitude_parameter", "zigzag"]
+_NOISES = Literal["linear", "wave", "from_amplitude_parameter", "zigzag"]
+_PARAMETERS = Literal["period", "amplitude", "slope", "intercept"]
+_NOISE2PARAMETERS: dict[_NOISES, list[_PARAMETERS]] = {
+    "linear": ["slope", "intercept"],
+    "wave": ["amplitude", "period"],
+    "from_amplitude_parameter": ["amplitude"],
+    "zigzag": ["amplitude"],
+}
 
 scalar = Parameter | float
 
@@ -32,10 +39,14 @@ def _centroid(poly: Polygon) -> tuple[float, float]:
 
 @dataclass
 class HorizontalMovement(IntraparagraphFromLinewiseTransform):
+    """
+    Moves (adds noise) to the position of the lines. The noise is only added in the orthogonal
+    direction to the reading axis.
+    """
 
     def __init__(
         self,
-        noise_type: NOISES,
+        noise_type: _NOISES,
         period: scalar | None = None,
         amplitude: scalar | None = None,
         slope: scalar | None = None,
@@ -46,81 +57,132 @@ class HorizontalMovement(IntraparagraphFromLinewiseTransform):
         self.amplitude = Parameter(amplitude) if amplitude is not None else None
         self.slope = Parameter(slope) if slope is not None else None
         self.intercept = Parameter(intercept) if intercept is not None else None
-        self.type2map: dict[NOISES, Callable[[list[Polygon]], list[Polygon]]] = {
+        self.type2map: dict[
+            _NOISES, Callable[[list[Polygon], np.ndarray, np.ndarray], list[Polygon]]
+        ] = {
             "linear": self._call_linear_polygons,
             "wave": self._call_wave_polygons,
             "from_amplitude_parameter": self._call_random_polygons,
             "zigzag": self._call_zigzag_polygons,
         }
+        self._validate_parameters()
 
-    def _call_linear_polygons(self, polygons: list[Polygon]) -> list[Polygon]:
+    def __repr__(self) -> str:
+        return f"<HorizontalMovement of type {self.noise_type} with parameters>"
 
-        if self.slope is None:
-            raise ValueError(
-                "Cannot use linear horizontal movement if no slope is passed."
+    def _validate_parameters(self):
+        needed_parameters = _NOISE2PARAMETERS[self.noise_type]
+
+        for parameter_name in needed_parameters:
+            att_value = self.__getattribute__(parameter_name)
+            if att_value is None:
+                raise ValueError(
+                    f"Noise type {self.noise_type} requires parameter {parameter_name} to be given a value."
+                )
+
+    # TODO implement the "true" horizontal, i.e. moving in the reading-perpendicular direction only.
+    # useful to take some code from the intersection correction transform
+    """
+            if isinstance(rot, (int, float)):
+            angle = np.radians(rot)
+        else:
+            angles = np.radians(np.asarray(rot, dtype=float))
+            angle = np.mean(angles)
+
+        reading_dir = np.array(
+            [np.cos(angle - np.pi / 2), np.sin(angle - np.pi / 2)],
+            dtype=float,
+        )
+    """
+
+    def _call_linear_polygons(
+        self,
+        polygons: list[Polygon],
+        vertical_direction: np.ndarray,
+        horizontal_direction: np.ndarray,
+    ) -> list[Polygon]:
+
+        first = polygons[0]
+        new_polygons = []
+        intercept = self.intercept()  # ty: ignore[call-non-callable]
+        slope = self.slope()  # ty: ignore[call-non-callable]
+        for polygon in polygons:
+            distance_in_reading_dir = LineGroupInfo.center_to_center_distance(
+                first,
+                polygon,
+                direction=vertical_direction,
+                direction_is_normalized=True,
+            )
+            delta = intercept + slope * distance_in_reading_dir
+            v = delta * horizontal_direction
+            new_polygons.append(translate(polygon, v[0], v[1]))
+
+        return new_polygons
+
+    def _call_wave_polygons(
+        self,
+        polygons: list[Polygon],
+        vertical_direction: np.ndarray,
+        horizontal_direction: np.ndarray,
+    ) -> list[Polygon]:
+
+        first = polygons[0]
+        new_polygons = []
+        for polygon in polygons:
+            distance_in_reading_dir = LineGroupInfo.center_to_center_distance(
+                first,
+                polygon,
+                direction=vertical_direction,
+                direction_is_normalized=True,
             )
 
-        if self.intercept is None:
-            raise ValueError(
-                "Cannot use linear horizontal movement if None is passed as intercept."
+            delta = self.amplitude() * np.cos(  # ty: ignore[call-non-callable]
+                2
+                * np.pi
+                * distance_in_reading_dir
+                / self.period()  # ty: ignore[call-non-callable]
             )
+            v = delta * horizontal_direction
 
-        x0, y0 = _centroid(polygons[0])
-        for i, polygon in enumerate(polygons):
-            xi, yi = _centroid(polygon)
-            polygons[i] = translate(
-                polygon, xoff=self.intercept() + self.slope() * abs(yi - y0)
-            )
+            new_polygons.append(translate(polygon, v[0], v[1]))
 
-        return polygons
+        return new_polygons
 
-    def _call_wave_polygons(self, polygons: list[Polygon]) -> list[Polygon]:
-
-        if self.amplitude is None:
-            raise ValueError("Cannot use wave movement if no amplitude is passed.")
-
-        if self.period is None:
-            raise ValueError("Cannot use wave movement if no period is passed.")
-
+    def _call_zigzag_polygons(
+        self,
+        polygons: list[Polygon],
+        vertical_direction: np.ndarray,
+        horizontal_direction: np.ndarray,
+    ) -> list[Polygon]:
         _, y0 = _centroid(polygons[0])
 
-        for i, polygon in enumerate(polygons):
-            _, yi = _centroid(polygon)
-
-            xoff = self.amplitude() * np.cos(2 * np.pi * (yi - y0) / self.period())
-
-            polygons[i] = translate(polygon, xoff=xoff)
-
-        return polygons
-
-    def _call_zigzag_polygons(self, polygons: list[Polygon]) -> list[Polygon]:
-        _, y0 = _centroid(polygons[0])
-
-        if self.amplitude is None:
-            raise ValueError("Cannot use zigzag movement if no amplitude is passed.")
-
-        if self.period is None:
-            raise ValueError("Cannot use zigzag movement if no period is passed.")
+        new_polygons = []
 
         for i, polygon in enumerate(polygons):
-            _, yi = _centroid(polygon)
 
-            phase = int((yi - y0) / self.period())
-            xoff = self.amplitude if phase % 2 == 0 else -self.amplitude()
+            amplitude = self.amplitude()  # ty: ignore[call-non-callable]
 
-            polygons[i] = translate(polygon, xoff=xoff)
+            delta = amplitude if i % 2 == 0 else -amplitude
 
-        return polygons
+            v = horizontal_direction * delta
 
-    def _call_random_polygons(self, polygons: list[Polygon]) -> list[Polygon]:
-        if self.amplitude is None:
-            raise ValueError("Cannot use random movement if no amplitude is passed.")
+            new_polygons.append(translate(polygon, xoff=v[0], yoff=v[1]))
 
+        return new_polygons
+
+    def _call_random_polygons(
+        self,
+        polygons: list[Polygon],
+        vertical_direction: np.ndarray,
+        horizontal_direction: np.ndarray,
+    ) -> list[Polygon]:
+
+        new_polygons = []
         for i, polygon in enumerate(polygons):
-            xoff = self.amplitude()
-            polygons.append(translate(polygon, xoff=xoff))
+            v = horizontal_direction * self.amplitude()  # ty: ignore[call-non-callable]
+            new_polygons.append(translate(polygon, xoff=v[0], yoff=v[1]))
 
-        return polygons
+        return new_polygons
 
     def __call__(
         self,
@@ -132,6 +194,8 @@ class HorizontalMovement(IntraparagraphFromLinewiseTransform):
         ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
-        polygons = self.type2map[self.noise_type](polygons)
+        v = LineGroupInfo.from_polygons(polygons).reading_direction
+        horizontal_direciton = np.array([[0, -1], [1, 0]]) @ v
+        polygons = self.type2map[self.noise_type](polygons, v, horizontal_direciton)
 
         return images, polygons

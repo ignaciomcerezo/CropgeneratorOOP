@@ -3,13 +3,16 @@ import shapely
 from shapely import Polygon
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
-from typing import Collection, Sequence
+from typing import Collection, Sequence, Literal
 from PIL import Image
+import numpy as np
+
+Vector2D = np.ndarray[tuple[Literal[2]], np.dtype[np.float64]]
 
 
 class LineGroupInfo:
     """
-    Some helpful data to calculate layouts.
+    Some helpful data to calculate page layouts and OCRTransforms.
     """
 
     def __init__(
@@ -19,44 +22,56 @@ class LineGroupInfo:
         if not line_group:
             raise ValueError("Empty line group.")
 
-        self.box_bounds: list[tuple[float, float, float, float]] = [
-            box.polygon.bounds for box in line_group
+        self.line_bounds: list[tuple[float, float, float, float]] = [
+            line.polygon.bounds for line in line_group
         ]
-
-        self.area: float = self.polygon_union([box.polygon for box in line_group]).area
-
+        self.centers: list[Vector2D] = [
+            np.array([(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]) for b in self.line_bounds
+        ]
         self.rotations = [line.rotation for line in line_group]
 
+        self.union_polygon = self.polygon_union([box.polygon for box in line_group])
+        self.area: float = self.union_polygon.area
+
         total_area = sum(box.polygon.area for box in line_group)
+
         self.avg_rotation = (
             0.0
-            if not line_group or total_area == 0
+            if not total_area
             else sum(box.rotation * box.polygon.area for box in line_group) / total_area
         )
 
-        if not self.box_bounds:
-            self.union_bounds: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
-            self.centroid: tuple[float, float] = (0.0, 0.0)
-        else:
-            min_x = min(b[0] for b in self.box_bounds)
-            min_y = min(b[1] for b in self.box_bounds)
-            max_x = max(b[2] for b in self.box_bounds)
-            max_y = max(b[3] for b in self.box_bounds)
-            self.union_bounds = (min_x, min_y, max_x, max_y)
-            self.centroid = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+        self.union_bounds = (
+            min(b[0] for b in self.line_bounds),
+            min(b[1] for b in self.line_bounds),
+            max(b[2] for b in self.line_bounds),
+            max(b[3] for b in self.line_bounds),
+        )
 
-        self.n_points = len(line_group)
-        self.box_x_deltas = [
-            self.box_bounds[i + 1][0] - self.box_bounds[i][0]
-            for i in range(len(line_group) - 1)
-        ]
-        self.box_y_deltas = [
-            self.box_bounds[i + 1][1] - self.box_bounds[i][1]
-            for i in range(len(line_group) - 1)
-        ]
-        self.union_polygon = self.polygon_union([box.polygon for box in line_group])
+        self.center = (
+            sum(self.union_bounds[::2]) / 2,
+            sum(self.union_bounds[1::2]) / 2,
+        )
 
-        self.center = ((self.x0 + self.xf) / 2, (self.y0 + self.yf) / 2)
+        self._reading_direction: Vector2D | None = None
+        self._orthogonal_direction: Vector2D | None = None
+
+    @property
+    def reading_direction(self) -> Vector2D:
+        if self._reading_direction is None:
+            self._reading_direction = self.compute_reading_direction(
+                self.centers, self.avg_rotation
+            )
+
+        return self._reading_direction
+
+    @property
+    def orthogonal_direction(self) -> Vector2D:
+        if self._orthogonal_direction is None:
+            self._orthogonal_direction = self.compute_orthogonal_direction(
+                self.centers, self.reading_direction
+            )
+        return self._orthogonal_direction
 
     @property
     def x0(self) -> float:
@@ -76,19 +91,19 @@ class LineGroupInfo:
 
     @property
     def x0s(self) -> list[float]:
-        return [bound[0] for bound in self.box_bounds]
+        return [bound[0] for bound in self.line_bounds]
 
     @property
     def xfs(self) -> list[float]:
-        return [bound[2] for bound in self.box_bounds]
+        return [bound[2] for bound in self.line_bounds]
 
     @property
     def y0s(self) -> list[float]:
-        return [bound[1] for bound in self.box_bounds]
+        return [bound[1] for bound in self.line_bounds]
 
     @property
     def yfs(self) -> list[float]:
-        return [bound[3] for bound in self.box_bounds]
+        return [bound[3] for bound in self.line_bounds]
 
     @property
     def w(self) -> float:
@@ -114,8 +129,14 @@ class LineGroupInfo:
             )
 
         instance = object.__new__(cls)
-        instance.box_bounds = [polygon.bounds for polygon in polygons]
+        instance.line_bounds = [polygon.bounds for polygon in polygons]
         instance.area = LineGroupInfo.polygon_union(polygons).area
+
+        instance.centers = [
+            np.array([(b[0] + b[2]) / 2, (b[1] + b[3]) / 2])
+            for b in instance.line_bounds
+        ]
+
         instance.rotations = [calculate_reading_angle(poly) for poly in polygons]
         total_area = sum(polygon.area for polygon in polygons)
         instance.avg_rotation = (
@@ -128,34 +149,116 @@ class LineGroupInfo:
             / total_area
         )
 
-        if not instance.box_bounds:
+        if not instance.line_bounds:
             instance.union_bounds = (0.0, 0.0, 0.0, 0.0)
-            instance.centroid = (0.0, 0.0)
+            instance.center = (0.0, 0.0)
         else:
-            min_x = min(b[0] for b in instance.box_bounds)
-            min_y = min(b[1] for b in instance.box_bounds)
-            max_x = max(b[2] for b in instance.box_bounds)
-            max_y = max(b[3] for b in instance.box_bounds)
+            min_x = min(b[0] for b in instance.line_bounds)
+            min_y = min(b[1] for b in instance.line_bounds)
+            max_x = max(b[2] for b in instance.line_bounds)
+            max_y = max(b[3] for b in instance.line_bounds)
             instance.union_bounds = (min_x, min_y, max_x, max_y)
-            instance.centroid = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+            instance.center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
 
-        instance.n_points = len(polygons)
-        instance.box_x_deltas = [
-            instance.box_bounds[i + 1][0] - instance.box_bounds[i][0]
-            for i in range(len(polygons) - 1)
-        ]
-        instance.box_y_deltas = [
-            instance.box_bounds[i + 1][1] - instance.box_bounds[i][1]
-            for i in range(len(polygons) - 1)
-        ]
         instance.union_polygon = LineGroupInfo.polygon_union(polygons)
         instance.center = (
             (instance.x0 + instance.xf) / 2,
             (instance.y0 + instance.yf) / 2,
         )
+
+        instance._reading_direction = None
+        instance._orthogonal_direction = None
+
         return instance
 
     @staticmethod
     def polygon_union(polygons: Collection[Polygon]) -> Polygon:
         snapped_geoms = [shapely.set_precision(g, grid_size=1e-6) for g in polygons]
         return shapely.unary_union(snapped_geoms)
+
+    @staticmethod
+    def compute_reading_direction(
+        centers_sequence: Sequence[Vector2D],
+        avg_rotation: float,
+    ) -> Vector2D:
+
+        avg_rot_degrees: float = avg_rotation
+        angle: float = np.radians(avg_rot_degrees)
+
+        reading_dir = np.array(
+            [np.cos(angle - np.pi / 2), np.sin(angle - np.pi / 2)],
+            dtype=float,
+        )
+
+        centers = np.array(
+            centers_sequence,
+            dtype=float,
+        )
+        projections_by_index = centers @ reading_dir
+        slope = np.polyfit(np.arange(len(centers_sequence)), projections_by_index, 1)[0]
+
+        if slope < 0:
+            reading_dir = -reading_dir
+
+        return reading_dir
+
+    @staticmethod
+    def compute_orthogonal_direction(
+        centers_sequence: Sequence[Vector2D], reading_dir: np.ndarray
+    ) -> np.ndarray:
+        perp = np.array([-reading_dir[1], reading_dir[0]], dtype=float)
+
+        if len(centers_sequence) > 1:
+            centers = np.array(centers_sequence, dtype=float)
+            projections = centers @ perp
+            slope = np.polyfit(np.arange(len(centers_sequence)), projections, 1)[0]
+
+            if slope < 0:
+                perp = -perp
+
+        return perp
+
+    @staticmethod
+    def center_to_center_vector(
+        poly_a: Polygon, poly_b: Polygon, direction: np.ndarray | None = None
+    ) -> np.ndarray:
+        c_a = LineGroupInfo.poly_center(poly_a)
+        c_b = LineGroupInfo.poly_center(poly_b)
+
+        v = c_b - c_a
+        if direction is None:
+            return v
+        else:
+            direction_norm = direction / np.linalg.norm(direction)
+            return np.dot(v, direction_norm) * direction_norm
+
+    @staticmethod
+    def centroid_to_centroid_normalized_vector(
+        poly_a: Polygon, poly_b: Polygon, direction: np.ndarray | None = None
+    ) -> np.ndarray:
+        v = LineGroupInfo.center_to_center_distance(poly_a, poly_b, direction)
+        return v / np.linalg.norm(v)
+
+    @staticmethod
+    def center_to_center_distance(
+        poly_a: Polygon,
+        poly_b: Polygon,
+        direction: np.ndarray | None = None,
+        direction_is_normalized: bool = False,
+    ) -> float:
+        c_a = LineGroupInfo.poly_center(poly_a)
+        c_b = LineGroupInfo.poly_center(poly_b)
+
+        v = c_b - c_a
+        if direction is None:
+            return float(np.linalg.norm(v))
+        else:
+            if not direction_is_normalized:
+                direction_norm = direction / np.linalg.norm(direction)
+            else:
+                direction_norm = direction
+            return abs(np.dot(v, direction_norm))
+
+    @staticmethod
+    def poly_center(polygon: Polygon) -> Vector2D:
+        return np.array((sum(polygon.bounds[::2]) / 2, sum(polygon.bounds[1::2]) / 2))
