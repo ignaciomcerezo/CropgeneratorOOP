@@ -18,7 +18,8 @@ from cropgen.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,
 )
-
+import numpy as np
+from shapely.affinity import translate
 from copy import deepcopy
 
 
@@ -129,7 +130,7 @@ class LayoutGenerator:
         for layout in self.inter_transforms:
             layout.in_place(*new_ann.paragraphs)
 
-        new_ann.refresh_geometric_info()
+        self.refresh_annotations_geometric_info(new_ann)
 
         polygons = [box.polygon for box in new_ann.lines.values()]
         polygons.extend(paragraph.union_polygon() for paragraph in new_ann.paragraphs)
@@ -155,3 +156,55 @@ class LayoutGenerator:
         new_ann.background = background
 
         return new_ann
+
+    @staticmethod
+    def refresh_annotations_geometric_info(annotation: AnnotatedPage) -> None:
+        """
+        Refreshes the geometric information of a page to not cause errors. Useful after applying transforms.
+        """
+        if not annotation.paragraphs:
+            return
+
+        if not annotation.lines:
+            return
+
+        min_x = min(line.polygon.bounds[0] for line in annotation.lines.values())
+        min_y = min(line.polygon.bounds[1] for line in annotation.lines.values())
+
+        for paragraph in annotation.paragraphs:
+            for line in paragraph:
+                line.polygon = translate(line.polygon, xoff=-min_x, yoff=-min_y)
+
+        for paragraph in annotation.paragraphs:
+            total_area = sum(line.polygon.area for line in annotation.lines.values())
+            paragraph.avg_rotation = (
+                1
+                / total_area
+                * sum(line.rotation * line.polygon.area for line in paragraph)
+            )
+            shape = paragraph[0].polygon
+
+            for line in [paragraph[i] for i in range(1, len(paragraph))]:
+                shape = shape.union(line.polygon)
+
+            paragraph.centroid = (  # ty: ignore[invalid-assignment]
+                shape.centroid.x,
+                shape.centroid.y,
+            )
+
+            theta_rad = -np.radians(-paragraph.avg_rotation)
+            cos_theta = float(np.cos(theta_rad))
+            sin_theta = float(np.sin(theta_rad))
+
+            cx_para = float(paragraph.centroid[0])
+            cy_para = float(paragraph.centroid[1])
+
+            for line in paragraph:
+                cx, cy = line.centroid()
+                dx = cx - cx_para
+                dy = cy - cy_para
+
+                corrected_x = dx * cos_theta - dy * sin_theta + cx_para
+                corrected_y = dx * sin_theta + dy * cos_theta + cy_para
+
+                line.corrected_centroid = (corrected_x, corrected_y)

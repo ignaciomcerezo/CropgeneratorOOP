@@ -72,7 +72,7 @@ class OCRDataset(Dataset):
     ):
         self._annotated_pages = annotations
         # temp
-        self._orders = []
+        self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
         self._transforms: OCROnTheFlyTransformPack | None = None
@@ -131,10 +131,10 @@ class OCRDataset(Dataset):
                 or (isinstance(order, int) and (order < 1))
             ):
                 raise ValueError(
-                    f"Value '{order}' found inside value for orders. Only ints > 1, 'paragraph' and 'page' are acceptable orders."
+                    f"Value '{order}' found inside value for orders. Only ints > 0, 'paragraph' and 'page' are acceptable orders."
                 )
 
-        pseudo_old_orders = set(self._orders)
+        pseudo_old_orders: set[int | Literal["paragraph", "page"]] = set(self._orders)
 
         if self._use_paragraphs:
             pseudo_old_orders.add("paragraph")

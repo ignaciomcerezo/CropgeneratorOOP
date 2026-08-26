@@ -8,13 +8,18 @@ class Parameter:
     Useful for transformation configuration.
     """
 
-    __slots__ = ("_value",)
+    __slots__ = ("_value", "_bounds")
 
     def __init__(self, value: "Parameter | float | Callable[[], float]"):
         if isinstance(value, Parameter):
             self._value = getattr(value, "_value", value)
+            self._bounds = value._bounds
+        elif isinstance(value, float):
+            self._value = value
+            self._bounds = (value, value)
         else:
             self._value = value
+            self._bounds = (float("-inf"), float("inf"))
 
     def __call__(self) -> float:
         if isinstance(self._value, (float, int)):
@@ -28,6 +33,16 @@ class Parameter:
                 f"Value is neither a callable nor a float or int, but {self._value}"
             )
 
+    @property
+    def bounds(self):
+        return self._bounds
+
+    def is_bounded(self, low: float | None = None, high: float | None = None):
+
+        return ((low is None) or (low <= self._bounds[0])) and (
+            (high is None) or (high >= self._bounds[1])
+        )
+
 
 class NormalDistribution(Parameter):
     __slots__ = ("_mean", "_sigma")
@@ -35,6 +50,7 @@ class NormalDistribution(Parameter):
     def __init__(self, mean: float = 0, sigma: float = 1):
         self._mean = mean
         self._sigma = sigma
+        self._bounds = (float("-inf"), float("inf"))
 
     def __call__(self) -> float:
         return float(np.random.normal(self._mean, self._sigma))
@@ -49,6 +65,7 @@ class UniformDistribution(Parameter):
     def __init__(self, low: float, high: float):
         self._min = low
         self._max = high
+        self._bounds = (low, high)
 
     def __call__(self) -> float:
         return float(np.random.uniform(self._min, self._max))

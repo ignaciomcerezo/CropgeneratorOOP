@@ -27,7 +27,7 @@ class _DirectionalArchWarp(IntraparagraphTransform):
     """
 
     def __init__(
-        self, amplitude: Parameter | float, *, segmentation_thinness: int = 200
+        self, amplitude: Parameter | float, *, segmentation_thinness: int = 10
     ):
         self.amplitude = Parameter(amplitude)
         self.segmentation_thinness = segmentation_thinness
@@ -45,7 +45,7 @@ class _DirectionalArchWarp(IntraparagraphTransform):
 
         reading_dir = LineGroupInfo.from_polygons(polygons).reading_direction
         orthogonal_dir = LineGroupInfo.compute_orthogonal_direction(
-            polygons, reading_dir
+            [LineGroupInfo.poly_center(polygon) for polygon in polygons], reading_dir
         )
 
         domain_dir, disp_dir = self._axes(reading_dir, orthogonal_dir)

@@ -18,7 +18,6 @@ def load_ann(
     paths: PathBundle,
     task_id: int,
     annotation_number_in_task: int = 0,
-    process_images: bool = False,
     fake_image: bool = False,
 ) -> AnnotatedPage:
     """
@@ -47,7 +46,6 @@ def load_ann(
         ann=simplified_ls_ann,
         img=img,
         usernames_labelstudio=lsi.usernames,
-        process_images=process_images,
     )
 
 

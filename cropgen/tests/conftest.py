@@ -3,10 +3,9 @@ from tkinter import Label
 import multiprocessing
 import os
 from pathlib import Path
-
+from PIL import Image
 import pytest
 from dotenv import load_dotenv
-
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 from cropgen.shared.PathBundle import PathBundle
@@ -112,3 +111,33 @@ def task_macedonia(
 @pytest.fixture(autouse=True, scope="session")
 def set_multiprocessing_start_method():
     multiprocessing.set_start_method("spawn", force=True)
+
+
+import cropgen.processing.annotated_page as annotated_page
+from cropgen.processing.annotated_page import AnnotatedPage
+
+
+def _fake_separate_background_and_stroke(
+    img, *args, **kwargs
+) -> tuple[Image.Image, Image.Image]:
+    return img, img
+
+
+def _fake_synthetic_manuscript(*args, **kwargs):
+    return Image.Image(), []
+
+
+@pytest.fixture(autouse=True)
+def patch_image_processing(monkeypatch):
+    monkeypatch.setattr(
+        annotated_page,
+        "separate_background_and_stroke",
+        _fake_separate_background_and_stroke,
+    )
+
+
+@pytest.fixture
+def patch_synthetic_manuscript(monkeypatch):
+    monkeypatch.setattr(
+        AnnotatedPage, "synthetic_manuscript", _fake_synthetic_manuscript
+    )

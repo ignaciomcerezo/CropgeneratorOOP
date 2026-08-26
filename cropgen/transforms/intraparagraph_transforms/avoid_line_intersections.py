@@ -97,11 +97,6 @@ class AvoidLineIntersections(IntraparagraphTransform):
                 if overlap > 0:
                     pairwise_displacements[i] = overlap
 
-        # Cumulative forward-only push introduced to clear the coarse,
-        # 1D-projected overlaps. This is what the refinement pass below is
-        # allowed to walk back per line: never more, since going further
-        # would move a line past its original, pre-transform position,
-        # which was never the actual problem.
         raw_forward_push: np.ndarray = np.cumsum(pairwise_displacements)
 
         displacement_along_line: np.ndarray = raw_forward_push - np.mean(
@@ -122,7 +117,7 @@ class AvoidLineIntersections(IntraparagraphTransform):
                 yoff=movement[1],
             )
 
-            cumulative_shifts[i] += movement  # ty: ignore[unsupported-operator]
+            cumulative_shifts[i] += movement
 
         for k in range(1, n):
             i = order[k]

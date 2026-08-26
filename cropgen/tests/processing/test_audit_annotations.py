@@ -82,7 +82,6 @@ def test_audit_annotations(paths):
                     ann,
                     image,
                     usernames_labelstudio=paths.lsi.usernames,
-                    process_images=False,
                 )
                 for ann in task.annotations
             ]

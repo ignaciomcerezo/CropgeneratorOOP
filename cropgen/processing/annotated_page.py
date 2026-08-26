@@ -53,8 +53,6 @@ class AnnotatedPage:
     """
 
     n_annotation_errors: int = 0
-    warn_unrotate: bool = True
-    warn_process_images: bool = True
     working_img_longest_side: int = MAX_IMG_DIM
     _stroke_separation_img_longest_side: int = OPERATIONS_IMG_DIM
     _inpainting_img_longest_side: int = INPAINTING_IMG_DIM
@@ -69,7 +67,6 @@ class AnnotatedPage:
         "updater",
         "paragraphs",
         "annotation_unique_id",
-        "process_images",
         "line_separator",
         "page",
     )
@@ -80,42 +77,33 @@ class AnnotatedPage:
         img: Image.Image,
         usernames_labelstudio: list[str] | None = None,
         line_separtor: str = "\n",
-        process_images: bool = True,
         page: str | None = None,
         stroke: Image.Image | None = None,
         background: Image.Image | None = None,
     ):
 
-        if not (process_images) and AnnotatedPage.warn_process_images:
-            self._warn_process_images()
-
         assert (
             usernames_labelstudio is not None
         ), "A Label Studio username list must be provided."
 
-        self.task_id = int(ann.task)
+        self.task_id = ann.task
         results: list[SimplifiedResultItem] = ann.result
 
         if img.mode != "L":
             img = img.convert("L")
 
-        if process_images and any(a is None for a in [stroke, background]):
+        if (stroke is None) or (background is None):
             self.background, self.stroke = separate_background_and_stroke(
                 img,
                 out_longest_side=AnnotatedPage.working_img_longest_side,
                 processing_longest_side=AnnotatedPage._stroke_separation_img_longest_side,
                 inpaint_longest_side=AnnotatedPage._inpainting_img_longest_side,
             )
-        elif stroke is not None and background is not None:
+        else:
             self.stroke = stroke
             self.background = background
 
-        else:
-            # blanks
-            self.background = self.stroke = img
-
         self.page = page
-        self.process_images = process_images
         self.line_separator = line_separtor
 
         self._setup_lines(results)
@@ -149,7 +137,6 @@ class AnnotatedPage:
         task_id: int,
         background: Optional[Image.Image] = None,
         stroke: Optional[Image.Image] = None,
-        process_images: bool = False,
         line_separator: str = "\n",
         completer: str = "Unknown",
         updater: str = "Unknown",
@@ -175,7 +162,6 @@ class AnnotatedPage:
             paragraph.index = index
         ann.task_id = task_id
         ann.line_separator = line_separator
-        ann.process_images = process_images
         ann.background = (
             background if background is not None else Image.fromarray(np.zeros((1, 1)))
         )
@@ -254,7 +240,6 @@ class AnnotatedPage:
             task_id=first.task_id,
             background=first.background,
             stroke=first.stroke,
-            process_images=first.process_images,
             line_separator=first.line_separator,
             completer=first.completer,
             updater=first.updater,
@@ -287,11 +272,11 @@ class AnnotatedPage:
 
         self.lines: dict[str, Line] = dict()
 
-        def type_criterion(identifyer: str):
+        def is_fragment_with_error(identifyer: str) -> bool:
             if identifyer in id2txtres:
-                return "fragment"
+                return True
             elif identifyer in id2boxres:
-                return "box"
+                return False
             else:
                 raise ValueError(
                     f"A relation in {self.task_id} connects a non-box non-fragment object."
@@ -303,27 +288,20 @@ class AnnotatedPage:
             if isinstance(r, RelationResult):  # if the result is a relation
                 source_id, target_id = r.from_id, r.to_id
 
-                source_type = type_criterion(source_id)
-                target_type = type_criterion(target_id)
+                source_is_fragment = is_fragment_with_error(source_id)
+                target_is_fragment = is_fragment_with_error(target_id)
 
-                match (source_type, target_type):
-                    case ("box", "fragment"):
+                match (source_is_fragment, target_is_fragment):
+                    case (False, True):
                         box_id, txt_id = source_id, target_id
-                    case ("fragment", "box"):
+                    case (True, False):
                         txt_id, box_id = source_id, target_id
-                    case ("box", "box"):
-                        raise ValueError(
-                            f"(Task {self.task_id}) box to box association:"
-                            f"Box {source_id} -> Box {target_id}."
-                        )
-                    case ("fragment", "fragment"):
-                        raise ValueError(
-                            f"(Task {self.task_id}) fragment to fragment association:"
-                            f"Fragment {source_id} -> Fragment {target_id}."
-                        )
                     case _:
+                        # error: box to box OR fragment to fragment association
+                        obj_type = ["box", "fragment"][source_is_fragment]
                         raise ValueError(
-                            f"(Task {self.task_id}) unrecognized association in annotation."
+                            f"(Task {self.task_id}) {obj_type} to {obj_type} association:"
+                            f"{obj_type} {source_id} -> {obj_type} {target_id}."
                         )
 
                 if box_id in seen_boxes:
@@ -358,8 +336,19 @@ class AnnotatedPage:
         Also groups them into paragraphs (connected components) and sorts the
         boxes in their reading order.
         """
-        self._build_intersection_graph()
-        connected_components = get_connected_components(self._graph)
+        lines = list(self.lines.values())
+
+        adj: dict[str, set[str]] = {line.id: set() for line in lines}
+
+        for i, line_a in enumerate(lines):
+            for line_b in lines[i + 1 :]:
+                if line_a.polygon.intersects(line_b.polygon):
+                    adj[line_a.id].add(line_b.id)
+                    adj[line_b.id].add(line_a.id)
+
+        self._graph = adj
+
+        connected_components = get_connected_components(adj)
 
         line_ccs = [
             [self.lines[line_id] for line_id in component]
@@ -409,18 +398,36 @@ class AnnotatedPage:
             f"last updated by {self.updater} at {self.last_update_time}>"
         )
 
-    def _build_intersection_graph(self) -> None:
-        lines = list(self.lines.values())
+    def synthetic_starting_index(
+        self, line_ids: set[str] | list[str] | Literal["all"]
+    ) -> int:
+        if None in set(self.lines[line_id].starting_index for line_id in line_ids):
+            raise ValueError(
+                "Cannot compute transcription or sindex for an unordered group of lines."
+            )
+        starting_index: int = min(
+            self.lines[line_id].starting_index
+            for line_id in line_ids  # ty: ignore[invalid-argument-type]
+        )
 
-        adj: dict[str, set[str]] = {line.id: set() for line in lines}
+        return starting_index
 
-        for i, line_a in enumerate(lines):
-            for line_b in lines[i + 1 :]:
-                if line_a.polygon.intersects(line_b.polygon):
-                    adj[line_a.id].add(line_b.id)
-                    adj[line_b.id].add(line_a.id)
+    def synthetic_transcription(
+        self,
+        line_ids: set[str] | list[str] | Literal["all"],
+    ) -> str:
+        lines = (
+            [self.lines[line_id] for line_id in line_ids]
+            if line_ids != "all"
+            else list(self.lines.values())
+        )
 
-        self._graph = adj
+        # using .starting_index has the same ordering as the reading order in image_boxes by design
+        lines: list[Line] = sorted(
+            lines, key=lambda x: x.starting_index
+        )  # ty: ignore[no-matching-overload]
+
+        return self.line_separator.join([line.text for line in lines])
 
     def synthetic_manuscript(
         self,
@@ -429,33 +436,33 @@ class AnnotatedPage:
         tight_layout: bool = True,
         margin_size_px: int = 0,
         img_poly_transform: ocr_transform | None = None,
-    ) -> Image.Image:
+        overlay_polygons: bool = False,
+        overlay_mbr: bool = False,
+    ) -> tuple[Image.Image, list[Polygon]]:
         if line_ids == "all":
             line_ids = set(self.lines.keys())
-
-        if not self.process_images:
-            return Image.Image()
-
-        if not isinstance(line_ids, set):
-            if not isinstance(line_ids, list):
-                raise ValueError(
-                    f"line_ids must be a set[str], list[str] or Literal['all'], but got {type(line_ids)}"
-                )
-            if len(line_ids) != len(set(line_ids)):
-                raise ValueError("There are duplicate box ids in synthetic_manuscript.")
-            line_ids = set(line_ids)
 
         lines = sorted(
             [self.lines[box_id] for box_id in line_ids],
             key=lambda line: line.starting_index,
         )  # ty: ignore[no-matching-overload]
+
+        if not isinstance(line_ids, (set, list)):
+            raise ValueError(
+                f"line_ids must be a set[str], list[str] or Literal['all'], but got {type(line_ids)}"
+            )
+
+        if len(lines) != len(set(line_ids)):
+            raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
+
         strokes = [line.stroke_crop for line in lines]
         polygons = [line.polygon for line in lines]
+
         if img_poly_transform is not None:
             strokes, polygons = img_poly_transform(strokes, polygons)
 
         if not strokes:
-            return self.background.copy()
+            return self.background.copy(), polygons
 
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
         bg_w, bg_h = self.background.width, self.background.height
@@ -517,38 +524,52 @@ class AnnotatedPage:
         else:
             final_array = np.clip(bg_float - overlay, 0, 255).astype(np.uint8)
 
-        return Image.fromarray(final_array)
+        img = Image.fromarray(final_array)
 
-    def synthetic_transcription(
-        self,
-        line_ids: set[str] | list[str] | Literal["all"],
-    ) -> str:
-        lines = (
-            [self.lines[line_id] for line_id in line_ids]
-            if line_ids != "all"
-            else list(self.lines.values())
-        )
-
-        # using .starting_index has the same ordering as the reading order in image_boxes by design
-        lines: list[Line] = sorted(
-            lines, key=lambda x: x.starting_index
-        )  # ty: ignore[no-matching-overload]
-
-        return self.line_separator.join([line.text for line in lines])
-
-    def synthetic_starting_index(
-        self, line_ids: set[str] | list[str] | Literal["all"]
-    ) -> int:
-        if None in set(self.lines[line_id].starting_index for line_id in line_ids):
-            raise ValueError(
-                "Cannot compute transcription or sindex for an unordered group of lines."
+        if overlay_mbr or overlay_polygons:
+            img = self._overlay_polygons_mbr(
+                lines=lines,
+                manuscript=img,
+                tight_layout=tight_layout,
+                overlay_polygons=overlay_polygons,
+                overlay_mbr=overlay_mbr,
             )
-        starting_index: int = min(
-            self.lines[line_id].starting_index
-            for line_id in line_ids  # ty: ignore[invalid-argument-type]
-        )
 
-        return starting_index
+        return img, polygons
+
+    @staticmethod
+    def _overlay_polygons_mbr(
+        *,
+        lines: list[Line],
+        manuscript: Image.Image,
+        tight_layout: bool,
+        overlay_polygons: bool,
+        overlay_mbr: bool,
+    ):
+        origin_x = int(min(line.polygon.bounds[0] for line in lines)) * tight_layout
+        origin_y = int(min(line.polygon.bounds[1] for line in lines)) * tight_layout
+
+        # Usamos el mismo anclaje que synthetic_manuscript para convertir coordenadas globales a locales.
+        manuscript_rgb = manuscript.convert("RGB")
+
+        draw = ImageDraw.Draw(manuscript_rgb)
+
+        for line in lines:
+            if overlay_polygons:
+                polygon_points = [
+                    (float(x - origin_x), float(y - origin_y))
+                    for x, y in line.polygon.exterior.coords
+                ]
+                draw.line(polygon_points, fill=(255, 0, 0), width=3)
+
+            if overlay_mbr:
+                mbr_points = [
+                    (float(x - origin_x), float(y - origin_y))
+                    for x, y in line.polygon.minimum_rotated_rectangle.exterior.coords
+                ]
+                draw.line(mbr_points, fill=(0, 255, 0), width=3)
+
+        return manuscript_rgb
 
     def synthetic_sample(
         self,
@@ -575,137 +596,9 @@ class AnnotatedPage:
             tight_layout=tight_layout,
             margin_size_px=margin_size_px,
             img_poly_transform=img_poly_transform,
-        )
+        )[0]
+
         transcription = self.synthetic_transcription(line_ids)
         starting_index = self.synthetic_starting_index(line_ids)
 
         return manuscript, transcription, starting_index
-
-    def synthetic_manuscript_with_polygons(
-        self,
-        line_ids: list[str] | Literal["all"],
-        represent_polygon: bool = True,
-        represent_mbr: bool = True,
-        polygon_color: tuple[int, int, int] = (255, 0, 0),
-        mbr_color: tuple[int, int, int] = (0, 255, 0),
-        line_width: int = 3,
-        crop_to_fit: bool = True,
-    ) -> Image.Image:
-        """
-        Generates a synthetic sample with the polygons and minimum area rotated bounding box
-        represented.
-        Using OCROnTheFlyTransforms is not supported, use LayoutGenerator to create a new transformed
-        annotation and run this method on that.
-        """
-        if not self.process_images:
-            return Image.Image()
-
-        if line_ids == "all":
-            line_ids = list(self.lines.keys())
-
-        selected_ids = list(line_ids)
-        if not selected_ids:
-            raise ValueError(
-                "No se puede representar una secuencia vacía de image_box_ids."
-            )
-
-        selected_lines = [self.lines[line_id] for line_id in selected_ids]
-
-        collage = self.synthetic_manuscript(line_ids, tight_layout=crop_to_fit)
-
-        origin_x = (
-            int(min(line.polygon.bounds[0] for line in selected_lines)) * crop_to_fit
-        )
-        origin_y = (
-            int(min(line.polygon.bounds[1] for line in selected_lines)) * crop_to_fit
-        )
-
-        # Usamos el mismo anclaje que synthetic_manuscript para convertir coordenadas globales a locales.
-        collage = collage.convert("RGB")
-
-        draw = ImageDraw.Draw(collage)
-
-        for line in selected_lines:
-            if represent_polygon:
-                polygon_points = [
-                    (float(x - origin_x), float(y - origin_y))
-                    for x, y in line.polygon.exterior.coords
-                ]
-                draw.line(polygon_points, fill=polygon_color, width=line_width)
-
-            if represent_mbr:
-                mbr_points = [
-                    (float(x - origin_x), float(y - origin_y))
-                    for x, y in line.polygon.minimum_rotated_rectangle.exterior.coords
-                ]
-                draw.line(mbr_points, fill=mbr_color, width=line_width)
-
-        return collage
-
-    def _warn_unrotate(self):
-        print(
-            "[!!!] WARN: Using unrotate = True destroys the information about the crop's original "
-            "position on the page and distorts the images due to the digital rotation.\n"
-            "It also invalidates how paragraphs are formed, the global transcription, synthetic sample "
-            "generation and starting indices.\n"
-            "It is only to be used in case of manual revision of the immages and NOT for production."
-        )
-        AnnotatedPage.warn_unrotate = False
-
-    def _warn_process_images(self):
-        print(
-            "[!!!] WARN: Image processing deactivated: all crops and sample's images will be empty.\n"
-            "Only to be used to speed up testing that does not require images and NOT for production."
-        )
-        AnnotatedPage.warn_process_images = False
-
-    def refresh_geometric_info(self) -> None:
-        """
-        Refreshes the geometric information of a page to not cause errors. Useful after applying transforms.
-        """
-        if not self.paragraphs:
-            return
-
-        if not self.lines:
-            return
-
-        min_x = min(line.polygon.bounds[0] for line in self.lines.values())
-        min_y = min(line.polygon.bounds[1] for line in self.lines.values())
-
-        for paragraph in self.paragraphs:
-            for line in paragraph:
-                line.polygon = translate(line.polygon, xoff=-min_x, yoff=-min_y)
-
-        for paragraph in self.paragraphs:
-            total_area = sum(line.polygon.area for line in self.lines.values())
-            paragraph.avg_rotation = (
-                1
-                / total_area
-                * sum(line.rotation * line.polygon.area for line in paragraph)
-            )
-            shape = paragraph[0].polygon
-
-            for line in [paragraph[i] for i in range(1, len(paragraph))]:
-                shape = shape.union(line.polygon)
-
-            paragraph.centroid = (  # ty: ignore[invalid-assignment]
-                shape.centroid.x,
-                shape.centroid.y,
-            )
-
-            theta_rad = -np.radians(-paragraph.avg_rotation)
-            cos_theta = float(np.cos(theta_rad))
-            sin_theta = float(np.sin(theta_rad))
-
-            cx_para = float(paragraph.centroid[0])
-            cy_para = float(paragraph.centroid[1])
-
-            for line in paragraph:
-                cx, cy = line.centroid()
-                dx = cx - cx_para
-                dy = cy - cy_para
-
-                corrected_x = dx * cos_theta - dy * sin_theta + cx_para
-                corrected_y = dx * sin_theta + dy * cos_theta + cy_para
-
-                line.corrected_centroid = (corrected_x, corrected_y)

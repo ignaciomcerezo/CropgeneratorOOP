@@ -274,7 +274,6 @@ class LabelStudioInterface:
         task: SimplifiedTask,
         *,
         subindex: int | None = None,
-        process_images: bool = True,
     ) -> AnnotatedPage:
         if subindex is not None and subindex >= len(task.annotations):
             raise ValueError(
@@ -296,22 +295,7 @@ class LabelStudioInterface:
                 valid_annotations[0],
                 img,
                 usernames_labelstudio=self.usernames,
-                process_images=process_images,
                 page=page_name,
-            )
-
-        if not process_images:
-            return AnnotatedPage.combine_annotations(
-                *[
-                    AnnotatedPage(
-                        ann,
-                        img,
-                        usernames_labelstudio=self.usernames,
-                        process_images=False,
-                        page=page_name,
-                    )
-                    for ann in valid_annotations
-                ]
             )
 
         # Reuse stroke/background from the first annotation to avoid re-running
@@ -320,7 +304,6 @@ class LabelStudioInterface:
             valid_annotations[0],
             img,
             usernames_labelstudio=self.usernames,
-            process_images=True,
             page=page_name,
         )
 
@@ -341,11 +324,10 @@ class LabelStudioInterface:
     def get_annotated_pages(
         self,
         *,
-        process_images: bool = True,
         use_cache: bool = True,
         show_progress: bool = True,
     ) -> list[AnnotatedPage]:
-        if process_images and use_cache and self._annotated_pages_cache is not None:
+        if use_cache and self._annotated_pages_cache is not None:
             return self._annotated_pages_cache
 
         pages: list[AnnotatedPage] = []
@@ -357,13 +339,13 @@ class LabelStudioInterface:
             try:
                 pages.append(
                     self._build_annotated_page_from_task(
-                        task, process_images=process_images
+                        task,
                     )
                 )
             except ValueError as e:
                 print(e)
 
-        if process_images and use_cache:
+        if use_cache:
             self._annotated_pages_cache = pages
 
         return pages
@@ -409,7 +391,6 @@ class LabelStudioInterface:
         task_id: int | None = None,
         page: str | None = None,
         subindex: int | None = None,
-        process_images: bool = True,
     ) -> AnnotatedPage:
         """
         Returns the annotated page instance corresponding to the index/page and the subindex specified.
@@ -443,9 +424,7 @@ class LabelStudioInterface:
 
         task = possible_tasks[0]
 
-        return self._build_annotated_page_from_task(
-            task, subindex=subindex, process_images=process_images
-        )
+        return self._build_annotated_page_from_task(task, subindex=subindex)
 
     @staticmethod
     def _get_page_from_task(task: SimplifiedTask | LabelStudioTask) -> str:

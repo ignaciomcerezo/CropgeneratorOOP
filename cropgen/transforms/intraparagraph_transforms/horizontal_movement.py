@@ -80,21 +80,6 @@ class HorizontalMovement(IntraparagraphFromLinewiseTransform):
                     f"Noise type {self.noise_type} requires parameter {parameter_name} to be given a value."
                 )
 
-    # TODO implement the "true" horizontal, i.e. moving in the reading-perpendicular direction only.
-    # useful to take some code from the intersection correction transform
-    """
-            if isinstance(rot, (int, float)):
-            angle = np.radians(rot)
-        else:
-            angles = np.radians(np.asarray(rot, dtype=float))
-            angle = np.mean(angles)
-
-        reading_dir = np.array(
-            [np.cos(angle - np.pi / 2), np.sin(angle - np.pi / 2)],
-            dtype=float,
-        )
-    """
-
     def _call_linear_polygons(
         self,
         polygons: list[Polygon],
