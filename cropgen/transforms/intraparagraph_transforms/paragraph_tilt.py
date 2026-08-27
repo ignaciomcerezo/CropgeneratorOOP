@@ -16,10 +16,13 @@ point2D = tuple[float, float]
 class ParagraphTilt(IntraparagraphTransform):
     def __init__(
         self,
-        relative_strength: Parameter | float = 0.2,
+        strength: Parameter | float = 0.2,
         tilt_axis: Literal["vertical", "horizontal"] = "horizontal",
     ):
-        self.relative = Parameter(relative_strength)
+        self.relative = Parameter(strength)
+        assert self.relative.is_bounded(
+            -1, 1
+        ), "The strength of the tilt must lie be between (-1, 1)."
         self._tilt_horizontal = tilt_axis == "horizontal"
 
     def __call__(
@@ -59,8 +62,6 @@ class ParagraphTilt(IntraparagraphTransform):
             raise ValueError("Geometry failed: polygons too mangled.")
 
         t = 0.5 * self.relative()
-        if t <= -1 or t >= 1:
-            raise ValueError("The strength of the tilt must lie in (-1, 1).")
 
         if not self._tilt_horizontal:
             a, b, c, d = a, d, b, c

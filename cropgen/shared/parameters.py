@@ -59,6 +59,28 @@ class NormalDistribution(Parameter):
         return f"<N({self._mean},{self._sigma})>"
 
 
+def TrimmedNormalDistribution(Parameter):
+    __slots__ = ("_mean", "_sigma")
+
+    def __init__(
+        self,
+        clip_low: float = -2,
+        clip_high: float = 2,
+        mean: float = 0,
+        sigma: float = 1,
+    ):
+        self._mean = mean
+        self._sigma = sigma
+        self._bounds = (clip_low, clip_high)
+
+    def __call__(self) -> float:
+        m, M = self._bounds
+        return min(max(m, float(np.random.normal(self._mean, self._sigma))), M)
+
+    def __repr__(self):
+        return f"<TrimN({self._mean},{self._sigma})>"
+
+
 class UniformDistribution(Parameter):
     __slots__ = ("_min", "_max")
 

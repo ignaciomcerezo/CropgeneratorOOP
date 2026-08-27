@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 from cropgen.shared.PathBundle import PathBundle
+from requests.exceptions import ConnectionError
 
 
 @pytest.fixture(scope="session")
@@ -41,29 +42,35 @@ def bucket_url() -> str:
 
 
 @pytest.fixture(scope="session")
-def lsi(paths, ls_token, ls_url) -> LabelStudioInterface:
-    res = LabelStudioInterface(paths, ls_url, ls_token)
-    paths.lsi = res
-    return res
+def lsi(paths: PathBundle, ls_token, ls_url) -> LabelStudioInterface:
+    try:
+        lsi = LabelStudioInterface(paths, ls_url, ls_token)
+    except ConnectionError:
+        print("Connection errored for LabelStudioInterface, going offline.")
+        lsi = LabelStudioInterface(paths, ls_url, ls_token, online=False)
+
+    paths.lsi = lsi
+    return lsi
 
 
 @pytest.fixture(scope="session")
 def obi(paths: PathBundle, bucket_url: str) -> OracleBucketInterface:
-    obi = OracleBucketInterface(paths, bucket_url)
+    try:
+        obi = OracleBucketInterface(paths, bucket_url)
+    except ConnectionError:
+        print("Connection errored for OracleBucketInterface, going offline.")
+        obi = OracleBucketInterface(paths, bucket_url, online=False)
+
     paths.obi = obi
     return obi
 
 
 @pytest.fixture(scope="session", autouse=True)
-def prepare_data(paths, obi: OracleBucketInterface, lsi: LabelStudioInterface):
-    load_dotenv()
-
-    obi.update()
-    lsi.fetch_and_simplify()
+def prepare_data(
+    paths: PathBundle, obi: OracleBucketInterface, lsi: LabelStudioInterface
+):
 
     yield
-
-    # paths.remove_all_files()
 
 
 @pytest.fixture
@@ -129,6 +136,7 @@ def _fake_synthetic_manuscript(*args, **kwargs):
 
 @pytest.fixture(autouse=True)
 def patch_image_processing(monkeypatch):
+    print("Patching image processing.")
     monkeypatch.setattr(
         annotated_page,
         "separate_background_and_stroke",
@@ -138,6 +146,7 @@ def patch_image_processing(monkeypatch):
 
 @pytest.fixture
 def patch_synthetic_manuscript(monkeypatch):
+    print("Patching synthetic image generation.")
     monkeypatch.setattr(
         AnnotatedPage, "synthetic_manuscript", _fake_synthetic_manuscript
     )

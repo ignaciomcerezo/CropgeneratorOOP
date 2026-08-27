@@ -1,0 +1,354 @@
+from distutils.log import warn
+from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
+from cropgen.processing.annotated_page import AnnotatedPage
+from typing import Sequence, Optional, TypeVar
+from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
+from torch.utils.data import Dataset
+from typing import Collection, Literal, get_args, Any, Callable
+import numpy as np
+
+orders_type = Collection[int | Literal["paragraph", "page"]]
+
+_poss_cluster_args_literal = Literal[
+    "tight_layout",
+    "margin_size_px",
+    "use_previous_page_in_context",
+    "avoid_intersections",
+]
+_default_cluster_param_values = (True, 0, False, True)
+
+_default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
+    arg: value
+    for arg, value in zip(
+        get_args(_poss_cluster_args_literal), _default_cluster_param_values
+    )
+}
+
+T = TypeVar("T")
+
+
+class BaseAnnotationDataset(Dataset, ABC):
+    _annotated_pages: Sequence[AnnotatedPage]
+    _orders: list[int]
+    _use_paragraphs: bool
+    _use_full_pages: bool
+    _transforms: OCROnTheFlyTransformPack | None
+    _cluster_params = field(default_factory=lambda: _default_cluster_parameters.copy())
+
+    @property
+    def pages(self) -> list[str | None]:
+        return [ann.page for ann in self._annotated_pages]
+
+    @property
+    def ids(self) -> list[int]:
+        return [ann.task_id for ann in self._annotated_pages]
+
+    @property
+    def orders(self):
+        return self._orders
+
+    @orders.setter
+    def orders(self, value: Sequence[int | Literal["paragraph", "page"]]):
+        self._update_orders(value)
+
+    @property
+    def cluster_params(self):
+        return self._cluster_params.copy()
+
+    def set_cluster_param(
+        self, cluster_param_name: _poss_cluster_args_literal, value: Any
+    ):
+        if value is not None:
+            self._cluster_params[cluster_param_name] = value
+        else:
+            self._cluster_params[cluster_param_name] = _default_cluster_parameters[
+                cluster_param_name
+            ]
+
+    def _update_orders(
+        self,
+        new_orders: Collection[int | Literal["paragraph", "page"]],
+    ):
+        for order in new_orders:
+            if (
+                (isinstance(order, float))
+                or (
+                    isinstance(order, str)
+                    and ((order != "page") and (order != "paragraph"))
+                )
+                or (isinstance(order, int) and (order < 1))
+            ):
+                raise ValueError(
+                    f"Value '{order}' found inside value for orders. Only ints > 0, 'paragraph' and 'page' are acceptable orders."
+                )
+
+        pseudo_old_orders: set[int | Literal["paragraph", "page"]] = set(self._orders)
+
+        if self._use_paragraphs:
+            pseudo_old_orders.add("paragraph")
+        if self._use_full_pages:
+            pseudo_old_orders.add("page")
+
+        if set(new_orders) != pseudo_old_orders:
+            self._orders = [x for x in new_orders if isinstance(x, int)]
+            self._use_paragraphs = "paragraph" in new_orders
+            self._use_full_pages = "page" in new_orders
+            self._recalculate_size_and_sampling_params()
+
+    def update_stage(
+        self,
+        new_orders: list[int],
+    ):
+        self._update_orders(new_orders)
+
+    def _recalculate_size_and_sampling_params(self):
+        page_sample_counts: list[int] = []
+        par_prefix_sums: list[np.ndarray] = []
+        page_prefix_sums: list[int] = []
+        running_total: int = 0
+
+        for ann in self._annotated_pages:
+            par_counts: list[int] = []
+
+            for par in ann.paragraphs:
+                par_len = len(par)
+
+                # Number of valid sliding windows of order k
+                ell = sum(max(0, par_len - order + 1) for order in self._orders) + int(
+                    self._use_paragraphs
+                )
+
+                par_counts.append(ell)
+
+            page_par_samples = sum(par_counts)
+            page_total_samples = page_par_samples + int(self._use_full_pages)
+
+            par_prefix_sums.append(np.cumsum(par_counts, dtype=np.int64))
+            page_sample_counts.append(page_total_samples)
+
+            running_total += page_total_samples
+            page_prefix_sums.append(running_total)
+
+        self._size = running_total
+        self._page_sample_counts = page_sample_counts
+        self._page_prefix_sums = np.array(page_prefix_sums, dtype=np.int64)
+        self._par_prefix_sums = par_prefix_sums
+
+    def __len__(self) -> int:
+        return self._size
+
+    def _gets_ann_ids_order_and_identifier(
+        self, index: int
+    ) -> tuple[AnnotatedPage, Sequence[str], int | Literal["paragraph", "page"], str]:
+        """
+        Chooses an annotation instance and specific lines according to the available orders.
+        Each sample is chosen uniformly.
+        """
+        if index < 0 or index >= self._size:
+            raise IndexError(
+                f"Index {index} out of bounds for dataset of size {self._size}"
+            )
+
+        page_idx = int(np.searchsorted(self._page_prefix_sums, index, side="right"))
+        page_offset = int(self._page_prefix_sums[page_idx - 1]) if page_idx > 0 else 0
+        rel_idx = index - page_offset
+
+        ann: AnnotatedPage = self._annotated_pages[page_idx]
+
+        if self._use_full_pages and rel_idx == self._page_sample_counts[page_idx] - 1:
+            selected_line_ids = list(ann.lines.keys())
+            order = "page"
+            identifier = f"pg{page_idx}"
+        else:
+            par_prefix = self._par_prefix_sums[page_idx]
+            par_idx = int(np.searchsorted(par_prefix, rel_idx, side="right"))
+            par_offset = int(par_prefix[par_idx - 1]) if par_idx > 0 else 0
+            item_idx = rel_idx - par_offset
+
+            paragraph = ann.paragraphs[par_idx]
+            line_ids = paragraph.line_ids
+            num_lines = len(line_ids)
+
+            curr = item_idx
+            selected_line_ids: Optional[list[str]] = None
+
+            for order in self._orders:
+                n_windows: int = max(0, num_lines - order + 1)
+                if curr < n_windows:
+                    start_line = curr
+                    selected_line_ids = line_ids[start_line : start_line + order]
+                    identifier = str(
+                        f"pg{page_idx}par{par_idx}L{start_line}"
+                        + f"{start_line+order-1}" * (order > 1)
+                    )
+                    break
+                curr -= n_windows
+
+            if selected_line_ids is None and self._use_paragraphs:
+                selected_line_ids = line_ids
+                order = "paragraph"
+                identifier = f"pg{page_idx}par{par_idx}"
+
+            if selected_line_ids is None:
+                raise RuntimeError(f"Failed to resolve sample target for index {index}")
+
+        return ann, selected_line_ids, order, identifier
+
+    def set_transform(
+        self,
+        transforms: OCROnTheFlyTransformPack | None,
+    ):
+        if transforms is None:
+            self._transforms = transforms
+            return
+        elif isinstance(transforms, OCROnTheFlyTransformPack):
+            if (
+                transforms._avoid_intersections
+                != self.cluster_params["avoid_intersections"]
+            ):
+                warn(
+                    "Overwriting the transforms avoid_intersection parameter in acordance with cluster_params."
+                )
+                transforms._avoid_intersections = self.cluster_params[
+                    "avoid_intersections"
+                ]
+            self._transforms = transforms
+        else:
+            raise ValueError(
+                "Only accepts transforms as None (no transform) or instances of OCROnTheFlyTransformPack."
+            )
+
+    @staticmethod
+    def samples_in_annotation(
+        ann: AnnotatedPage, orders: Collection[int | Literal["paragraph", "page"]]
+    ):
+        return (
+            sum(
+                sum(
+                    max(0, len(paragraph) - order + 1)
+                    for order in orders
+                    if isinstance(order, int)
+                )
+                for paragraph in ann.paragraphs
+            )
+            + len(ann.paragraphs) * (("paragraph") in orders)
+            + ("page" in orders)
+        )
+
+    @staticmethod
+    def montecarlo_ann_split(
+        annotations: list[AnnotatedPage],
+        p=0.95,
+        orders: Collection[int | Literal["paragraph", "page"]] = [1],
+        n_trials: int = 1000,
+    ) -> tuple[list[AnnotatedPage], list[AnnotatedPage]]:
+
+        print(f"Performing Monte Carlo page split with {n_trials} trials")
+
+        weights = [
+            (i, BaseAnnotationDataset.samples_in_annotation(ann, orders))
+            for i, ann in enumerate(annotations)
+        ]
+
+        total_samples = sum(weight for _, weight in weights)
+
+        if total_samples == 0:
+            raise ValueError("Total number of samples is zero.")
+
+        if not 0 <= p <= 1:
+            raise ValueError(f"p must be between 0 and 1, got {p}")
+
+        target_a = total_samples * p
+
+        best_error = float("inf")
+        best_pages: set[int] = set()
+
+        for _ in range(n_trials):
+            candidate_pages = {i for i, _ in weights if np.random.rand() < p}
+
+            candidate_samples = sum(
+                weight for i, weight in weights if i in candidate_pages
+            )
+
+            error = abs(candidate_samples - target_a)
+
+            if error < best_error:
+                best_error = error
+                best_pages = candidate_pages
+
+                # Exact match, so there is no reason to keep searching.
+                if error == 0:
+                    break
+
+        train_annotations = [
+            annotations[i] for i in range(len(annotations)) if i in best_pages
+        ]
+
+        test_annotations = [
+            annotations[i] for i in range(len(annotations)) if i not in best_pages
+        ]
+
+        # train_samples = sum(
+        #     BaseAnnotationDataset.samples_in_annotation(annotation, orders)
+        #     for annotation in train_annotations
+        # )
+
+        # test_samples = sum(
+        #     BaseAnnotationDataset.samples_in_annotation(annotation, orders)
+        #     for annotation in test_annotations
+        # )
+        return train_annotations, test_annotations
+
+    @classmethod
+    def from_split(
+        cls,
+        *groups_of_annotations: list[AnnotatedPage],
+        p: float,
+        orders: orders_type,
+        orders_to_split_with: orders_type | None = None,
+    ) -> tuple[T, T]:
+        """
+        Generates two datasets (paradigmatically train and test) from various groups of AnnotatedPages.
+        This could be used to generate splits that are balanced in difficulty, passing groups of annotations
+        that differ in difficulty, or in any other characteristic, to get splits homogeneous in that characteristic.
+        The split is done taking the number of samples in each annotation considering only samples that
+        are of order orders_to_split_with (or 'orders', if the former is not given a value.)
+
+        ann_group_1 = [...]
+        ann_group_2 = [...]
+        ann_group_3 = [...]
+
+        train, test = OCRDataset.from_split(ann_group_1, ann_group_2, ann_group_3, p = 0.95, orders_to_split_with = [1], orders = [1,2,3,4,5])
+        produces a split that has ~0.95 from groups 1, 2 and 3 in train, and ~0.5 of each in test.
+        """
+
+        train = []
+        test = []
+
+        for annotations in groups_of_annotations:
+            train_i, test_i = cls.montecarlo_ann_split(
+                annotations,
+                p,
+                orders=(
+                    orders if orders_to_split_with is None else orders_to_split_with
+                ),
+            )
+
+            train += train_i
+            test += test_i
+        # TODO: this is not too idiomatic: we are not explicitly telling python that heirs must have an __init__ of this type...
+        return (
+            cls(
+                train,  # ty: ignore[too-many-positional-arguments]
+                orders=orders,  # ty: ignore[unknown-argument]
+            ),
+            cls(
+                test,  # ty: ignore[too-many-positional-arguments]
+                orders=orders,  # ty: ignore[unknown-argument]
+            ),
+        )  # ty: ignore[invalid-return-type]
+
+    @abstractmethod
+    def __getitem__(self, index: int):
+        raise NotImplementedError

@@ -21,6 +21,14 @@ from urllib.parse import unquote
 from tqdm.auto import tqdm
 
 
+class _UnknownUsernames:
+    def __init__(self):
+        pass
+
+    def __getitem__(self, index):
+        return "Unknown"
+
+
 class LabelStudioInterface:
     """
     Clase para gestionar la interacción con Label Studio, incluyendo la descarga, actualización y simplificación de exports,
@@ -63,7 +71,12 @@ class LabelStudioInterface:
         exists_raw = paths.raw_export_filepath.exists()
         exists_sim = paths.simplified_filepath.exists()
 
-        if not online:
+        if online:
+            self.token = token
+            self.url = server_url
+
+            self.fetch_and_simplify()
+        else:
 
             if not exists_sim and not exists_raw:
                 print(
@@ -79,19 +92,12 @@ class LabelStudioInterface:
             else:
                 simplify_and_save(paths.raw_export_filepath, paths.simplified_filepath)
 
-            return
-
-        self.token = token
-        self.url = server_url
-
-        self.fetch_and_simplify()
-
-        if paths.usernames_filepath.exists():
+        if self.paths.usernames_filepath.exists():
             self.usernames: list[str] = list(
-                json.loads(paths.usernames_filepath.read_text(encoding="utf-8"))
+                json.loads(self.paths.usernames_filepath.read_text(encoding="utf-8"))
             )
         else:
-            self.usernames: list[str] = []
+            self.usernames: _UnknownUsernames = _UnknownUsernames()
 
     @classmethod
     def from_env(
