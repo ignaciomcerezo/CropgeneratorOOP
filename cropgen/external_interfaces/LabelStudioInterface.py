@@ -321,7 +321,7 @@ class LabelStudioInterface:
             )
         else:
             img = self._load_raw_task_image(task)
-            stroke, background = separate_background_and_stroke(img)
+            background, stroke = separate_background_and_stroke(img)
 
         page_name = self._get_page_from_task(task)
 

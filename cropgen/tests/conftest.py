@@ -1,4 +1,10 @@
 # tests/conftest.py
+from cropgen.shared.image_processing import separate_background_and_stroke
+from cropgen.shared.default_parameters import (
+    DATASET_LONGEST_SIZE_PX,
+    PROCESSING_LONGEST_SIDE_PX,
+)
+from tqdm.auto import tqdm
 from tkinter import Label
 import multiprocessing
 import os
@@ -69,6 +75,27 @@ def obi(paths: PathBundle, bucket_url: str) -> OracleBucketInterface:
 def prepare_data(
     paths: PathBundle, obi: OracleBucketInterface, lsi: LabelStudioInterface
 ):
+
+    for task in tqdm(
+        [task for task in lsi.simplified_tasks if not paths.has_processed_images(task)],
+        desc="Stroke/background separation.",
+    ):
+        raw_image_path = paths.get_raw_image_path_from_task(task)
+
+        if raw_image_path is None:
+            raise ValueError(
+                f"Internal error. Did not download all appropriate images: {raw_image_path}"
+            )
+
+        raw_image = Image.open(raw_image_path)
+
+        background, stroke = separate_background_and_stroke(
+            raw_image,
+            out_longest_side=DATASET_LONGEST_SIZE_PX,
+            processing_longest_side=PROCESSING_LONGEST_SIDE_PX,
+        )
+        stroke.save(paths.stroke_images_path / f"{raw_image_path.stem}.png")
+        background.save(paths.background_images_path / f"{raw_image_path.stem}.png")
 
     yield
 

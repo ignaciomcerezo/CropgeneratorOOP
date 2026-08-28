@@ -60,18 +60,6 @@ class PathBundle:
     def usernames_filepath(self) -> Path:
         return self.exports_path / _usernames_filename
 
-    @property
-    def data_out_path(self) -> Path:
-        return self.root / "data_out"
-
-    @property
-    def crops_path(self) -> Path:
-        return self.data_out_path / "crops"
-
-    @property
-    def json_filepath(self) -> Path:
-        return self.data_out_path / _output_json_filename
-
     def all_paths(self):
         return [
             self.raw_images_path,
@@ -79,8 +67,6 @@ class PathBundle:
             self.background_images_path,
             self.transcriptions_path,
             self.exports_path,
-            self.data_out_path,
-            self.crops_path,
             self.data_in_path,
         ]
 
@@ -131,13 +117,12 @@ class PathBundle:
         task: LabelStudioTask | SimplifiedTask = PathBundle._simplified_or_raw(task)
         data = task.data
         image_url = data.image_url or ""
-
         if not image_url:
             return None
 
         clean_url = urllib.parse.unquote(image_url)
-        filename = clean_url.split("?")[0].split("/")[-1]
-        return Path(filename).stem
+        filename = Path(clean_url.split("?")[0].split("/")[-1])
+        return filename.stem
 
     def get_raw_image_path_from_task(
         self, task: LabelStudioTask | SimplifiedTask
@@ -172,8 +157,6 @@ class PathBundle:
 
         if filepath.exists():
             return filepath
-
-        print("Could not find the stroke image for task: ", task.id)
         return None
 
     def get_background_image_path_from_task(
@@ -191,30 +174,13 @@ class PathBundle:
 
         if filepath.exists():
             return filepath
-
-        print("Could not find the stroke image for task: ", task.id)
         return None
-
-    def get_order_folder(self, order: str | int) -> Path:
-        """
-        Devuelve la carpeta para guardar los crops de orden 'order'.
-        """
-        folder = self.crops_path / str(order)
-        folder.mkdir(exist_ok=True)
-        return folder
 
     def remove_all_files(self) -> None:
         """
         Elimina todos los archivos de datos de los que depende la generación (data_in, data_out, exports).
         """
-        for path in [
-            self.data_in_path,
-            self.raw_images_path,
-            self.transcriptions_path,
-            self.exports_path,
-            self.data_out_path,
-            self.crops_path,
-        ]:
+        for path in self.all_paths():
             if path.exists() and path.is_dir():
                 print(f"Removing folder {path}")
                 shutil.rmtree(path)
@@ -222,18 +188,6 @@ class PathBundle:
                 raise ValueError(
                     f"Se esperaba una carpeta pero se encontró un archivo en la ruta: {path}"
                 )
-
-    def get_worker_json_filepath(self, worker_id: int | None) -> Path:
-        """
-        Devuelve la ruta al archivo donde cada subproceso de augment_data_parallel debe guardar sus resultados parciales.
-        """
-        name = self.json_filepath.stem
-        extension = self.json_filepath.suffix
-
-        worker_id_str: str = str(worker_id) if worker_id is not None else ""
-
-        worker_filename = f"{name}_{worker_id_str}{extension}"
-        return Path(self.json_filepath.parent / worker_filename)
 
     @staticmethod
     def _empty_folder(folder):
@@ -245,13 +199,6 @@ class PathBundle:
                     shutil.rmtree(item)
                 else:
                     item.unlink()
-
-    def clean_output_folder(self) -> None:
-        """
-        Elimina todos los archivos y carpetas dentro de la carpeta de salida (data_out_path),
-        pero no elimina la propia carpeta data_out_path.
-        """
-        self._empty_folder(self.data_out_path)
 
     def clean_input_folder(self) -> None:
         """

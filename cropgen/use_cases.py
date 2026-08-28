@@ -68,7 +68,7 @@ def setup(
 
         raw_image = Image.open(raw_image_path)
 
-        stroke, background = separate_background_and_stroke(
+        background, stroke = separate_background_and_stroke(
             raw_image,
             out_longest_side=DATASET_LONGEST_SIZE_PX,
             processing_longest_side=PROCESSING_LONGEST_SIDE_PX,

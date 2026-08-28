@@ -76,8 +76,8 @@ def test_audit_annotations(paths):
                     ann,
                     stroke,
                     background,
-                    completer=paths.lsi._get_completer(task),
-                    updater=paths.lsi._get_updater(task),
+                    completer=paths.lsi._get_completer(ann),
+                    updater=paths.lsi._get_updater(ann),
                 )
                 for ann in task.annotations
             ]

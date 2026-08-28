@@ -42,8 +42,9 @@ def load_ann(
                 raise ValueError(
                     f"Image for task ({task.annotations[0].task}) does not have a downloaded image."
                 )
-            stroke, background = separate_background_and_stroke(Image.open(img_path))
+            background, stroke = separate_background_and_stroke(Image.open(img_path))
         else:
+            # we dont need to perform assertion for not None as .has_processed_images() implies it
             stroke = Image.open(
                 paths.get_stroke_image_path_from_task(
                     task
@@ -54,9 +55,7 @@ def load_ann(
                     task
                 )  # ty: ignore[invalid-argument-type]
             )
-
         assert img_path is not None
-        img = Image.open(img_path)
     else:
         width, height = extract_height_width_from_task(task)
         stroke = background = mother_pil_image(
