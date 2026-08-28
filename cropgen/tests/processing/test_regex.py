@@ -74,18 +74,18 @@ def number_of_matches(
 
     for task in tasks:
         width, height = extract_height_width_from_task(task)
-        img = mother_pil_image(width=width, height=height, color=(255, 0, 255))
+        stroke = mother_pil_image(width=width, height=height, color=(255, 255, 255))
+        background = mother_pil_image(width=width, height=height, color=(255, 255, 255))
 
         task: SimplifiedTask
 
         if "id" in filters and (task.id not in filters["id"]):
             continue
 
-        page_path = paths.get_image_path_from_task(task)
+        page = paths._get_image_stem_from_task(task)
 
-        if page_path is None:
+        if page is None:
             raise ValueError(f"No page found for task {task.id}")
-        page = page_path.stem
 
         if "page" in filters and (page not in filters["page"]):
             continue
@@ -97,8 +97,8 @@ def number_of_matches(
                 # Primero con unrotate = True (comprobación de los recortes individuales)
                 Ann = AnnotatedPage(
                     ann,
-                    img,
-                    usernames_labelstudio=paths.lsi.usernames,  # ty: ignore[unresolved-attribute]
+                    stroke,
+                    background,
                 )
 
                 for line in Ann.lines.values():

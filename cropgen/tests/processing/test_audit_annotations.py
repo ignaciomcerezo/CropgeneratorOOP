@@ -1,3 +1,4 @@
+from cropgen.shared.PathBundle import PathBundle
 from cropgen.processing.helpers.helper_to_classes import is_path_graph
 from debugpy.launcher.debuggee import process
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
@@ -50,13 +51,6 @@ def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
 
 
 def lines_without_paragraph(annotated_page: AnnotatedPage) -> list[Line]:
-    """
-    Devuelve una lista de fragmentos sin párrafo. Estos pueden venir de dos fuentes:
-        1. Son fragmentos aislados del resto durante las anotaciones.
-    Anteriormente podían ser fragmentos de conectividad alta desconectados usando trim_star_nodes,
-    pero, a partir del cambio de paradigma hacia lecturas puramente lineales (grafos de los párrafos
-    de tipo P_k) se eliminó esta dinámica.
-    """
     in_paragraph = []
     out_paragraph = []
     for paragraph in annotated_page.paragraphs:
@@ -74,14 +68,16 @@ def lines_without_paragraph(annotated_page: AnnotatedPage) -> list[Line]:
 def test_audit_annotations(paths):
     for task in tqdm(paths.lsi.simplified_tasks, desc="test_audit_annotations"):
         width, height = extract_height_width_from_task(task)
-        image = mother_pil_image(width=width, height=height, color=(255, 255, 255))
-
+        stroke = mother_pil_image(width=width, height=height, color=(255, 0, 0))
+        background = mother_pil_image(width=width, height=height, color=(0, 255, 0))
         ann = AnnotatedPage.combine_annotations(
             *[
                 AnnotatedPage(
                     ann,
-                    image,
-                    usernames_labelstudio=paths.lsi.usernames,
+                    stroke,
+                    background,
+                    completer=paths.lsi._get_completer(task),
+                    updater=paths.lsi._get_updater(task),
                 )
                 for ann in task.annotations
             ]
@@ -152,18 +148,26 @@ re_letternumber = re.compile(r"[a-zA-Z]+\d", re.DOTALL)
 
 
 @pytest.mark.skip("Esto realmente no es un test")
-def test_letter_number_yuxtaposition(paths, ls_url, ls_token, lsi):
+def test_letter_number_yuxtaposition(
+    paths: PathBundle, ls_url, ls_token, lsi: LabelStudioInterface
+):
     for task in lsi.simplified_tasks:
-        path = paths.get_image_path_from_task(task)
-        assert path is not None
-        image = Image.open(path)
+        width, height = extract_height_width_from_task(task)
+        stroke = mother_pil_image(width=width, height=height, color=(255, 0, 0))
+        background = mother_pil_image(width=width, height=height, color=(0, 255, 0))
 
-        for k_ann, ann in enumerate(task.annotations):
-            ann = AnnotatedPage(ann, image, usernames_labelstudio=lsi.usernames)
+        for k_ann, ls_ann in enumerate(task.annotations):
+            ann_page = AnnotatedPage(
+                ls_ann,
+                stroke,
+                background,
+                completer=lsi._get_completer(ls_ann),
+                updater=lsi._get_updater(ls_ann),
+            )
 
-            for paragraph in ann.paragraphs:
+            for paragraph in ann_page.paragraphs:
                 for text_fragment in paragraph.lines:
                     for match in re_letternumber.findall(text_fragment.text):
                         print(
-                            f"({ann.task_id:>5}|{ann.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
+                            f"({ann_page.task_id:>5}|{ann_page.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
                         )

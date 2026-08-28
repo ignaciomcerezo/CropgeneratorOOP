@@ -120,7 +120,7 @@ def set_multiprocessing_start_method():
     multiprocessing.set_start_method("spawn", force=True)
 
 
-import cropgen.processing.annotated_page as annotated_page
+import cropgen.shared.image_processing as imgproc
 from cropgen.processing.annotated_page import AnnotatedPage
 
 
@@ -138,7 +138,7 @@ def _fake_synthetic_manuscript(*args, **kwargs):
 def patch_image_processing(monkeypatch):
     print("Patching image processing.")
     monkeypatch.setattr(
-        annotated_page,
+        imgproc,
         "separate_background_and_stroke",
         _fake_separate_background_and_stroke,
     )

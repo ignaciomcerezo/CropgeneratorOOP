@@ -824,17 +824,20 @@ def mother_pil_image(
 
 def mother_annotated_page(
     ann: Optional[SimplifiedAnnotation] = None,
-    img: Optional[Image.Image] = None,
-    unrotate: Optional[bool] = False,
-    usernames_labelstudio: Optional[list[str]] = None,
+    stroke: Optional[Image.Image] = None,
+    background: Optional[Image.Image] = None,
     simplified_annotation_kwargs: Optional[dict[str, Any]] = None,
     pil_image_kwargs: Optional[dict[str, Any]] = None,
-    n_usernames: Optional[int] = None,
     n_fragments: Optional[int] = None,
     n_paragraphs: Optional[int] = None,
 ) -> AnnotatedPage:
-    img: Image.Image = (
-        img if img is not None else mother_pil_image(**(pil_image_kwargs or {}))
+    stroke: Image.Image = (
+        stroke if stroke is not None else mother_pil_image(**(pil_image_kwargs or {}))
+    )
+    background: Image.Image = (
+        background
+        if background is not None
+        else mother_pil_image(**(pil_image_kwargs or {}))
     )
     if ann is None:
         ann_kwargs = dict(simplified_annotation_kwargs or {})
@@ -842,18 +845,12 @@ def mother_annotated_page(
             ann_kwargs["n_fragments"] = n_fragments
         if n_paragraphs is not None:
             ann_kwargs["n_paragraphs"] = n_paragraphs
-        ann_kwargs.setdefault("image_width", img.width)
-        ann_kwargs.setdefault("image_height", img.height)
+        ann_kwargs.setdefault("image_width", background.width)
+        ann_kwargs.setdefault("image_height", background.height)
         ann: SimplifiedAnnotation = mother_simplified_annotation(**ann_kwargs)
-    if usernames_labelstudio is None:
-        n_usernames: int = (
-            n_usernames if n_usernames is not None else random.randint(1, 3)
-        )
-        usernames_labelstudio: list[str] = [
-            f"user{random.randint(1, 10)}" for _ in range(n_usernames)
-        ]
+
     return AnnotatedPage(
         ann,
-        img,
-        usernames_labelstudio=usernames_labelstudio,
+        stroke=stroke,
+        background=background,
     )

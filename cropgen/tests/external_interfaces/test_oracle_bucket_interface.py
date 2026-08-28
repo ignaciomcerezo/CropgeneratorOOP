@@ -4,7 +4,7 @@ from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterf
 from cropgen.shared.PathBundle import PathBundle
 
 
-@pytest.mark.parametrize("page_name", ["015", "154"])
+@pytest.mark.parametrize("page_name", ["15", "154"])
 def test_download_single_image_and_transcription(
     page_name: str, paths: PathBundle, obi: OracleBucketInterface
 ):
@@ -12,7 +12,7 @@ def test_download_single_image_and_transcription(
 
     obi.update()
 
-    image_path = paths.get_image_path(page_name)
+    image_path = paths.get_raw_image_path(page_name)
     transcription_path = paths.get_transcription_path(page_name)
 
     assert Path(image_path).exists(), f"La imagen no fue descargada: {image_path}"
@@ -22,7 +22,7 @@ def test_download_single_image_and_transcription(
 
 
 def test_check_updates_and_update(paths: PathBundle, obi: OracleBucketInterface):
-    page_name = "015"
+    page_name = "15"
     paths.remove_downloaded_image_and_transcription(page_name)
     pendientes = obi.check_updates()
     assert isinstance(pendientes, list)

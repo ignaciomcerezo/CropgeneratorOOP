@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from cropgen.transforms.layout_generator import LayoutGenerator
 from typing import Sequence, Any, Literal
 from cropgen.processing.annotated_page import AnnotatedPage
-from cropgen.ocrdataset.ocrdataset import (
+from cropgen.datasets.ocr.ocrdataset import (
     OCRDataset,
     orders_type,
     _poss_cluster_args_literal,

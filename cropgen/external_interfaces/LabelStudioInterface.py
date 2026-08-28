@@ -1,3 +1,4 @@
+from cropgen.shared.image_processing import separate_background_and_stroke
 from typing import Annotated
 from cropgen.shared.LSTypedDicts.results import ImageBaseResult
 from label_studio_sdk import Client
@@ -26,7 +27,10 @@ class _UnknownUsernames:
         pass
 
     def __getitem__(self, index):
-        return "Unknown"
+        return "Offline-Unknown"
+
+    def __len__(self):
+        return 2**20
 
 
 class LabelStudioInterface:
@@ -92,11 +96,11 @@ class LabelStudioInterface:
             else:
                 simplify_and_save(paths.raw_export_filepath, paths.simplified_filepath)
 
-        if self.paths.usernames_filepath.exists():
+        if not online and self.paths.usernames_filepath.exists():
             self.usernames: list[str] = list(
                 json.loads(self.paths.usernames_filepath.read_text(encoding="utf-8"))
             )
-        else:
+        elif not online:
             self.usernames: _UnknownUsernames = _UnknownUsernames()
 
     @classmethod
@@ -168,7 +172,7 @@ class LabelStudioInterface:
 
         users = ls_client.get_users()
         user_ids = [user.id for user in users]
-        ordered_usernames = []
+        ordered_usernames: list[str] = []
         if user_ids:
             for x in range(max(user_ids) + 1):
                 if x in user_ids:
@@ -176,7 +180,10 @@ class LabelStudioInterface:
                         [u.username for u in users if u.id == x][0]
                     )
                 else:
-                    ordered_usernames.append(0)
+                    ordered_usernames.append("Impossible LS user")
+
+        self.usernames = ordered_usernames
+
         self.paths.usernames_filepath.write_text(
             json.dumps(ordered_usernames), encoding="utf-8"
         )
@@ -255,16 +262,8 @@ class LabelStudioInterface:
 
         return self._simplified_tasks_cache
 
-    def _get_image_path_from_task_cached(self, task: SimplifiedTask) -> Path | None:
-        task_id = int(task.id)
-        if task_id not in self._task_image_path_cache:
-            self._task_image_path_cache[task_id] = self.paths.get_image_path_from_task(
-                task
-            )
-        return self._task_image_path_cache[task_id]
-
-    def _load_task_image(self, task: SimplifiedTask) -> Image.Image:
-        img_path = self._get_image_path_from_task_cached(task)
+    def _load_raw_task_image(self, task: SimplifiedTask) -> Image.Image:
+        img_path = self.paths.get_raw_image_path_from_task(task)
 
         if img_path is None:
             raise ValueError(f"No hay imagen para la tarea {task.id}")
@@ -274,6 +273,22 @@ class LabelStudioInterface:
                 return ImageOps.exif_transpose(img).copy()
         except Exception as e:
             raise ValueError(f"Error cargando {img_path}: {e}")
+
+    def _get_completer(self, annotation: SimplifiedAnnotation):
+        completer_index = annotation.completed_by
+        return (
+            self.usernames[completer_index]
+            if completer_index < len(self.usernames)
+            else "Impossible User"
+        )
+
+    def _get_updater(self, annotation: SimplifiedAnnotation):
+        updater_index = annotation.completed_by
+        return (
+            self.usernames[updater_index]
+            if updater_index < len(self.usernames)
+            else "Impossible User"
+        )
 
     def _build_annotated_page_from_task(
         self,
@@ -293,39 +308,47 @@ class LabelStudioInterface:
         if len(valid_annotations) == 0:
             raise ValueError(f"Aviso: La tarea {task.id} no tiene anotaciones.")
 
-        img = self._load_task_image(task)
+        if self.paths.has_processed_images(task):
+            background = Image.open(
+                self.paths.get_background_image_path_from_task(
+                    task
+                )  # ty: ignore[invalid-argument-type]
+            )
+            stroke = Image.open(
+                self.paths.get_stroke_image_path_from_task(
+                    task
+                )  # ty: ignore[invalid-argument-type]
+            )
+        else:
+            img = self._load_raw_task_image(task)
+            stroke, background = separate_background_and_stroke(img)
+
         page_name = self._get_page_from_task(task)
 
         if len(valid_annotations) == 1:
+            annotation = valid_annotations[0]
             return AnnotatedPage(
-                valid_annotations[0],
-                img,
-                usernames_labelstudio=self.usernames,
+                annotation,
                 page=page_name,
+                stroke=stroke,
+                background=background,
+                completer=self._get_completer(annotation),
+                updater=self._get_completer(annotation),
             )
-
-        # Reuse stroke/background from the first annotation to avoid re-running
-        # expensive image separation for every annotation in the same task.
-        first = AnnotatedPage(
-            valid_annotations[0],
-            img,
-            usernames_labelstudio=self.usernames,
-            page=page_name,
-        )
-
-        others = [
-            AnnotatedPage(
-                ann,
-                img,
-                usernames_labelstudio=self.usernames,
-                page=page_name,
-                stroke=first.stroke,
-                background=first.background,
+        else:
+            return AnnotatedPage.combine_annotations(
+                *[
+                    AnnotatedPage(
+                        ann,
+                        page=page_name,
+                        stroke=stroke,
+                        background=background,
+                        completer=self._get_completer(ann),
+                        updater=self._get_updater(ann),
+                    )
+                    for ann in valid_annotations
+                ]
             )
-            for ann in valid_annotations[1:]
-        ]
-
-        return AnnotatedPage.combine_annotations(first, *others)
 
     def get_annotated_pages(
         self,

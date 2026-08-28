@@ -1,4 +1,4 @@
-from cropgen.ocrdataset.base_annotation_dataset import (
+from cropgen.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
     _poss_cluster_args_literal,
     _default_cluster_param_values,

@@ -5,6 +5,7 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from PIL import Image
 
 import requests
 from dotenv import load_dotenv
@@ -59,7 +60,6 @@ class OracleBucketInterface:
         Generates an instance of OracleBucketInterface taking missing data from the environment
         variables and dotenv.
         """
-        # cargamos nuestro .env si python-dotenv esta disponible; si no, usa os.getenv
         try:
 
             load_dotenv()
@@ -168,7 +168,7 @@ class OracleBucketInterface:
         return pairs
 
     def _needs_download(self, pair: _PairInfo) -> bool:
-        local_img = self.paths.get_image_path(pair.page_name)
+        local_img = self.paths.get_raw_image_path(pair.page_name)
         local_txt = self.paths.get_transcription_path(pair.page_name)
 
         img_ok = local_img.exists()
@@ -208,13 +208,16 @@ class OracleBucketInterface:
                 img_resp.raise_for_status()
 
                 local_txt = self.paths.get_transcription_path(pair.page_name)
-                local_img = self.paths.get_image_path(pair.page_name)
+                local_img = self.paths.get_raw_image_path(pair.page_name)
 
                 transcription_text = self._decode_transcription_bytes(
                     txt_resp.content, txt_url
                 )
                 local_txt.write_text(transcription_text, encoding="utf-8")
                 local_img.write_bytes(img_resp.content)
+
+                Image.open(local_img).convert("L").save(local_img)
+
                 return pair.page_name
 
         downloaded: list[str] = []

@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
 from PIL import Image
+from cropgen.shared.default_parameters import (
+    DATASET_LONGEST_SIZE_PX,
+    PROCESSING_LONGEST_SIDE_PX,
+)
 
 
 def extract_strokes(
@@ -117,9 +121,9 @@ def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
 
 def separate_background_and_stroke(
     image: Image.Image,
-    out_longest_side: int,
-    processing_longest_side: int,
-    inpaint_longest_side: int,
+    out_longest_side: int = DATASET_LONGEST_SIZE_PX,
+    processing_longest_side: int = PROCESSING_LONGEST_SIDE_PX,
+    # inpaint_longest_side: int,
     *,
     background_diameter: int = 15,
     small_diameter: int | None = None,  #  1

@@ -20,28 +20,81 @@ class PathBundle:
 
     def __init__(self, root: Path | str | None = None):
         self.root: Path = Path(root) if root else Path(getcwd())
+        self.lsi = None
+        self.obi = None
+        self.assert_paths()
 
-        self.data_in_path: Path = self.root / "data_in/"
-        self.images_path: Path = self.data_in_path / "images/"
-        self.transcriptions_path: Path = self.data_in_path / "transcripciones/"
+    @property
+    def data_in_path(self) -> Path:
+        return self.root / "data_in/"
 
-        # carpetas de los exports
-        self.exports_path: Path = self.data_in_path / "exports"
-        self.raw_export_filepath: Path = self.exports_path / _raw_export_json_filename
-        self.simplified_filepath: Path = (
-            self.exports_path / _simplified_export_json_filename
-        )
-        self.usernames_filepath: Path = self.exports_path / _usernames_filename
+    @property
+    def raw_images_path(self) -> Path:
+        return self.data_in_path / "images/raw/"
 
-        # carpetas donde se van a colocar los datos generados.
-        self.data_out_path: Path = self.root / "data_out"
-        self.crops_path: Path = self.data_out_path / "crops"
-        self.json_filepath: Path = self.data_out_path / _output_json_filename
+    @property
+    def stroke_images_path(self) -> Path:
+        return self.data_in_path / "images/stroke/"
 
-        self.dataset_path = self.root / "dataset"
+    @property
+    def background_images_path(self) -> Path:
+        return self.data_in_path / "images/background/"
 
+    @property
+    def transcriptions_path(self) -> Path:
+        return self.data_in_path / "transcriptions/"
+
+    @property
+    def exports_path(self) -> Path:
+        return self.data_in_path / "exports/"
+
+    @property
+    def raw_export_filepath(self) -> Path:
+        return self.exports_path / _raw_export_json_filename
+
+    @property
+    def simplified_filepath(self) -> Path:
+        return self.exports_path / _simplified_export_json_filename
+
+    @property
+    def usernames_filepath(self) -> Path:
+        return self.exports_path / _usernames_filename
+
+    @property
+    def data_out_path(self) -> Path:
+        return self.root / "data_out"
+
+    @property
+    def crops_path(self) -> Path:
+        return self.data_out_path / "crops"
+
+    @property
+    def json_filepath(self) -> Path:
+        return self.data_out_path / _output_json_filename
+
+    def all_paths(self):
+        return [
+            self.raw_images_path,
+            self.stroke_images_path,
+            self.background_images_path,
+            self.transcriptions_path,
+            self.exports_path,
+            self.data_out_path,
+            self.crops_path,
+            self.data_in_path,
+        ]
+
+    def __repr__(self):
+        return str(f"<PathBundle with root {self.root}>")
+
+    def assert_paths(self) -> None:
+        """
+        Comprueba que todas las rutas son accesibles, son instancias de Path válidas y las crea.
+        """
         try:
-            self.assert_paths()
+            for path in self.all_paths():
+                assert isinstance(path, Path)
+                path.mkdir(parents=True, exist_ok=True)
         except PermissionError:
             raise PermissionError(
                 "Error al crear las carpetas necesarias. Revisa que el path raíz es correcto y que tienes permisos de "
@@ -49,27 +102,6 @@ class PathBundle:
             )
         except Exception as e:
             raise Exception(f"Error al crear las carpetas necesarias: {e}")
-
-        self.lsi = None
-        self.obi = None
-
-    def __repr__(self):
-        return str(f"<PathBundle con raíz {self.root}>")
-
-    def assert_paths(self) -> None:
-        """
-        Comprueba que todas las rutas son accesibles, son instancias de Path válidas y las crea.
-        """
-        for path in [
-            self.images_path,
-            self.transcriptions_path,
-            self.exports_path,
-            self.data_out_path,
-            self.crops_path,
-            self.data_in_path,
-        ]:
-            assert isinstance(path, Path)
-            path.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _simplified_or_raw(
@@ -93,14 +125,9 @@ class PathBundle:
         else:
             raise TypeError("Se ha pasado un tipo incorrecto")
 
-    def get_image_path_from_task(
+    def _get_image_stem_from_task(
         self, task: dict | LabelStudioTask | SimplifiedTask
-    ) -> Path | None:
-        """
-        Dada una tarea, devuelve la ruta LOCAL de la imagen correspondiente.
-        Si no se encuentra, devuelve None.
-        """
-
+    ) -> str | None:
         task: LabelStudioTask | SimplifiedTask = PathBundle._simplified_or_raw(task)
         data = task.data
         image_url = data.image_url or ""
@@ -110,18 +137,62 @@ class PathBundle:
 
         clean_url = urllib.parse.unquote(image_url)
         filename = clean_url.split("?")[0].split("/")[-1]
+        return Path(filename).stem
 
-        exact_path = self.images_path / filename
-        if exact_path.exists():
-            return exact_path
+    def get_raw_image_path_from_task(
+        self, task: LabelStudioTask | SimplifiedTask
+    ) -> Path | None:
+        """
+        Returns the local path to the corresponding raw image.
+        If it cant find it, returns None.
+        """
+        stem = self._get_image_stem_from_task(task)
+        if stem is None:
+            raise ValueError("Could not find the raw image for task: ", task.id)
 
-        stem = Path(filename).stem
-        for p in self.images_path.iterdir():
-            if p.is_file() and (p.suffix.lower() == ".png"):
-                if p.stem == stem:
-                    return p
+        filepath = self.get_raw_image_path(stem)
 
-        print("No se encontró la imagen para la tarea:", task.id)
+        if filepath.exists():
+            return filepath
+        print("Could not find the raw image for task: ", task.id)
+        return None
+
+    def get_stroke_image_path_from_task(
+        self, task: LabelStudioTask | SimplifiedTask
+    ) -> Path | None:
+        """
+        Returns the local path to the corresponding stroke image.
+        If it cant find it, returns None.
+        """
+        stem = self._get_image_stem_from_task(task)
+        if stem is None:
+            raise ValueError("Could not find the stroke image for task: ", task.id)
+
+        filepath = self.get_stroke_image_path(stem)
+
+        if filepath.exists():
+            return filepath
+
+        print("Could not find the stroke image for task: ", task.id)
+        return None
+
+    def get_background_image_path_from_task(
+        self, task: LabelStudioTask | SimplifiedTask
+    ) -> Path | None:
+        """
+        Returns the local path to the corresponding background image.
+        If it cant find it, returns None.
+        """
+        stem = self._get_image_stem_from_task(task)
+        if stem is None:
+            raise ValueError("Could not find the background image for task: ", task.id)
+
+        filepath = self.get_background_image_path(stem)
+
+        if filepath.exists():
+            return filepath
+
+        print("Could not find the stroke image for task: ", task.id)
         return None
 
     def get_order_folder(self, order: str | int) -> Path:
@@ -138,7 +209,7 @@ class PathBundle:
         """
         for path in [
             self.data_in_path,
-            self.images_path,
+            self.raw_images_path,
             self.transcriptions_path,
             self.exports_path,
             self.data_out_path,
@@ -200,24 +271,42 @@ class PathBundle:
         """
         Elimina la imagen y la transcripción asociadas a un nombre de página dado.
         """
-        image_path = self.get_image_path(page_name)
-        transcription_path = self.get_transcription_path(page_name)
+        paths = (
+            self.get_raw_image_path(page_name),
+            self.get_stroke_image_path(page_name),
+            self.get_background_image_path(page_name),
+        )
 
-        if image_path.exists():
-            image_path.unlink()
-            print(f"Imagen eliminada: {image_path}")
-        else:
-            print(f"No se encontró la imagen: {image_path}")
+        for path in paths:
+            if path.exists():
+                path.unlink()
+                print(f"Remove image: {path}")
+            else:
+                print(f"Unexisting file: {path}")
+
+        transcription_path = self.get_transcription_path(page_name)
 
         if transcription_path.exists():
             transcription_path.unlink()
-            print(f"Transcripción eliminada: {transcription_path}")
+            print(f"Removed transcription: {transcription_path}")
         else:
-            print(f"No se encontró la transcripción: {transcription_path}")
+            print(f"Unexisting transcirption: {transcription_path}")
 
-    def get_image_path(self, page_name: str | int) -> Path:
-        """Devuelve la ruta a la imagen asociada a una página concreta."""
-        return self.images_path / (self._normalize_page_name(page_name) + ".png")
+    def has_processed_images(self, task: SimplifiedTask | LabelStudioTask):
+        return (self.get_background_image_path_from_task(task) is not None) and (
+            self.get_stroke_image_path_from_task(task) is not None
+        )
+
+    def get_raw_image_path(self, page_name: str | int) -> Path:
+        return self.raw_images_path / (self._normalize_page_name(page_name) + ".png")
+
+    def get_stroke_image_path(self, page_name: str | int) -> Path:
+        return self.stroke_images_path / (self._normalize_page_name(page_name) + ".png")
+
+    def get_background_image_path(self, page_name: str | int) -> Path:
+        return self.background_images_path / (
+            self._normalize_page_name(page_name) + ".png"
+        )
 
     def get_transcription_path(self, page_name: str | int) -> Path:
         """Devuelve la ruta a la transcripción asociada a una página concreta."""
@@ -232,6 +321,4 @@ class PathBundle:
         if (".png" == page_name[-4:]) or (".txt" == page_name[-4:]):
             page_name = page_name[:-4]
 
-        if len(page_name) < 3 and page_name.isdigit():
-            page_name = page_name.rjust(3, "0")
         return page_name

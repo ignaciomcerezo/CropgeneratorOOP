@@ -1,3 +1,4 @@
+from cropgen.shared.image_processing import crop_or_resize
 from copy import deepcopy
 from shapely.geometry import Point, Polygon
 from cropgen.processing.line import Line
@@ -13,10 +14,6 @@ from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
     get_union_rect,
     subdictionary,
-)
-from cropgen.processing.helpers.image_processing import (
-    separate_background_and_stroke,
-    crop_or_resize,
 )
 from cropgen.processing.helpers.text_regularization import (
     regularize_text,
@@ -34,9 +31,8 @@ from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTextCorrectionResult,
 )
 from cropgen.shared.default_parameters import (
-    MAX_IMG_DIM,
-    OPERATIONS_IMG_DIM,
-    INPAINTING_IMG_DIM,
+    DATASET_LONGEST_SIZE_PX,
+    PROCESSING_LONGEST_SIDE_PX,
 )
 from cropgen.shared.display import display
 
@@ -53,13 +49,10 @@ class AnnotatedPage:
     """
 
     n_annotation_errors: int = 0
-    working_img_longest_side: int = MAX_IMG_DIM
-    _stroke_separation_img_longest_side: int = OPERATIONS_IMG_DIM
-    _inpainting_img_longest_side: int = INPAINTING_IMG_DIM
+
     __slots__ = (
         "lines",
         "background",
-        "stroke",
         "task_id",
         "_graph",
         "last_update_time",
@@ -74,39 +67,24 @@ class AnnotatedPage:
     def __init__(
         self,
         ann: SimplifiedAnnotation,
-        img: Image.Image,
-        usernames_labelstudio: list[str] | None = None,
+        stroke: Image.Image,
+        background: Image.Image,
         line_separtor: str = "\n",
         page: str | None = None,
-        stroke: Image.Image | None = None,
-        background: Image.Image | None = None,
+        completer: str | None = None,
+        updater: str | None = None,
     ):
 
-        assert (
-            usernames_labelstudio is not None
-        ), "A Label Studio username list must be provided."
-
+        self.background = background
         self.task_id = ann.task
-        results: list[SimplifiedResultItem] = ann.result
-
-        if img.mode != "L":
-            img = img.convert("L")
-
-        if (stroke is None) or (background is None):
-            self.background, self.stroke = separate_background_and_stroke(
-                img,
-                out_longest_side=AnnotatedPage.working_img_longest_side,
-                processing_longest_side=AnnotatedPage._stroke_separation_img_longest_side,
-                inpaint_longest_side=AnnotatedPage._inpainting_img_longest_side,
-            )
-        else:
-            self.stroke = stroke
-            self.background = background
-
         self.page = page
         self.line_separator = line_separtor
+        self.completer = completer if completer is not None else "Unknown"
+        self.updater = updater if updater is not None else "Unknown"
 
-        self._setup_lines(results)
+        results: list[SimplifiedResultItem] = ann.result
+
+        self._setup_lines(results, stroke)
 
         self._setup_graph_and_paragraphs()
 
@@ -117,26 +95,18 @@ class AnnotatedPage:
             ann.updated_at.replace("Z", "").split("T")
         )  # task's last update
 
-        completer_index = ann.completed_by
-        updater_index = ann.updated_by
-        self.completer = (
-            usernames_labelstudio[completer_index]
-            if completer_index < len(usernames_labelstudio)
-            else "Unknown"
-        )
-        self.updater = (
-            usernames_labelstudio[updater_index]
-            if updater_index < len(usernames_labelstudio)
-            else "Unknown"
-        )
         self.annotation_unique_id = ann.id
+
+    @property
+    def image_dimensions(self) -> tuple[int, int]:
+        """Returns the dimensions of the background in the format (width, height)."""
+        return self.background.size
 
     @staticmethod
     def from_paragraphs(
         paragraphs: list[Paragraph],
         task_id: int,
-        background: Optional[Image.Image] = None,
-        stroke: Optional[Image.Image] = None,
+        background: Image.Image,
         line_separator: str = "\n",
         completer: str = "Unknown",
         updater: str = "Unknown",
@@ -162,13 +132,10 @@ class AnnotatedPage:
             paragraph.index = index
         ann.task_id = task_id
         ann.line_separator = line_separator
-        ann.background = (
-            background if background is not None else Image.fromarray(np.zeros((1, 1)))
-        )
-        ann.stroke = stroke if stroke is not None else Image.fromarray(np.zeros((1, 1)))
         ann.completer = completer
         ann.updater = updater
         ann.last_update_time = last_update_time
+        ann.background = background
         ann.annotation_unique_id = (
             annotation_unique_id
             if annotation_unique_id is not None
@@ -230,7 +197,7 @@ class AnnotatedPage:
             raise ValueError(
                 "Can only commbine annotations from the same page and task."
             )
-
+        background = annotations[0].background
         all_paragraphs.sort(key=lambda paragraph: paragraph.top)
 
         first = annotations[0]
@@ -238,10 +205,9 @@ class AnnotatedPage:
         return AnnotatedPage.from_paragraphs(
             all_paragraphs,
             task_id=first.task_id,
-            background=first.background,
-            stroke=first.stroke,
             line_separator=first.line_separator,
             completer=first.completer,
+            background=background,
             updater=first.updater,
             last_update_time=first.last_update_time,
             annotation_unique_id=first.annotation_unique_id,
@@ -258,7 +224,9 @@ class AnnotatedPage:
         """Line's polygon annotation intersection graph which keys are the ImageBox(es) ids"""
         return self._graph
 
-    def _setup_lines(self, results: list[SimplifiedResultItem]) -> None:
+    def _setup_lines(
+        self, results: list[SimplifiedResultItem], stroke: Image.Image
+    ) -> None:
         """
         Generates all Line instances from the Label Studio results.
         """
@@ -320,7 +288,7 @@ class AnnotatedPage:
                 txtres = id2txtres[txt_id]
 
                 line = Line.from_matching_ann_results(
-                    boxres, txtres, self.task_id, self.stroke
+                    boxres, txtres, self.task_id, stroke
                 )
 
                 self.lines[line.id] = line
@@ -436,9 +404,13 @@ class AnnotatedPage:
         tight_layout: bool = True,
         margin_size_px: int = 0,
         img_poly_transform: ocr_transform | None = None,
+        refit_polygons: bool = True,
         overlay_polygons: bool = False,
         overlay_mbr: bool = False,
     ) -> tuple[Image.Image, list[Polygon]]:
+
+        assert margin_size_px >= 0, "The margin size cannot be negative."
+
         if line_ids == "all":
             line_ids = set(self.lines.keys())
 
@@ -465,7 +437,7 @@ class AnnotatedPage:
             return self.background.copy(), polygons
 
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
-        bg_w, bg_h = self.background.width, self.background.height
+        bg_w, bg_h = self.image_dimensions
 
         if tight_layout:
             x0 = int(min_x) - margin_size_px
@@ -526,11 +498,18 @@ class AnnotatedPage:
 
         img = Image.fromarray(final_array)
 
+        if refit_polygons:
+            # displace the polygons to the new dimensions of the image
+            polygons = [translate(polygon, -x0, -y0) for polygon in polygons]
+
         if overlay_mbr or overlay_polygons:
             img = self._overlay_polygons_mbr(
-                lines=lines,
+                refitted_polygons=(
+                    polygons
+                    if refit_polygons
+                    else [translate(polygon, -x0, -y0) for polygon in polygons]
+                ),
                 manuscript=img,
-                tight_layout=tight_layout,
                 overlay_polygons=overlay_polygons,
                 overlay_mbr=overlay_mbr,
             )
@@ -540,32 +519,25 @@ class AnnotatedPage:
     @staticmethod
     def _overlay_polygons_mbr(
         *,
-        lines: list[Line],
+        refitted_polygons: list[Polygon],
         manuscript: Image.Image,
-        tight_layout: bool,
         overlay_polygons: bool,
         overlay_mbr: bool,
     ):
-        origin_x = int(min(line.polygon.bounds[0] for line in lines)) * tight_layout
-        origin_y = int(min(line.polygon.bounds[1] for line in lines)) * tight_layout
 
-        # Usamos el mismo anclaje que synthetic_manuscript para convertir coordenadas globales a locales.
         manuscript_rgb = manuscript.convert("RGB")
 
         draw = ImageDraw.Draw(manuscript_rgb)
 
-        for line in lines:
+        for polygon in refitted_polygons:
             if overlay_polygons:
-                polygon_points = [
-                    (float(x - origin_x), float(y - origin_y))
-                    for x, y in line.polygon.exterior.coords
-                ]
+                # pointwise tranlation of all points
+                polygon_points = [(x, y) for x, y in polygon.exterior.coords]
                 draw.line(polygon_points, fill=(255, 0, 0), width=3)
 
             if overlay_mbr:
                 mbr_points = [
-                    (float(x - origin_x), float(y - origin_y))
-                    for x, y in line.polygon.minimum_rotated_rectangle.exterior.coords
+                    (x, y) for x, y in polygon.minimum_rotated_rectangle.exterior.coords
                 ]
                 draw.line(mbr_points, fill=(0, 255, 0), width=3)
 

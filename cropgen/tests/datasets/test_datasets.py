@@ -1,5 +1,5 @@
-from shapely.geometry import Polygon
-from cropgen.ocrdataset.segmentation_dataset import SegmentationDataset
+from shapely.geometry import Polygon, MultiPolygon
+from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
 from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
 from cropgen.transforms.intraparagraph_transforms.horizontal_movement import (
     HorizontalMovement,
@@ -15,7 +15,7 @@ from cropgen.transforms.intraparagraph_transforms.warps.horizontal_warp import (
     HorizontalWarp,
 )
 from cropgen.transforms.intraparagraph_transforms.paragraph_tilt import ParagraphTilt
-from cropgen.ocrdataset.ocrdataset import OCRDataset
+from cropgen.datasets.ocr.ocrdataset import OCRDataset
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.shared.PathBundle import PathBundle
 import pytest
@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
     lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
 
-    annotations = lsi.get_annotated_pages(use_cache=True, show_progress=True)
+    annotations = lsi.get_annotated_pages()
 
     A, B = OCRDataset.from_split(annotations, p=0.95, orders=[2])
 
@@ -41,11 +41,11 @@ def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
         assert isinstance(sample["page_id"], (int, str))
 
 
-def test_segmentationdataset(paths: PathBundle):
+def test_segmentation_dataset(paths: PathBundle):
     # TODO: remove the autouse from patch image processing
     lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
 
-    annotations = lsi.get_annotated_pages(use_cache=True, show_progress=True)
+    annotations = lsi.get_annotated_pages()
 
     A, B = SegmentationDataset.from_split(annotations, p=0.95, orders=[2])
 
@@ -54,7 +54,7 @@ def test_segmentationdataset(paths: PathBundle):
         assert isinstance(sample[0], Image.Image)
         assert isinstance(sample[1], list)
         assert len(sample[1]) == 2
-        assert all(isinstance(pol, Polygon) for pol in sample[1])
+        assert all(isinstance(pol, (Polygon, MultiPolygon)) for pol in sample[1])
 
 
 # def test_transforms(paths: PathBundle):

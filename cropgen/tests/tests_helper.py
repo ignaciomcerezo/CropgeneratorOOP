@@ -7,6 +7,7 @@ from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
 from cropgen.shared.LSTypedDicts.results import ImageBaseResult
 from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.image_processing import separate_background_and_stroke
 from cropgen.tests.object_mothers import mother_pil_image
 
 
@@ -35,17 +36,37 @@ def load_ann(
     task = task_from_task_id(lsi, task_id)
 
     if not fake_image:
-        img_path = paths.get_image_path_from_task(task)
+        if not paths.has_processed_images(task):
+            img_path = paths.get_raw_image_path_from_task(task)
+            if img_path is None:
+                raise ValueError(
+                    f"Image for task ({task.annotations[0].task}) does not have a downloaded image."
+                )
+            stroke, background = separate_background_and_stroke(Image.open(img_path))
+        else:
+            stroke = Image.open(
+                paths.get_stroke_image_path_from_task(
+                    task
+                )  # ty: ignore[invalid-argument-type]
+            )
+            background = Image.open(
+                paths.get_background_image_path_from_task(
+                    task
+                )  # ty: ignore[invalid-argument-type]
+            )
+
         assert img_path is not None
         img = Image.open(img_path)
     else:
         width, height = extract_height_width_from_task(task)
-        img = mother_pil_image(width=width, height=height, color=(255, 0, 255))
+        stroke = background = mother_pil_image(
+            width=width, height=height, color=(255, 0, 255)
+        )
 
     return AnnotatedPage(
         ann=simplified_ls_ann,
-        img=img,
-        usernames_labelstudio=lsi.usernames,
+        stroke=stroke,
+        background=background,
     )
 
 

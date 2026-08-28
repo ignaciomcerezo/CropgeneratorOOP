@@ -6,10 +6,17 @@ from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 import json
 from huggingface_hub import HfApi
+from PIL import Image
+from cropgen.shared.default_parameters import (
+    DATASET_LONGEST_SIZE_PX,
+    PROCESSING_LONGEST_SIDE_PX,
+)
+from tqdm.auto import tqdm
 
 from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
 from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
 from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.image_processing import separate_background_and_stroke
 
 
 def setup(
@@ -47,5 +54,26 @@ def setup(
 
     paths.lsi = lsi
     paths.obi = obi
+
+    for task in tqdm(
+        [task for task in lsi.simplified_tasks if not paths.has_processed_images(task)],
+        desc="Stroke/background separation.",
+    ):
+        raw_image_path = paths.get_raw_image_path_from_task(task)
+
+        if raw_image_path is None:
+            raise ValueError(
+                f"Internal error. Did not download all appropriate images: {raw_image_path}"
+            )
+
+        raw_image = Image.open(raw_image_path)
+
+        stroke, background = separate_background_and_stroke(
+            raw_image,
+            out_longest_side=DATASET_LONGEST_SIZE_PX,
+            processing_longest_side=PROCESSING_LONGEST_SIDE_PX,
+        )
+        stroke.save(paths.stroke_images_path / f"{raw_image_path.stem}.png")
+        background.save(paths.background_images_path / f"{raw_image_path.stem}.png")
 
     return paths
