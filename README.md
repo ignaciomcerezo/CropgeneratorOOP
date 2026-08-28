@@ -23,8 +23,8 @@ This repository provides dataset generation and augmentation for handwritten doc
 - **`cropgen.processing`**  
   Core processing logic for turning annotations into image/text samples with geometric analysis.
 
-- **`cropgen.ocrdataset`**  
-  The main `OCRDataset` class for training, with configurable line-sequence sampling and clustering.
+- **`cropgen.datasets`**  
+  The main `OCRDataset` (and other dataset variants) class for training, with configurable line-sequence sampling and clustering.
 
 - **`cropgen.transforms`**  
   Image and geometry augmentation transforms: linewise (distortion, stretching), intra-paragraph (paragraph layout modifications), and inter-paragraph (multi-line sampling, moving paragraphs).
