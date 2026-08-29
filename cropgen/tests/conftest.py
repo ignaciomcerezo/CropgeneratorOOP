@@ -12,8 +12,10 @@ from pathlib import Path
 from PIL import Image
 import pytest
 from dotenv import load_dotenv
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
-from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
+from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
 from cropgen.shared.PathBundle import PathBundle
 from requests.exceptions import ConnectionError
 
@@ -60,12 +62,12 @@ def lsi(paths: PathBundle, ls_token, ls_url) -> LabelStudioInterface:
 
 
 @pytest.fixture(scope="session")
-def obi(paths: PathBundle, bucket_url: str) -> OracleBucketInterface:
+def obi(paths: PathBundle, bucket_url: str) -> OnlineBucketInterface:
     try:
-        obi = OracleBucketInterface(paths, bucket_url)
+        obi = OnlineBucketInterface(paths, bucket_url)
     except ConnectionError:
-        print("Connection errored for OracleBucketInterface, going offline.")
-        obi = OracleBucketInterface(paths, bucket_url, online=False)
+        print("Connection errored for , going offline.")
+        obi = OnlineBucketInterface(paths, bucket_url, online=False)
 
     paths.obi = obi
     return obi
@@ -73,7 +75,7 @@ def obi(paths: PathBundle, bucket_url: str) -> OracleBucketInterface:
 
 @pytest.fixture(scope="session", autouse=True)
 def prepare_data(
-    paths: PathBundle, obi: OracleBucketInterface, lsi: LabelStudioInterface
+    paths: PathBundle, obi: OnlineBucketInterface, lsi: LabelStudioInterface
 ):
 
     for task in tqdm(

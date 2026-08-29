@@ -13,15 +13,17 @@ from cropgen.shared.default_parameters import (
 )
 from tqdm.auto import tqdm
 
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
-from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
+from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.shared.image_processing import separate_background_and_stroke
 
 
 def setup(
     path: str | Path | None = None,
-    obi: OracleBucketInterface | None = None,
+    obi: OnlineBucketInterface | None = None,
     lsi: LabelStudioInterface | None = None,
     online: bool = True,
     project_id: int = 4,
@@ -36,8 +38,8 @@ def setup(
     path: Path = Path(path) if path is not None else Path(os.getcwd())
     paths = PathBundle(path)
 
-    obi: OracleBucketInterface = (
-        OracleBucketInterface.from_env(paths, online=online, bucket_url=bucket_url)
+    obi: OnlineBucketInterface = (
+        OnlineBucketInterface.from_env(paths, online=online, bucket_url=bucket_url)
         if obi is None
         else obi
     )

@@ -1,13 +1,19 @@
+from shapely.geometry import Polygon
 from cropgen.shared.image_processing import separate_background_and_stroke
 from typing import Annotated
-from cropgen.shared.LSTypedDicts.results import ImageBaseResult
+from cropgen.shared.LSTypedDicts.results import ImageBaseResult, RectangleResult
 from label_studio_sdk import Client
 import json
 import os
 from cropgen.shared.PathBundle import PathBundle
-from cropgen.external_interfaces.simplify_export import (
+from cropgen.external_interfaces.label_studio.helpers.simplify_export import (
     simplify_and_save,
     load_simplified_export,
+)
+from cropgen.external_interfaces.label_studio.helpers.json_conversor import (
+    pair_lines,
+    extract_bounds,
+    calculate_reading_angle,
 )
 from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
 from cropgen.shared.LSTypedDicts.simplified import (
@@ -20,6 +26,7 @@ from PIL import Image, ImageOps
 import numpy as np
 from urllib.parse import unquote
 from tqdm.auto import tqdm
+from urllib.parse import unquote as url_unquote
 
 
 class _UnknownUsernames:
@@ -290,95 +297,6 @@ class LabelStudioInterface:
             else "Impossible User"
         )
 
-    def _build_annotated_page_from_task(
-        self,
-        task: SimplifiedTask,
-        *,
-        subindex: int | None = None,
-    ) -> AnnotatedPage:
-        if subindex is not None and subindex >= len(task.annotations):
-            raise ValueError(
-                f"No enough annotations on task of task_id={task.id}: {len(task.annotations)=} <= {subindex=}."
-            )
-
-        valid_annotations = (
-            [task.annotations[subindex]] if subindex is not None else task.annotations
-        )
-
-        if len(valid_annotations) == 0:
-            raise ValueError(f"Aviso: La tarea {task.id} no tiene anotaciones.")
-
-        if self.paths.has_processed_images(task):
-            background = Image.open(
-                self.paths.get_background_image_path_from_task(
-                    task
-                )  # ty: ignore[invalid-argument-type]
-            )
-            stroke = Image.open(
-                self.paths.get_stroke_image_path_from_task(
-                    task
-                )  # ty: ignore[invalid-argument-type]
-            )
-        else:
-            img = self._load_raw_task_image(task)
-            background, stroke = separate_background_and_stroke(img)
-
-        page_name = self._get_page_from_task(task)
-
-        if len(valid_annotations) == 1:
-            annotation = valid_annotations[0]
-            return AnnotatedPage(
-                annotation,
-                page=page_name,
-                stroke=stroke,
-                background=background,
-                completer=self._get_completer(annotation),
-                updater=self._get_completer(annotation),
-            )
-        else:
-            return AnnotatedPage.combine_annotations(
-                *[
-                    AnnotatedPage(
-                        ann,
-                        page=page_name,
-                        stroke=stroke,
-                        background=background,
-                        completer=self._get_completer(ann),
-                        updater=self._get_updater(ann),
-                    )
-                    for ann in valid_annotations
-                ]
-            )
-
-    def get_annotated_pages(
-        self,
-        *,
-        use_cache: bool = True,
-        show_progress: bool = True,
-    ) -> list[AnnotatedPage]:
-        if use_cache and self._annotated_pages_cache is not None:
-            return self._annotated_pages_cache
-
-        pages: list[AnnotatedPage] = []
-        iterator = (
-            tqdm(self.simplified_tasks) if show_progress else self.simplified_tasks
-        )
-
-        for task in iterator:
-            try:
-                pages.append(
-                    self._build_annotated_page_from_task(
-                        task,
-                    )
-                )
-            except ValueError as e:
-                print(e)
-
-        if use_cache:
-            self._annotated_pages_cache = pages
-
-        return pages
-
     def users(self) -> list[str]:
         """
         Devuelve la lista de nombres de usuario asociados del proyecto de LabelStudio
@@ -414,50 +332,83 @@ class LabelStudioInterface:
                 items.extend(tsk.annotations)
         return items
 
-    def get_annotated_page(
-        self,
-        *,
-        task_id: int | None = None,
-        page: str | None = None,
-        subindex: int | None = None,
-    ) -> AnnotatedPage:
-        """
-        Returns the annotated page instance corresponding to the index/page and the subindex specified.
-        Subindex is the index of the annotation in the task corresponding to the index/page specified.
-        """
-        if (task_id is not None) and (page is not None):
-            raise ValueError(
-                f"Only of of task_id and page must be specified, but got {task_id=} and {page=}"
-            )
-        elif task_id is not None:
-            possible_tasks = [
-                task for task in self.simplified_tasks if int(task.id) == task_id
-            ]
-        else:
-            possible_tasks = [
-                task
-                for task in self.simplified_tasks
-                if self._get_page_from_task(task) == page
-            ]
-
-        specifier_str = f"{task_id=}" if task_id is not None else f"{page=}"
-
-        if len(possible_tasks) == 0:
-            raise IndexError(
-                f"There is no task verifying {specifier_str}. Make sure the index is correct, if given a task_id, or the page format is correct, if given a page."
-            )
-        elif len(possible_tasks) != 1:
-            raise IndexError(
-                f"There are too many ({len(possible_tasks)}) tasks verifying the given condition {specifier_str}."
-            )
-
-        task = possible_tasks[0]
-
-        return self._build_annotated_page_from_task(task, subindex=subindex)
-
     @staticmethod
     def _get_page_from_task(task: SimplifiedTask | LabelStudioTask) -> str:
         return Path(unquote(task.data.image_url)).stem
 
     def page_names(self):
         return tuple([self._get_page_from_task(task) for task in self.simplified_tasks])
+
+    def to_json(self):
+        """
+        Generates polygon, metadata and transcription JSON files from the LS annotations.
+        """
+
+        for task in self.simplified_tasks:
+            image_url = task.data.image_url
+            task_id = task.id
+            page = Path(url_unquote(image_url)).stem
+            for subindex, simplified_ann in enumerate(task.annotations):
+
+                transcriptions: list[str] = []
+                poly_coords: list[list[tuple[float, float]]] = []
+                ids: list[str] = []
+                rotations: list[float] = []
+                completer: str = self._get_completer(simplified_ann)
+                updater: str = self._get_updater(simplified_ann)
+                ann_id = simplified_ann.id
+
+                results = simplified_ann.result
+                box2text, id2boxres, id2txtres = pair_lines(results)
+
+                trios = [
+                    (
+                        id2boxres[key],
+                        id2txtres[box2text[key]],
+                        key + "-" + box2text[key],
+                    )
+                    for key in id2boxres
+                ]
+
+                for trio in trios:
+                    box_result = trio[0]
+                    txt_result = trio[1]
+                    transcription = txt_result.value.text
+                    assert len(transcription) == 1
+                    transcriptions.append(transcription[0])
+
+                    poly_bounds = extract_bounds(box_result)
+                    assert len(poly_bounds) > 3
+                    poly_coords.append(poly_bounds)
+
+                    ids.append(trio[2])
+
+                    if isinstance(box_result, RectangleResult):
+                        rotations.append(box_result.value.rotation)
+                    else:
+                        rotations.append(calculate_reading_angle(Polygon(poly_bounds)))
+
+                name = f"s{subindex}_pg{page}.json"
+
+                (self.paths.transcription_path / name).write_text(
+                    json.dumps(transcriptions)
+                )
+                (self.paths.polygons_path / name).write_text(json.dumps(poly_coords))
+                (self.paths.rotations_path / name).write_text(json.dumps(rotations))
+                metadata = {
+                    "page": page,
+                    "task_id": task_id,
+                    "completer": completer,
+                    "updater": updater,
+                    "subindex": subindex,
+                    "ann_id": ann_id,
+                    "order": len(trios),
+                    "image_path": str(self.paths.raw_images_path / f"{page}.png"),
+                    "ids": ids,
+                    "txt_path": str(self.paths.transcription_path / name),
+                    "polygons_path": str(self.paths.polygons_path / name),
+                    "rotations_path": str(self.paths.rotations_path / name),
+                    "polygons_are_in_percentage": True,
+                    "source": "Label Studio",
+                }
+                (self.paths.metadata_path / name).write_text(json.dumps(metadata))

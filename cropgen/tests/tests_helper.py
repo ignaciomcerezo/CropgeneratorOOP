@@ -1,7 +1,9 @@
 from debugpy.launcher.debuggee import process
 from PIL import Image
 
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
 from cropgen.processing import AnnotatedPage
 from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
 from cropgen.shared.LSTypedDicts.results import ImageBaseResult
@@ -55,7 +57,6 @@ def load_ann(
                     task
                 )  # ty: ignore[invalid-argument-type]
             )
-        assert img_path is not None
     else:
         width, height = extract_height_width_from_task(task)
         stroke = background = mother_pil_image(

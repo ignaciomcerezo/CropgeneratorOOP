@@ -16,7 +16,9 @@ from cropgen.transforms.intraparagraph_transforms.warps.horizontal_warp import (
 )
 from cropgen.transforms.intraparagraph_transforms.paragraph_tilt import ParagraphTilt
 from cropgen.datasets.ocr.ocrdataset import OCRDataset
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
 from cropgen.shared.PathBundle import PathBundle
 import pytest
 from PIL import Image

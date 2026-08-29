@@ -40,9 +40,9 @@ class PathBundle:
     def background_images_path(self) -> Path:
         return self.data_in_path / "images/background/"
 
-    @property
-    def transcriptions_path(self) -> Path:
-        return self.data_in_path / "transcriptions/"
+    # @property
+    # def transcriptions_path(self) -> Path:
+    #     return self.data_in_path / "transcriptions/"
 
     @property
     def exports_path(self) -> Path:
@@ -60,13 +60,37 @@ class PathBundle:
     def usernames_filepath(self) -> Path:
         return self.exports_path / _usernames_filename
 
-    def all_paths(self):
+    @property
+    def transcription_path(self) -> Path:
+        return self.data_in_path / "transcriptions/"
+
+    @property
+    def polygons_path(self) -> Path:
+        return self.data_in_path / "polygons/"
+
+    @property
+    def metadata_path(self) -> Path:
+        return self.data_in_path / "metadata/"
+
+    @property
+    def rotations_path(self) -> Path:
+        return self.data_in_path / "rotations/"
+
+    @property
+    def ids_path(self) -> Path:
+        return self.data_in_path / "ids/"
+
+    def all_dirs(self):
         return [
             self.raw_images_path,
             self.stroke_images_path,
             self.background_images_path,
-            self.transcriptions_path,
             self.exports_path,
+            self.ids_path,
+            self.rotations_path,
+            self.transcription_path,
+            self.polygons_path,
+            self.metadata_path,
             self.data_in_path,
         ]
 
@@ -78,7 +102,7 @@ class PathBundle:
         Comprueba que todas las rutas son accesibles, son instancias de Path válidas y las crea.
         """
         try:
-            for path in self.all_paths():
+            for path in self.all_dirs():
                 assert isinstance(path, Path)
                 path.mkdir(parents=True, exist_ok=True)
         except PermissionError:
@@ -111,6 +135,7 @@ class PathBundle:
         else:
             raise TypeError("Se ha pasado un tipo incorrecto")
 
+    # TODO: separate the task logic from the pathbundle logic
     def _get_image_stem_from_task(
         self, task: dict | LabelStudioTask | SimplifiedTask
     ) -> str | None:
@@ -180,14 +205,12 @@ class PathBundle:
         """
         Elimina todos los archivos de datos de los que depende la generación (data_in, data_out, exports).
         """
-        for path in self.all_paths():
+        for path in self.all_dirs():
             if path.exists() and path.is_dir():
                 print(f"Removing folder {path}")
                 shutil.rmtree(path)
             elif path.exists():
-                raise ValueError(
-                    f"Se esperaba una carpeta pero se encontró un archivo en la ruta: {path}"
-                )
+                raise ValueError(f"A folder was expected, but found a file in {path}")
 
     @staticmethod
     def _empty_folder(folder):
@@ -214,7 +237,7 @@ class PathBundle:
         """
         self._empty_folder(self.exports_path)
 
-    def remove_downloaded_image_and_transcription(self, page_name: str) -> None:
+    def remove_downloaded_image(self, page_name: str) -> None:
         """
         Elimina la imagen y la transcripción asociadas a un nombre de página dado.
         """
@@ -231,14 +254,6 @@ class PathBundle:
             else:
                 print(f"Unexisting file: {path}")
 
-        transcription_path = self.get_transcription_path(page_name)
-
-        if transcription_path.exists():
-            transcription_path.unlink()
-            print(f"Removed transcription: {transcription_path}")
-        else:
-            print(f"Unexisting transcirption: {transcription_path}")
-
     def has_processed_images(self, task: SimplifiedTask | LabelStudioTask):
         return (self.get_background_image_path_from_task(task) is not None) and (
             self.get_stroke_image_path_from_task(task) is not None
@@ -253,12 +268,6 @@ class PathBundle:
     def get_background_image_path(self, page_name: str | int) -> Path:
         return self.background_images_path / (
             self._normalize_page_name(page_name) + ".png"
-        )
-
-    def get_transcription_path(self, page_name: str | int) -> Path:
-        """Devuelve la ruta a la transcripción asociada a una página concreta."""
-        return self.transcriptions_path / (
-            self._normalize_page_name(page_name) + ".txt"
         )
 
     @staticmethod

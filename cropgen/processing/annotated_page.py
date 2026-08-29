@@ -1,3 +1,5 @@
+from pathlib import Path
+from cropgen.shared.PathBundle import PathBundle
 from cropgen.shared.image_processing import crop_or_resize
 from copy import deepcopy
 from shapely.geometry import Point, Polygon
@@ -9,6 +11,7 @@ from collections.abc import Iterable
 from shapely.affinity import translate
 import numpy as np
 from PIL import Image, ImageDraw
+import json
 
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
@@ -35,6 +38,7 @@ from cropgen.shared.default_parameters import (
     PROCESSING_LONGEST_SIDE_PX,
 )
 from cropgen.shared.display import display
+from tqdm.auto import tqdm
 
 ocr_transform = Callable[
     [list[Image.Image], list[Polygon]],
@@ -55,47 +59,52 @@ class AnnotatedPage:
         "background",
         "task_id",
         "_graph",
-        "last_update_time",
         "completer",
         "updater",
         "paragraphs",
-        "annotation_unique_id",
         "line_separator",
         "page",
     )
 
     def __init__(
         self,
-        ann: SimplifiedAnnotation,
+        *,
+        transcriptions: list[str],
+        polygon_coords: list[list[tuple[float, float]]],
+        line_ids: list[str],
+        rotations: list[float],
+        task_id: int,
+        page: str,
         stroke: Image.Image,
         background: Image.Image,
         line_separtor: str = "\n",
-        page: str | None = None,
         completer: str | None = None,
         updater: str | None = None,
+        polygons_are_in_percentage: bool = True,
     ):
 
         self.background = background
-        self.task_id = ann.task
+        self.task_id = task_id
         self.page = page
         self.line_separator = line_separtor
         self.completer = completer if completer is not None else "Unknown"
         self.updater = updater if updater is not None else "Unknown"
 
-        results: list[SimplifiedResultItem] = ann.result
+        list_lines = self._setup_lines(
+            polygon_coords,
+            transcriptions,
+            line_ids,
+            rotations,
+            stroke,
+            polygons_are_in_percentage,
+        )
 
-        self._setup_lines(results, stroke)
+        self.lines = {line.id: line for line in list_lines}
 
         self._setup_graph_and_paragraphs()
 
         # only pages that lay inside of a paragraph have an sindex
         self._correct_text_and_set_sindices()
-
-        self.last_update_time = " ".join(
-            ann.updated_at.replace("Z", "").split("T")
-        )  # task's last update
-
-        self.annotation_unique_id = ann.id
 
     @property
     def image_dimensions(self) -> tuple[int, int]:
@@ -107,12 +116,10 @@ class AnnotatedPage:
         paragraphs: list[Paragraph],
         task_id: int,
         background: Image.Image,
+        page: str,
         line_separator: str = "\n",
         completer: str = "Unknown",
         updater: str = "Unknown",
-        last_update_time: str = "",
-        annotation_unique_id: Optional[int] = None,
-        page: str | None = None,
     ) -> "AnnotatedPage":
         """
         Alternate constructor that builds an AnnotatedPage directly from a list of already
@@ -134,13 +141,7 @@ class AnnotatedPage:
         ann.line_separator = line_separator
         ann.completer = completer
         ann.updater = updater
-        ann.last_update_time = last_update_time
         ann.background = background
-        ann.annotation_unique_id = (
-            annotation_unique_id
-            if annotation_unique_id is not None
-            else hash(last_update_time)
-        )
         ann.page = page
 
         ann.lines = {}
@@ -209,8 +210,6 @@ class AnnotatedPage:
             completer=first.completer,
             background=background,
             updater=first.updater,
-            last_update_time=first.last_update_time,
-            annotation_unique_id=first.annotation_unique_id,
             page=annotations[0].page,
         )
 
@@ -225,78 +224,64 @@ class AnnotatedPage:
         return self._graph
 
     def _setup_lines(
-        self, results: list[SimplifiedResultItem], stroke: Image.Image
-    ) -> None:
-        """
-        Generates all Line instances from the Label Studio results.
-        """
-        id2boxres: dict[str, RectangleResult | PolygonResult] = {
-            r.id: r for r in results if isinstance(r, (RectangleResult, PolygonResult))
-        }
+        self,
+        polygon_coords: list[list[tuple[float, float]]],
+        transcriptions: list[str],
+        line_ids: list[str],
+        rotations: list[float],
+        stroke: Image.Image,
+        polygons_are_in_percentage: bool,
+    ) -> list[Line]:
 
-        id2txtres: dict[str, SimplifiedTextCorrectionResult] = {
-            r.id: r for r in results if isinstance(r, SimplifiedTextCorrectionResult)
-        }
-
-        self.lines: dict[str, Line] = dict()
-
-        def is_fragment_with_error(identifyer: str) -> bool:
-            if identifyer in id2txtres:
-                return True
-            elif identifyer in id2boxres:
-                return False
-            else:
-                raise ValueError(
-                    f"A relation in {self.task_id} connects a non-box non-fragment object."
-                )
-
-        seen_boxes: set[str] = set()
-        seen_fragments: set[str] = set()
-        for r in results:
-            if isinstance(r, RelationResult):  # if the result is a relation
-                source_id, target_id = r.from_id, r.to_id
-
-                source_is_fragment = is_fragment_with_error(source_id)
-                target_is_fragment = is_fragment_with_error(target_id)
-
-                match (source_is_fragment, target_is_fragment):
-                    case (False, True):
-                        box_id, txt_id = source_id, target_id
-                    case (True, False):
-                        txt_id, box_id = source_id, target_id
-                    case _:
-                        # error: box to box OR fragment to fragment association
-                        obj_type = ["box", "fragment"][source_is_fragment]
-                        raise ValueError(
-                            f"(Task {self.task_id}) {obj_type} to {obj_type} association:"
-                            f"{obj_type} {source_id} -> {obj_type} {target_id}."
-                        )
-
-                if box_id in seen_boxes:
-                    raise ValueError(
-                        f"(Task {self.task_id}) box {box_id} has multiple associated fragments."
-                    )
-                if txt_id in seen_fragments:
-                    raise ValueError(
-                        f"(Task {self.task_id}) fragment {txt_id} has multiple associated boxes."
-                    )
-
-                seen_boxes.add(box_id)
-                seen_fragments.add(txt_id)
-
-                boxres = id2boxres[box_id]
-                txtres = id2txtres[txt_id]
-
-                line = Line.from_matching_ann_results(
-                    boxres, txtres, self.task_id, stroke
-                )
-
-                self.lines[line.id] = line
-
-        if (len(self.lines) != len(id2boxres)) or (len(self.lines) != len(id2txtres)):
-            raise ValueError(
-                f"(Task {self.task_id}) Some boxes/fragments have no associated other."
+        if not (
+            len(
+                {
+                    len(polygon_coords),
+                    len(transcriptions),
+                    len(line_ids),
+                    len(rotations),
+                }
             )
+            == 1
+        ):
+            raise ValueError(
+                "Inhomogeneous lengths of polygon_coords, transcriptions, line_ids and rotations."
+            )
+
+        if polygons_are_in_percentage:
+            page_width, page_height = stroke.size
+            polygons = []
+            for i in range(len(polygon_coords)):
+                polygon_coord = polygon_coords[i]
+
+                polygons.append(
+                    Polygon(
+                        [
+                            (p[0] * page_width / 100.0, p[1] * page_height / 100.0)
+                            for p in polygon_coord
+                        ]
+                    )
+                )
+        else:
+            polygons = [Polygon(polygon_coord) for polygon_coord in polygon_coords]
+
+        lines = []
+
+        for polygon, transcription, line_id, rotation in zip(
+            polygons, transcriptions, line_ids, rotations
+        ):
+            lines.append(
+                Line(
+                    id=line_id,
+                    stroke_crop=stroke,
+                    polygon=polygon,
+                    rotation=rotation,
+                    task_id=self.task_id,
+                    text=transcription,
+                )
+            )
+
+        return lines
 
     def _setup_graph_and_paragraphs(self):
         """
@@ -363,7 +348,7 @@ class AnnotatedPage:
         )
         return (
             f"<Annotation of task {self.task_id} {pageif} of order {self.order}. Completed by {self.completer}, "
-            f"last updated by {self.updater} at {self.last_update_time}>"
+            f"last updated by {self.updater}.>"
         )
 
     def synthetic_starting_index(
@@ -574,3 +559,57 @@ class AnnotatedPage:
         starting_index = self.synthetic_starting_index(line_ids)
 
         return manuscript, transcription, starting_index
+
+    @staticmethod
+    def from_paths(paths: PathBundle) -> list["AnnotatedPage"]:
+
+        anns = []
+
+        for metadata_filepath in tqdm(
+            Path(paths.metadata_path).iterdir(), desc="Loading A.P. data from disk..."
+        ):
+            metadata_content: dict = json.loads(metadata_filepath.read_text())
+            page: str = metadata_content["page"]
+            task_id: int = metadata_content["task_id"]
+            completer: str = metadata_content["completer"]
+            updater: str = metadata_content["updater"]
+            # subindex: int = metadata_content["subindex"]
+            # ann_id  = metadata_content["ann_id"]
+            # order = metadata_content["order"]
+            ids: list[str] = metadata_content["ids"]
+            polygons_are_in_percentage: bool = metadata_content[
+                "polygons_are_in_percentage"
+            ]
+
+            transcriptions = json.loads(Path(metadata_content["txt_path"]).read_text())
+            polygon_coords = json.loads(
+                Path(metadata_content["polygons_path"]).read_text()
+            )
+            rotations = json.loads(Path(metadata_content["rotations_path"]).read_text())
+            image_path = Path(metadata_content["image_path"])
+
+            # stroke and background separation is not certain at this point
+            stroke = Image.open(
+                paths.stroke_images_path / (image_path.stem + image_path.suffix)
+            )
+            background = Image.open(
+                paths.background_images_path / (image_path.stem + image_path.suffix)
+            )
+
+            anns.append(
+                AnnotatedPage(
+                    transcriptions=transcriptions,
+                    polygon_coords=polygon_coords,
+                    line_ids=ids,
+                    rotations=rotations,
+                    task_id=task_id,
+                    page=page,
+                    stroke=stroke,
+                    background=background,
+                    completer=completer,
+                    updater=updater,
+                    polygons_are_in_percentage=polygons_are_in_percentage,
+                )
+            )
+        # TODO: PENDING FUSION OF SAME-PAGE ANNOTATIONS
+        return anns

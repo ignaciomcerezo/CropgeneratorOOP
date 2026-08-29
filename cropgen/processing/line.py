@@ -19,29 +19,23 @@ class Line:
     Contains teh information about a single line: the polygon it occupies in the page, its stroke crop and its transcription.
     """
 
-    box_id: str
-    fragment_id: str
+    id: str
     stroke_crop: Image.Image
     polygon: Polygon
     rotation: float
     task_id: int
     text: str
     index: Optional[int] = -1
-    true_rectangle: bool
     corrected_centroid: Optional[tuple[float, float]] = None
     starting_index: Optional[int] = None
 
-    @property
-    def id(self) -> str:
-        return self.box_id + "-@-" + self.fragment_id
-
     def __hash__(self):
         return hash(
-            str(self.box_id) + str(self.fragment_id)
+            self.id
         )  # podemos devolver el id sabiendo que, en caso de colisión, no es culpa nuestra sino de external_interfaces
 
     def __repr__(self):
-        return f"<Line with box {self.box_id} and fragment {self.fragment_id} of task {self.task_id}>"
+        return f"<Line with id {self.id} of task {self.task_id}>"
 
     def centroid(self) -> tuple[float, float]:
         """Centroid of the associated polygon."""
@@ -67,30 +61,6 @@ class Line:
     def bot(self):
         """Greatest y coordinate (documents usually are y-down)."""
         return self.polygon.bounds[3]
-
-    @staticmethod
-    def from_matching_ann_results(
-        simplified_img_result_item: RectangleResult | PolygonResult,
-        simplified_txt_result_item: SimplifiedTextCorrectionResult,
-        task_id: int,
-        stroke: Image.Image,
-    ) -> "Line":
-        imgbox_id = simplified_img_result_item.id
-
-        residual_crop, polygon, rotation, true_rectangle = Line._rotatedregion(
-            stroke, simplified_img_result_item
-        )
-
-        return Line(
-            box_id=imgbox_id,
-            task_id=task_id,
-            stroke_crop=residual_crop,
-            polygon=polygon,
-            rotation=rotation,
-            true_rectangle=true_rectangle,
-            fragment_id=simplified_txt_result_item.id,
-            text=" ".join(simplified_txt_result_item.value.text).strip(),
-        )
 
     @staticmethod
     def _rotatedregion(

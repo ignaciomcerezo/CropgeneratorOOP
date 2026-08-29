@@ -25,8 +25,6 @@ def calculate_polygon(x, y, w, h, rotation):
     cos_t = math.cos(theta_rad)
     sin_t = math.sin(theta_rad)
 
-    # Lógica original de cálculo de centro y vectores
-    # Nota: Mantenemos tu lógica exacta para preservar el comportamiento actual
     cx = x + (w / 2.0) * cos_t - (h / 2.0) * sin_t
     cy = y + (w / 2.0) * sin_t + (h / 2.0) * cos_t
 

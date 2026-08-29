@@ -1,7 +1,9 @@
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.processing.helpers.helper_to_classes import is_path_graph
 from debugpy.launcher.debuggee import process
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
 import re
 
 import pytest
@@ -24,10 +26,6 @@ def _line_checks(line: Line, paragraph: Paragraph | int, ann: AnnotatedPage):
     assert isinstance(line.index, int)
 
     assert line.task_id == ann.task_id
-
-    if line.true_rectangle:
-        assert len(set(line.polygon.exterior.coords)) == 4
-
     if paragraph != -1:
         assert isinstance(paragraph, Paragraph)
         assert line.id in paragraph.line_ids

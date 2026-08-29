@@ -732,7 +732,6 @@ def mother_line(
     polygon: Optional[ShapelyPolygon] = None,
     rotation: Optional[float] = None,
     task_id: Optional[int] = None,
-    true_rectangle: Optional[bool] = None,
     n_points: Optional[int] = None,
     points: Optional[list[tuple[float, float]]] = None,
     pil_image_kwargs: Optional[dict[str, Any]] = None,
@@ -770,11 +769,6 @@ def mother_line(
         polygon=polygon,
         rotation=rotation if rotation is not None else random.uniform(0, 360),
         task_id=task_id if task_id is not None else random.randint(1, 1000),
-        true_rectangle=(
-            true_rectangle
-            if true_rectangle is not None
-            else random.choice([True, False])
-        ),
         fragment_id=(
             fragment_id if fragment_id is not None else f"frag{random.randint(1, 1000)}"
         ),

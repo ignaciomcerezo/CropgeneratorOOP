@@ -1,5 +1,7 @@
 import pytest
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
 from cropgen.shared.PathBundle import PathBundle
 from cropgen.shared.LSTypedDicts.simplified import SimplifiedAnnotation
 

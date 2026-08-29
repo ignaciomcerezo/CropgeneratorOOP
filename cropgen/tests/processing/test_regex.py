@@ -12,13 +12,15 @@ from cropgen.tests.object_mothers import mother_pil_image
 
 # load_dotenv()
 
-from cropgen.external_interfaces.LabelStudioInterface import LabelStudioInterface
+from cropgen.external_interfaces.label_studio.label_studio_interface import (
+    LabelStudioInterface,
+)
 from cropgen.processing import AnnotatedPage
 from cropgen.shared.PathBundle import PathBundle
-from cropgen.external_interfaces.OracleBucketInterface import OracleBucketInterface
+from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
 
 # paths = PathBundle(Path(os.getcwd()).parents[2])
-# obi = OracleBucketInterface(paths)
+# obi = (paths)
 # obi.update()
 # LabelStudioInterface.fetch_and_simplify(paths)
 # lsi = LabelStudioInterface(paths)
