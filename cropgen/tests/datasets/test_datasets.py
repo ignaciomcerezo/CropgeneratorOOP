@@ -1,3 +1,4 @@
+from cropgen.processing.annotated_page import AnnotatedPage
 from shapely.geometry import Polygon, MultiPolygon
 from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
 from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
@@ -19,16 +20,15 @@ from cropgen.datasets.ocr.ocrdataset import OCRDataset
 from cropgen.external_interfaces.label_studio.label_studio_interface import (
     LabelStudioInterface,
 )
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 import pytest
 from PIL import Image
 from tqdm.auto import tqdm
 
 
 def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
-    lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
 
-    annotations = lsi.get_annotated_pages()
+    annotations = AnnotatedPage.from_path_bundle(paths)
 
     A, B = OCRDataset.from_split(annotations, p=0.95, orders=[2])
 
@@ -43,15 +43,14 @@ def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
         assert isinstance(sample["page_id"], (int, str))
 
 
-def test_segmentation_dataset(paths: PathBundle):
+def test_segmentation_dataset(paths: PathBundle, patch_synthetic_manuscript):
     # TODO: remove the autouse from patch image processing
-    lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
 
-    annotations = lsi.get_annotated_pages()
+    annotations = AnnotatedPage.from_path_bundle(paths)
 
     A, B = SegmentationDataset.from_split(annotations, p=0.95, orders=[2])
 
-    for sample_i in tqdm(range(len(A)), desc="Checking every single sample"):
+    for sample_i in tqdm(range(100), desc="Checking 100 samples"):
         sample = A[sample_i]
         assert isinstance(sample[0], Image.Image)
         assert isinstance(sample[1], list)

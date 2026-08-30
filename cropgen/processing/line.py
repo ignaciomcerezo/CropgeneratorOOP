@@ -1,16 +1,9 @@
-from cropgen.shared.LSTypedDicts.simplified import SimplifiedTextCorrectionResult
-from cropgen.shared.LSTypedDicts.values import RectangleValue
-from cropgen.shared.LSTypedDicts.values import PolygonValue
 from dataclasses import dataclass
 from typing import Optional
 
 from PIL import Image
 from shapely import Polygon, box as boxshape
 from shapely.affinity import scale
-from cropgen.processing.helpers.helper_to_classes import (
-    get_rotated_region,
-)
-from cropgen.shared.LSTypedDicts.results import RectangleResult, PolygonResult
 
 
 @dataclass(slots=True, kw_only=True)
@@ -61,18 +54,3 @@ class Line:
     def bot(self):
         """Greatest y coordinate (documents usually are y-down)."""
         return self.polygon.bounds[3]
-
-    @staticmethod
-    def _rotatedregion(
-        residual: Image.Image,
-        simplified_result_item: RectangleResult | PolygonResult,
-    ) -> tuple[Image.Image, Polygon, float, bool]:
-
-        val: RectangleValue | PolygonValue = simplified_result_item.value
-
-        residual_crop, original_poly, rotation, polygonic = get_rotated_region(
-            val,
-            residual,
-        )
-
-        return residual_crop, original_poly, rotation, not polygonic

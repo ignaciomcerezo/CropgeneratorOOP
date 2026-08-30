@@ -6,12 +6,10 @@ from PIL import Image
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from cropgen.processing import AnnotatedPage, Line, Paragraph
-from cropgen.shared.LSTypedDicts.aggregates import (
+from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
     RawAnnotation,
     TaskData,
     LabelStudioTask,
-)
-from cropgen.shared.LSTypedDicts import (
     BaseResult,
     ImageBaseResult,
     TextRegionResult,
@@ -764,12 +762,11 @@ def mother_line(
             )
         )
     return Line(
-        box_id=box_id if box_id is not None else f"box{random.randint(1, 1000)}",
         stroke_crop=stroke_crop,
         polygon=polygon,
         rotation=rotation if rotation is not None else random.uniform(0, 360),
         task_id=task_id if task_id is not None else random.randint(1, 1000),
-        fragment_id=(
+        id=(
             fragment_id if fragment_id is not None else f"frag{random.randint(1, 1000)}"
         ),
         text=text,
@@ -843,8 +840,4 @@ def mother_annotated_page(
         ann_kwargs.setdefault("image_height", background.height)
         ann: SimplifiedAnnotation = mother_simplified_annotation(**ann_kwargs)
 
-    return AnnotatedPage(
-        ann,
-        stroke=stroke,
-        background=background,
-    )
+    raise NotImplementedError("Not implemented after lsi separation.")

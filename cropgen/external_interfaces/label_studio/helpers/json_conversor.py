@@ -1,15 +1,13 @@
 from shapely.geometry import Polygon
-from cropgen.shared.LSTypedDicts.values import PolygonValue
-from cropgen.shared.LSTypedDicts.results import (
+from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
+    PolygonValue,
     RectangleResult,
     PolygonResult,
     RelationResult,
-)
-from PIL import Image
-from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedResultItem,
     SimplifiedTextCorrectionResult,
 )
+from PIL import Image
 import numpy as np
 import math
 

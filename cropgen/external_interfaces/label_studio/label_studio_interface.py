@@ -1,11 +1,19 @@
+from cropgen.external_interfaces.external_interface import ExternalInterface
+import urllib
 from shapely.geometry import Polygon
 from cropgen.shared.image_processing import separate_background_and_stroke
 from typing import Annotated
-from cropgen.shared.LSTypedDicts.results import ImageBaseResult, RectangleResult
+from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
+    ImageBaseResult,
+    RectangleResult,
+    LabelStudioTask,
+    SimplifiedTask,
+    SimplifiedAnnotation,
+)
 from label_studio_sdk import Client
 import json
 import os
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 from cropgen.external_interfaces.label_studio.helpers.simplify_export import (
     simplify_and_save,
     load_simplified_export,
@@ -15,16 +23,10 @@ from cropgen.external_interfaces.label_studio.helpers.json_conversor import (
     extract_bounds,
     calculate_reading_angle,
 )
-from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
-from cropgen.shared.LSTypedDicts.simplified import (
-    SimplifiedTask,
-    SimplifiedAnnotation,
-)
 from pathlib import Path
 from cropgen.processing.annotated_page import AnnotatedPage
 from PIL import Image, ImageOps
 import numpy as np
-from urllib.parse import unquote
 from tqdm.auto import tqdm
 from urllib.parse import unquote as url_unquote
 
@@ -40,7 +42,7 @@ class _UnknownUsernames:
         return 2**20
 
 
-class LabelStudioInterface:
+class LabelStudioInterface(ExternalInterface):
     """
     Clase para gestionar la interacción con Label Studio, incluyendo la descarga, actualización y simplificación de exports,
     así como el acceso a tareas, anotaciones y usuarios. Utiliza rutas proporcionadas por un PathBundle.
@@ -66,7 +68,7 @@ class LabelStudioInterface:
     ):
         """
         Inicializa la interfaz de Label Studio a partir de un PathBundle.
-        Carga los exports locales (raw y simplified) y la lista de usuarios si existen.
+        Mantiene la instancia ligera; la descarga y actualización se ejecutan en setup().
         """
         self.project = None
         self.paths = paths
@@ -74,41 +76,13 @@ class LabelStudioInterface:
         self.simplified_export_filepath = paths.simplified_filepath
         self.online = online
         self.project_id = project_id
+        self.token = token
+        self.url = server_url
         self._raw_tasks_cache: list[LabelStudioTask] | None = None
         self._simplified_tasks_cache: list[SimplifiedTask] | None = None
         self._annotated_pages_cache: list[AnnotatedPage] | None = None
         self._task_image_path_cache: dict[int, Path | None] = {}
-
-        exists_raw = paths.raw_export_filepath.exists()
-        exists_sim = paths.simplified_filepath.exists()
-
-        if online:
-            self.token = token
-            self.url = server_url
-
-            self.fetch_and_simplify()
-        else:
-
-            if not exists_sim and not exists_raw:
-                print(
-                    f"No existe export local crudo ni simplificado, y se ha seleccionado online = False."
-                )
-
-            if not exists_raw and exists_sim:
-                print(
-                    f"No existe export crudo local en {paths.raw_export_filepath}, y online = False,"
-                    f"empleando directamente el simplificado local en {paths.simplified_filepath}."
-                )
-
-            else:
-                simplify_and_save(paths.raw_export_filepath, paths.simplified_filepath)
-
-        if not online and self.paths.usernames_filepath.exists():
-            self.usernames: list[str] = list(
-                json.loads(self.paths.usernames_filepath.read_text(encoding="utf-8"))
-            )
-        elif not online:
-            self.usernames: _UnknownUsernames = _UnknownUsernames()
+        self.usernames: list[str] | _UnknownUsernames = []
 
     @classmethod
     def from_env(
@@ -270,7 +244,7 @@ class LabelStudioInterface:
         return self._simplified_tasks_cache
 
     def _load_raw_task_image(self, task: SimplifiedTask) -> Image.Image:
-        img_path = self.paths.get_raw_image_path_from_task(task)
+        img_path = self.get_raw_image_path_from_task(task)
 
         if img_path is None:
             raise ValueError(f"No hay imagen para la tarea {task.id}")
@@ -334,15 +308,140 @@ class LabelStudioInterface:
 
     @staticmethod
     def _get_page_from_task(task: SimplifiedTask | LabelStudioTask) -> str:
-        return Path(unquote(task.data.image_url)).stem
+        return Path(url_unquote(task.data.image_url)).stem
 
     def page_names(self):
         return tuple([self._get_page_from_task(task) for task in self.simplified_tasks])
 
-    def to_json(self):
+    @staticmethod
+    def get_image_stem_from_task(
+        task: dict | LabelStudioTask | SimplifiedTask,
+    ) -> str:
+        task: LabelStudioTask | SimplifiedTask = (
+            LabelStudioInterface._simplified_or_raw(task)
+        )
+        clean_url = url_unquote(task.data.image_url)
+        filename = Path(clean_url.split("?")[0].split("/")[-1])
+        return filename.stem
+
+    def get_raw_image_path_from_task(
+        self,
+        task: LabelStudioTask | SimplifiedTask,
+    ) -> Path | None:
         """
-        Generates polygon, metadata and transcription JSON files from the LS annotations.
+        Returns the local path to the corresponding raw image.
+        If it cant find it, returns None.
         """
+        stem = self.get_image_stem_from_task(task)
+        if stem is None:
+            raise ValueError("Could not find the raw image for task: ", task.id)
+
+        filepath = self.paths.get_raw_image_path(stem)
+
+        if filepath.exists():
+            return filepath
+        print("Could not find the raw image for task: ", task.id)
+        return None
+
+    def get_stroke_image_path_from_task(
+        self, task: LabelStudioTask | SimplifiedTask
+    ) -> Path | None:
+        """
+        Returns the local path to the corresponding stroke image.
+        If it cant find it, returns None.
+        """
+        stem = self.get_image_stem_from_task(task)
+        if stem is None:
+            raise ValueError("Could not find the stroke image for task: ", task.id)
+
+        filepath = self.paths.get_stroke_image_path(stem)
+
+        if filepath.exists():
+            return filepath
+        return None
+
+    def get_background_image_path_from_task(
+        self, task: LabelStudioTask | SimplifiedTask
+    ) -> Path | None:
+        """
+        Returns the local path to the corresponding background image.
+        If it cant find it, returns None.
+        """
+        stem = self.get_image_stem_from_task(task)
+        if stem is None:
+            raise ValueError("Could not find the background image for task: ", task.id)
+
+        filepath = self.paths.get_background_image_path(stem)
+
+        if filepath.exists():
+            return filepath
+        return None
+
+    @staticmethod
+    def _simplified_or_raw(
+        obj: dict | SimplifiedTask | LabelStudioTask,
+    ) -> SimplifiedTask | LabelStudioTask:
+
+        if isinstance(obj, dict):
+            try:
+                converted_obj = SimplifiedTask.model_validate(obj)
+                return converted_obj
+            except:
+                try:
+                    converted_obj = LabelStudioTask.model_validate(obj)
+                    return converted_obj
+                except:
+                    raise TypeError(
+                        "Se ha pasado un objeto que no cumple ninguna de las dos."
+                    )
+        elif isinstance(obj, (SimplifiedTask, LabelStudioTask)):
+            return obj
+        else:
+            raise TypeError("Se ha pasado un tipo incorrecto")
+
+    def parts_managed(self):
+        return [
+            "metadata",
+            "rotations",
+        ]
+
+    def parts_required(self):
+        return []
+
+    def setup(self) -> None:
+        """
+        Downloads or refreshes the Label Studio exports when online and generates the
+        polygon, metadata and transcription JSON files from the annotations.
+        """
+        if self.online:
+            self.fetch_and_simplify()
+        else:
+            exists_raw = self.paths.raw_export_filepath.exists()
+            exists_sim = self.paths.simplified_filepath.exists()
+
+            if not exists_sim and not exists_raw:
+                print(
+                    f"No existe export local crudo ni simplificado, y se ha seleccionado online = False."
+                )
+
+            if not exists_raw and exists_sim:
+                print(
+                    f"No existe export crudo local en {self.paths.raw_export_filepath}, y online = False,"
+                    f"empleando directamente el simplificado local en {self.paths.simplified_filepath}."
+                )
+            else:
+                simplify_and_save(
+                    self.paths.raw_export_filepath, self.paths.simplified_filepath
+                )
+
+            if self.paths.usernames_filepath.exists():
+                self.usernames = list(
+                    json.loads(
+                        self.paths.usernames_filepath.read_text(encoding="utf-8")
+                    )
+                )
+            else:
+                self.usernames = _UnknownUsernames()
 
         for task in self.simplified_tasks:
             image_url = task.data.image_url
@@ -388,13 +487,18 @@ class LabelStudioInterface:
                     else:
                         rotations.append(calculate_reading_angle(Polygon(poly_bounds)))
 
-                name = f"s{subindex}_pg{page}.json"
+                json_name = f"s{subindex}_pg{page}.json"
 
-                (self.paths.transcription_path / name).write_text(
+                (self.paths.transcription_path / json_name).write_text(
                     json.dumps(transcriptions)
                 )
-                (self.paths.polygons_path / name).write_text(json.dumps(poly_coords))
-                (self.paths.rotations_path / name).write_text(json.dumps(rotations))
+                (self.paths.polygons_path / json_name).write_text(
+                    json.dumps(poly_coords)
+                )
+                (self.paths.rotations_path / json_name).write_text(
+                    json.dumps(rotations)
+                )
+                (self.paths.ids_path / json_name).write_text(json.dumps(ids))
                 metadata = {
                     "page": page,
                     "task_id": task_id,
@@ -404,11 +508,11 @@ class LabelStudioInterface:
                     "ann_id": ann_id,
                     "order": len(trios),
                     "image_path": str(self.paths.raw_images_path / f"{page}.png"),
-                    "ids": ids,
-                    "txt_path": str(self.paths.transcription_path / name),
-                    "polygons_path": str(self.paths.polygons_path / name),
-                    "rotations_path": str(self.paths.rotations_path / name),
+                    "ids_path": str(self.paths.ids_path / json_name),
+                    "txt_path": str(self.paths.transcription_path / json_name),
+                    "polygons_path": str(self.paths.polygons_path / json_name),
+                    "rotations_path": str(self.paths.rotations_path / json_name),
                     "polygons_are_in_percentage": True,
                     "source": "Label Studio",
                 }
-                (self.paths.metadata_path / name).write_text(json.dumps(metadata))
+                (self.paths.metadata_path / json_name).write_text(json.dumps(metadata))

@@ -1,13 +1,13 @@
+from collections import defaultdict
 from pathlib import Path
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 from cropgen.shared.image_processing import crop_or_resize
+from cropgen.shared.page_metadata import PageSampleMetadata
 from copy import deepcopy
 from shapely.geometry import Point, Polygon
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
-from typing import Literal, Optional, TYPE_CHECKING, Any, Sequence, Callable
-import re
-from collections.abc import Iterable
+from typing import Literal, Callable, Collection
 from shapely.affinity import translate
 import numpy as np
 from PIL import Image, ImageDraw
@@ -22,22 +22,6 @@ from cropgen.processing.helpers.text_regularization import (
     regularize_text,
     regularize_line,
 )
-from cropgen.shared.LSTypedDicts.results import (
-    RectangleResult,
-    PolygonResult,
-    RelationResult,
-    TextRegionResult,
-)
-from cropgen.shared.LSTypedDicts.simplified import (
-    SimplifiedAnnotation,
-    SimplifiedResultItem,
-    SimplifiedTextCorrectionResult,
-)
-from cropgen.shared.default_parameters import (
-    DATASET_LONGEST_SIZE_PX,
-    PROCESSING_LONGEST_SIDE_PX,
-)
-from cropgen.shared.display import display
 from tqdm.auto import tqdm
 
 ocr_transform = Callable[
@@ -561,32 +545,70 @@ class AnnotatedPage:
         return manuscript, transcription, starting_index
 
     @staticmethod
-    def from_paths(paths: PathBundle) -> list["AnnotatedPage"]:
+    def from_path_bundle(
+        paths: PathBundle,
+        *,
+        pages: Collection[str | int] | None = None,
+        tasks: Collection[str | int] | None = None,
+        combine_same_page_annotations: bool = True,
+    ) -> list["AnnotatedPage"]:
+        """
+        Uses the information stored in paths.metadata_path to access the appropriate
+        images, transcriptions, polygons, ids and rotations and creates AnnotatedPage
+        instances.
+        """
 
-        anns = []
+        tasks: set[str] | None = (
+            set([str(task) for task in tasks])
+            if isinstance(tasks, Collection)
+            else None
+        )
+        pages: set[str] | None = (
+            set([str(page) for page in pages])
+            if isinstance(pages, Collection)
+            else None
+        )
+
+        def _acceptable(page, task_id):
+            if (pages is None) and (tasks is None):
+                return True
+            if tasks is None:
+                return page in pages  # ty: ignore[unsupported-operator]
+            if pages is None:
+                return task_id in tasks
+
+            return (task_id in tasks) or (page in pages)
+
+        page2annpage: dict[str, list[AnnotatedPage]] = defaultdict(lambda: list())
 
         for metadata_filepath in tqdm(
             Path(paths.metadata_path).iterdir(), desc="Loading A.P. data from disk..."
         ):
-            metadata_content: dict = json.loads(metadata_filepath.read_text())
-            page: str = metadata_content["page"]
-            task_id: int = metadata_content["task_id"]
-            completer: str = metadata_content["completer"]
-            updater: str = metadata_content["updater"]
+            metadata = PageSampleMetadata.model_validate(
+                json.loads(metadata_filepath.read_text())
+            )
+
+            page = metadata.page
+            task_id = metadata.task_id
+            print(f"\n{page=}\n{task_id=}\n")
+
+            if not _acceptable(page, task_id):
+                print(f"Skipping {task_id=}/{page=} (looking for {tasks=} or {pages=})")
+                continue
+
+            completer: str = metadata.completer
+            updater: str = metadata.updater
             # subindex: int = metadata_content["subindex"]
             # ann_id  = metadata_content["ann_id"]
             # order = metadata_content["order"]
-            ids: list[str] = metadata_content["ids"]
-            polygons_are_in_percentage: bool = metadata_content[
-                "polygons_are_in_percentage"
-            ]
 
-            transcriptions = json.loads(Path(metadata_content["txt_path"]).read_text())
-            polygon_coords = json.loads(
-                Path(metadata_content["polygons_path"]).read_text()
-            )
-            rotations = json.loads(Path(metadata_content["rotations_path"]).read_text())
-            image_path = Path(metadata_content["image_path"])
+            polygons_are_in_percentage: bool = metadata.polygons_are_in_percentage
+
+            transcriptions = metadata.transcriptions
+            polygon_coords = metadata.polygon_coords
+            rotations = metadata.rotations
+            ids = metadata.ids
+            image_path = metadata.image_path
 
             # stroke and background separation is not certain at this point
             stroke = Image.open(
@@ -595,14 +617,13 @@ class AnnotatedPage:
             background = Image.open(
                 paths.background_images_path / (image_path.stem + image_path.suffix)
             )
-
-            anns.append(
+            page2annpage[page].append(
                 AnnotatedPage(
                     transcriptions=transcriptions,
                     polygon_coords=polygon_coords,
                     line_ids=ids,
                     rotations=rotations,
-                    task_id=task_id,
+                    task_id=int(task_id),
                     page=page,
                     stroke=stroke,
                     background=background,
@@ -611,5 +632,9 @@ class AnnotatedPage:
                     polygons_are_in_percentage=polygons_are_in_percentage,
                 )
             )
-        # TODO: PENDING FUSION OF SAME-PAGE ANNOTATIONS
-        return anns
+
+        if combine_same_page_annotations:
+            for page, annotations in page2annpage.items():
+                page2annpage[page] = [AnnotatedPage.combine_annotations(*annotations)]
+
+        return sum(page2annpage.values(), start=[])

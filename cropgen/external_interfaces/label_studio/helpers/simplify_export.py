@@ -3,25 +3,21 @@ import os
 from pathlib import Path
 from typing import List
 
-from cropgen.shared.LSTypedDicts.aggregates import (
+from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
     LabelStudioTask,
     RawAnnotation,
     ResultItem,
-)
-from cropgen.shared.LSTypedDicts.results import (
     TextCorrectionResult,
     TextRegionResult,
     RelationResult,
     RectangleResult,
     PolygonResult,
-)
-from cropgen.shared.LSTypedDicts.simplified import (
     SimplifiedTask,
     SimplifiedAnnotation,
     SimplifiedTextCorrectionResult,
     SimplifiedResultItem,
 )
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 
 newline = "\n"
 tab = "\t"

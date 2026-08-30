@@ -3,9 +3,6 @@ from pathlib import Path
 from os import getcwd
 import shutil
 
-from cropgen.shared.LSTypedDicts.aggregates import LabelStudioTask
-from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask, SimplifiedAnnotation
-
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
 _output_json_filename = "pairs.jsonl"
@@ -20,8 +17,6 @@ class PathBundle:
 
     def __init__(self, root: Path | str | None = None):
         self.root: Path = Path(root) if root else Path(getcwd())
-        self.lsi = None
-        self.obi = None
         self.assert_paths()
 
     @property
@@ -40,9 +35,9 @@ class PathBundle:
     def background_images_path(self) -> Path:
         return self.data_in_path / "images/background/"
 
-    # @property
-    # def transcriptions_path(self) -> Path:
-    #     return self.data_in_path / "transcriptions/"
+    @property
+    def transcriptions_path(self) -> Path:
+        return self.data_in_path / "transcriptions/"
 
     @property
     def exports_path(self) -> Path:
@@ -113,93 +108,7 @@ class PathBundle:
         except Exception as e:
             raise Exception(f"Error al crear las carpetas necesarias: {e}")
 
-    @staticmethod
-    def _simplified_or_raw(
-        obj: dict | SimplifiedTask | LabelStudioTask,
-    ) -> SimplifiedTask | LabelStudioTask:
-
-        if isinstance(obj, dict):
-            try:
-                converted_obj = SimplifiedTask.model_validate(obj)
-                return converted_obj
-            except:
-                try:
-                    converted_obj = LabelStudioTask.model_validate(obj)
-                    return converted_obj
-                except:
-                    raise TypeError(
-                        "Se ha pasado un objeto que no cumple ninguna de las dos."
-                    )
-        elif isinstance(obj, (SimplifiedTask, LabelStudioTask)):
-            return obj
-        else:
-            raise TypeError("Se ha pasado un tipo incorrecto")
-
     # TODO: separate the task logic from the pathbundle logic
-    def _get_image_stem_from_task(
-        self, task: dict | LabelStudioTask | SimplifiedTask
-    ) -> str | None:
-        task: LabelStudioTask | SimplifiedTask = PathBundle._simplified_or_raw(task)
-        data = task.data
-        image_url = data.image_url or ""
-        if not image_url:
-            return None
-
-        clean_url = urllib.parse.unquote(image_url)
-        filename = Path(clean_url.split("?")[0].split("/")[-1])
-        return filename.stem
-
-    def get_raw_image_path_from_task(
-        self, task: LabelStudioTask | SimplifiedTask
-    ) -> Path | None:
-        """
-        Returns the local path to the corresponding raw image.
-        If it cant find it, returns None.
-        """
-        stem = self._get_image_stem_from_task(task)
-        if stem is None:
-            raise ValueError("Could not find the raw image for task: ", task.id)
-
-        filepath = self.get_raw_image_path(stem)
-
-        if filepath.exists():
-            return filepath
-        print("Could not find the raw image for task: ", task.id)
-        return None
-
-    def get_stroke_image_path_from_task(
-        self, task: LabelStudioTask | SimplifiedTask
-    ) -> Path | None:
-        """
-        Returns the local path to the corresponding stroke image.
-        If it cant find it, returns None.
-        """
-        stem = self._get_image_stem_from_task(task)
-        if stem is None:
-            raise ValueError("Could not find the stroke image for task: ", task.id)
-
-        filepath = self.get_stroke_image_path(stem)
-
-        if filepath.exists():
-            return filepath
-        return None
-
-    def get_background_image_path_from_task(
-        self, task: LabelStudioTask | SimplifiedTask
-    ) -> Path | None:
-        """
-        Returns the local path to the corresponding background image.
-        If it cant find it, returns None.
-        """
-        stem = self._get_image_stem_from_task(task)
-        if stem is None:
-            raise ValueError("Could not find the background image for task: ", task.id)
-
-        filepath = self.get_background_image_path(stem)
-
-        if filepath.exists():
-            return filepath
-        return None
 
     def remove_all_files(self) -> None:
         """
@@ -241,6 +150,7 @@ class PathBundle:
         """
         Elimina la imagen y la transcripción asociadas a un nombre de página dado.
         """
+
         paths = (
             self.get_raw_image_path(page_name),
             self.get_stroke_image_path(page_name),
@@ -254,9 +164,11 @@ class PathBundle:
             else:
                 print(f"Unexisting file: {path}")
 
-    def has_processed_images(self, task: SimplifiedTask | LabelStudioTask):
-        return (self.get_background_image_path_from_task(task) is not None) and (
-            self.get_stroke_image_path_from_task(task) is not None
+    def has_processed_images(self, page_name: str):
+
+        return (
+            self.get_background_image_path(page_name).exists()
+            and self.get_stroke_image_path(page_name).exists()
         )
 
     def get_raw_image_path(self, page_name: str | int) -> Path:

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Literal
-from cropgen.shared.LSTypedDicts.values import (
+from cropgen.external_interfaces.label_studio.ls_typed_dicts.values import (
     TextRegionValue,
     TextCorrectionValue,
     RectangleValue,

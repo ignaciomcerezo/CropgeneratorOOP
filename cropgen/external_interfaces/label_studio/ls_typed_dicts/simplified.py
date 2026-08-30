@@ -1,36 +1,38 @@
 from pydantic import BaseModel, Field
-from typing import Union, Optional, Any, List, Dict, Annotated
-from cropgen.shared.LSTypedDicts.results import (
-    TextCorrectionResult,
-    TextRegionResult,
+from typing import Literal, Union, Optional, Any, List, Dict, Annotated
+
+from cropgen.external_interfaces.label_studio.ls_typed_dicts.aggregates import TaskData
+from cropgen.external_interfaces.label_studio.ls_typed_dicts.results import (
+    BaseResult,
     RectangleResult,
     PolygonResult,
     RelationResult,
 )
 
-ResultItem = Annotated[
+
+class SimplifiedTextCorrectionValue(BaseModel):
+    text: List[str]
+
+
+class SimplifiedTextCorrectionResult(BaseResult):
+    from_name: Literal["correction", "text_adapter"]
+    type: Literal["textarea"]
+    value: SimplifiedTextCorrectionValue
+    origin: Optional[str] = None  # sobreescribimos el base
+
+
+SimplifiedResultItem = Annotated[
     Union[
-        TextRegionResult,
-        TextCorrectionResult,
-        RectangleResult,
-        PolygonResult,
-        RelationResult,
+        SimplifiedTextCorrectionResult, RectangleResult, PolygonResult, RelationResult
     ],
     Field(discriminator="type"),
 ]
 
-ResultItemNotRelation = Union[
-    TextRegionResult,
-    TextCorrectionResult,
-    RectangleResult,
-    PolygonResult,
-]
 
-
-class RawAnnotation(BaseModel):
+class SimplifiedAnnotation(BaseModel):
     id: int
     completed_by: int
-    result: List[ResultItem]
+    result: List[SimplifiedResultItem]
     result_count: int
     was_cancelled: bool
     ground_truth: bool
@@ -43,7 +45,6 @@ class RawAnnotation(BaseModel):
     project: int
     updated_by: int
 
-    # Optional fields based on trace
     draft_created_at: Optional[str] = None
     import_id: Optional[int] = None
     last_action: Optional[Any] = None
@@ -53,12 +54,7 @@ class RawAnnotation(BaseModel):
     prediction: Dict = {}
 
 
-class TaskData(BaseModel):
-    image_url: str
-    transcription: str
-
-
-class LabelStudioTask(BaseModel):
+class SimplifiedTask(BaseModel):
     id: int
     inner_id: int
     file_upload: str
@@ -68,7 +64,7 @@ class LabelStudioTask(BaseModel):
     updated_by: int
 
     data: TaskData
-    annotations: List[RawAnnotation]
+    annotations: List[SimplifiedAnnotation]
     drafts: List[Any]
     predictions: List[Any]
     meta: Dict

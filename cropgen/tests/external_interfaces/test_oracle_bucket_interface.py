@@ -1,7 +1,23 @@
 import pytest
 from pathlib import Path
 from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
+
+
+def test_obi_setup_is_explicit(monkeypatch, paths: PathBundle):
+    calls = []
+
+    def fake_update(self):
+        calls.append("update")
+        return []
+
+    monkeypatch.setattr(OnlineBucketInterface, "update", fake_update)
+
+    obi = OnlineBucketInterface(paths, "https://example.test/bucket/")
+    assert calls == []
+
+    obi.setup()
+    assert calls == ["update"]
 
 
 @pytest.mark.parametrize("page_name", ["015", "154"])

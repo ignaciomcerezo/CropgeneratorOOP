@@ -4,6 +4,7 @@ from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
     PROCESSING_LONGEST_SIDE_PX,
 )
+import numpy as np
 from tqdm.auto import tqdm
 from tkinter import Label
 import multiprocessing
@@ -16,8 +17,9 @@ from cropgen.external_interfaces.label_studio.label_studio_interface import (
     LabelStudioInterface,
 )
 from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 from requests.exceptions import ConnectionError
+from PIL import Image
 
 
 @pytest.fixture(scope="session")
@@ -53,11 +55,11 @@ def bucket_url() -> str:
 def lsi(paths: PathBundle, ls_token, ls_url) -> LabelStudioInterface:
     try:
         lsi = LabelStudioInterface(paths, ls_url, ls_token)
+        lsi.setup()
     except ConnectionError:
         print("Connection errored for LabelStudioInterface, going offline.")
         lsi = LabelStudioInterface(paths, ls_url, ls_token, online=False)
-
-    paths.lsi = lsi
+        lsi.setup()
     return lsi
 
 
@@ -68,8 +70,6 @@ def obi(paths: PathBundle, bucket_url: str) -> OnlineBucketInterface:
     except ConnectionError:
         print("Connection errored for , going offline.")
         obi = OnlineBucketInterface(paths, bucket_url, online=False)
-
-    paths.obi = obi
     return obi
 
 
@@ -79,10 +79,14 @@ def prepare_data(
 ):
 
     for task in tqdm(
-        [task for task in lsi.simplified_tasks if not paths.has_processed_images(task)],
+        [
+            task
+            for task in lsi.simplified_tasks
+            if not paths.has_processed_images(lsi.get_image_stem_from_task(task))
+        ],
         desc="Stroke/background separation.",
     ):
-        raw_image_path = paths.get_raw_image_path_from_task(task)
+        raw_image_path = lsi.get_raw_image_path_from_task(task)
 
         if raw_image_path is None:
             raise ValueError(
@@ -153,24 +157,8 @@ import cropgen.shared.image_processing as imgproc
 from cropgen.processing.annotated_page import AnnotatedPage
 
 
-def _fake_separate_background_and_stroke(
-    img, *args, **kwargs
-) -> tuple[Image.Image, Image.Image]:
-    return img, img
-
-
 def _fake_synthetic_manuscript(*args, **kwargs):
     return Image.Image(), []
-
-
-@pytest.fixture(autouse=True)
-def patch_image_processing(monkeypatch):
-    print("Patching image processing.")
-    monkeypatch.setattr(
-        imgproc,
-        "separate_background_and_stroke",
-        _fake_separate_background_and_stroke,
-    )
 
 
 @pytest.fixture
@@ -179,3 +167,8 @@ def patch_synthetic_manuscript(monkeypatch):
     monkeypatch.setattr(
         AnnotatedPage, "synthetic_manuscript", _fake_synthetic_manuscript
     )
+
+
+@pytest.fixture(autouse=True)
+def patch_image_open(mode="r", formats=None):
+    return Image.fromarray(np.zeros((100, 100), dtype=np.uint8), mode="L")

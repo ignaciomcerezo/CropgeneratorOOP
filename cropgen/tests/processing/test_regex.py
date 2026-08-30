@@ -2,7 +2,6 @@ import os
 import re
 from pathlib import Path
 from typing import Iterable
-from cropgen.shared.LSTypedDicts.simplified import SimplifiedTask
 
 from dotenv import load_dotenv
 
@@ -16,7 +15,7 @@ from cropgen.external_interfaces.label_studio.label_studio_interface import (
     LabelStudioInterface,
 )
 from cropgen.processing import AnnotatedPage
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
 
 # paths = PathBundle(Path(os.getcwd()).parents[2])
@@ -74,58 +73,36 @@ def number_of_matches(
 
     total_matches = [0] * len(re_patterns)
 
-    for task in tasks:
-        width, height = extract_height_width_from_task(task)
-        stroke = mother_pil_image(width=width, height=height, color=(255, 255, 255))
-        background = mother_pil_image(width=width, height=height, color=(255, 255, 255))
-
-        task: SimplifiedTask
-
-        if "id" in filters and (task.id not in filters["id"]):
-            continue
-
-        page = paths._get_image_stem_from_task(task)
-
-        if page is None:
-            raise ValueError(f"No page found for task {task.id}")
-
-        if "page" in filters and (page not in filters["page"]):
-            continue
-
-        for k, ann in enumerate(task.annotations):
-
+    for ann in AnnotatedPage.from_path_bundle(
+        paths,
+        combine_same_page_annotations=False,
+        tasks=filters["id"] if "id" in filters else None,
+        pages=filters["page"] if "page" in filters else None,
+    ):
+        for line in ann.lines.values():
             for pttrn_index, re_pattern in enumerate(re_patterns):
+                does_match = re_pattern.search(line.text)
+                if does_match and show_where:
 
-                # Primero con unrotate = True (comprobación de los recortes individuales)
-                Ann = AnnotatedPage(
-                    ann,
-                    stroke,
-                    background,
-                )
+                    print(
+                        f"Matches in {ann} for pattern {_str_trimmed(re_pattern.pattern)}:"
+                    )
+                    starts = []
+                    ends = []
+                    b_prev = 0
 
-                for line in Ann.lines.values():
-                    does_match = re_pattern.search(line.text)
-                    if does_match and show_where:
+                    print(f"\t{line.text}")
+                    print("\t", end="")
 
-                        print(
-                            f"Matches in {Ann} for pattern {_str_trimmed(re_pattern.pattern)}:"
-                        )
-                        starts = []
-                        ends = []
-                        b_prev = 0
-
-                        print(f"\t{line.text}")
-                        print("\t", end="")
-
-                        matches = list(re_pattern.finditer(line.text))
-                        for match in matches:
-                            a, b = match.span()
-                            print(" " * (a - b_prev) + "^" * (b - a), end="")
-                            starts.append(a)
-                            ends.append(b)
-                            b_prev = b
-                        print("\n", end="")
-                        total_matches[pttrn_index] += len(matches)
+                    matches = list(re_pattern.finditer(line.text))
+                    for match in matches:
+                        a, b = match.span()
+                        print(" " * (a - b_prev) + "^" * (b - a), end="")
+                        starts.append(a)
+                        ends.append(b)
+                        b_prev = b
+                    print("\n", end="")
+                    total_matches[pttrn_index] += len(matches)
 
     return total_matches
 

@@ -12,12 +12,8 @@ dependencies = [
     "scipy>=1.14.0",
     "python-levenshtein>=0.27.3",
     "levenshtein>=0.27.3",
-    "datasets>=4.1.0,<4.4.0",
     "fuzzywuzzy>=0.18.0",
-    "ipykernel>=6.17.0",
     "label-studio-sdk>=2.0.19",
-    "openpyxl>=3.1.5",
-    "pandas>=2.2.2,<3.0.0",
     "pydantic>=2.10.0,<2.12.4",
     "pytest>=9.0.2",
     "python-dotenv>=1.2.2",
@@ -27,8 +23,6 @@ dependencies = [
     "tqdm>=4.67.3",
     "ruff>=0.15.9",
     "pillow>=12.1.1",
-    "ipywidgets>=8.1.8",
-    "jupyterlab>=4.5.7",
     "torch",
 ]
 
@@ -73,6 +67,9 @@ unsloth = { git = "https://github.com/unslothai/unsloth.git" }
 dev = [
     "cropgen",
     "ty>=0.0.72",
+    "ipykernel",
+    "ipywidgets",
+    "jupyterlab",
 ]
 
 

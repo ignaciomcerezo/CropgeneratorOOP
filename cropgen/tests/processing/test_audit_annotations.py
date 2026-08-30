@@ -1,4 +1,4 @@
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 from cropgen.processing.helpers.helper_to_classes import is_path_graph
 from debugpy.launcher.debuggee import process
 from cropgen.external_interfaces.label_studio.label_studio_interface import (
@@ -63,24 +63,9 @@ def lines_without_paragraph(annotated_page: AnnotatedPage) -> list[Line]:
 
 
 @pytest.mark.audit
-def test_audit_annotations(paths):
-    for task in tqdm(paths.lsi.simplified_tasks, desc="test_audit_annotations"):
-        width, height = extract_height_width_from_task(task)
-        stroke = mother_pil_image(width=width, height=height, color=(255, 0, 0))
-        background = mother_pil_image(width=width, height=height, color=(0, 255, 0))
-        ann = AnnotatedPage.combine_annotations(
-            *[
-                AnnotatedPage(
-                    ann,
-                    stroke,
-                    background,
-                    completer=paths.lsi._get_completer(ann),
-                    updater=paths.lsi._get_updater(ann),
-                )
-                for ann in task.annotations
-            ]
-        )
+def test_audit_annotations(paths: PathBundle, patch_image_open):
 
+    for ann in AnnotatedPage.from_path_bundle(paths):
         seen_lines = set()
         first_sindices_of_paragraphs = []
 
@@ -142,30 +127,31 @@ def test_audit_annotations(paths):
     assert AnnotatedPage.n_annotation_errors == 0
 
 
-re_letternumber = re.compile(r"[a-zA-Z]+\d", re.DOTALL)
+# re_letternumber = re.compile(r"[a-zA-Z]+\d", re.DOTALL)
 
 
-@pytest.mark.skip("Esto realmente no es un test")
-def test_letter_number_yuxtaposition(
-    paths: PathBundle, ls_url, ls_token, lsi: LabelStudioInterface
-):
-    for task in lsi.simplified_tasks:
-        width, height = extract_height_width_from_task(task)
-        stroke = mother_pil_image(width=width, height=height, color=(255, 0, 0))
-        background = mother_pil_image(width=width, height=height, color=(0, 255, 0))
+# @pytest.mark.skip("Esto realmente no es un test")
+# def test_letter_number_yuxtaposition(
+#     paths: PathBundle, ls_url, ls_token, lsi: LabelStudioInterface
+# ):
 
-        for k_ann, ls_ann in enumerate(task.annotations):
-            ann_page = AnnotatedPage(
-                ls_ann,
-                stroke,
-                background,
-                completer=lsi._get_completer(ls_ann),
-                updater=lsi._get_updater(ls_ann),
-            )
+#     for task in lsi.simplified_tasks:
+#         width, height = extract_height_width_from_task(task)
+#         stroke = mother_pil_image(width=width, height=height, color=(255, 0, 0))
+#         background = mother_pil_image(width=width, height=height, color=(0, 255, 0))
 
-            for paragraph in ann_page.paragraphs:
-                for text_fragment in paragraph.lines:
-                    for match in re_letternumber.findall(text_fragment.text):
-                        print(
-                            f"({ann_page.task_id:>5}|{ann_page.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
-                        )
+#         for k_ann, ls_ann in enumerate(task.annotations):
+#             ann_page = AnnotatedPage(
+#                 ls_ann,
+#                 stroke,
+#                 background,
+#                 completer=lsi._get_completer(ls_ann),
+#                 updater=lsi._get_updater(ls_ann),
+#             )
+
+#             for paragraph in ann_page.paragraphs:
+#                 for text_fragment in paragraph.lines:
+#                     for match in re_letternumber.findall(text_fragment.text):
+#                         print(
+#                             f"({ann_page.task_id:>5}|{ann_page.completer:<25}) {text_fragment.id:<5} MATCH: {match:<15}\t<<{text_fragment.text}>> "
+#                         )

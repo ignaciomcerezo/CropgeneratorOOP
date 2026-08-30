@@ -5,7 +5,7 @@ import pytest
 from cropgen.external_interfaces.label_studio.label_studio_interface import (
     LabelStudioInterface,
 )
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 from cropgen.tests.tests_helper import load_ann
 
 one_paragraph = [1, 2, 3, 4, (11, 0), 13, 14, 17, 18, (11, 1)]
@@ -29,8 +29,8 @@ def test_paragraph_v1(
     supposed_paragraphs,
 ):
     task_id, subindex = task_id_subindex_combo
-    lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
-    ann: AnnotatedPage = lsi.get_annotated_page(task_id=task_id, subindex=subindex)
+
+    ann = load_ann(paths, task_id=task_id, annotation_number_in_task=subindex)
     n_par = len(ann.paragraphs)
     assert n_par == (
         supposed_paragraphs
@@ -47,25 +47,25 @@ def test_paragraph_v2(
 
     for task_n in five_letter_task_numbers + five_laloma_task_numbers:
         print(f"1 // Checking {task_n=}")
-        ann = load_ann(paths, task_n, fake_image=True)
+        ann = load_ann(paths, task_n)
         assert len(ann.paragraphs) == 1
 
     for task_n in two_paragraph_laloma:
         print(f"2 // Checking {task_n=}")
-        ann = load_ann(paths, task_n, fake_image=True)
+        ann = load_ann(paths, task_n)
         assert len(ann.paragraphs) == 2
 
     for task_n in three_paragraph_laloma:
         print(f"3 // Checking {task_n=}")
-        ann = load_ann(paths, task_n, fake_image=True)
+        ann = load_ann(paths, task_n)
         assert len(ann.paragraphs) == 3
 
 
 def test_paragraph_ordering_v3(paths):
-    ann = load_ann(paths, 280, fake_image=True)
+    ann = load_ann(paths, 280)
     assert len(ann.paragraphs) == 1
 
-    assert [line.box_id for line in ann.paragraphs[0]] == [
+    assert [line.id[:10] for line in ann.paragraphs[0]] == [
         "3vLJQ-OQfx",
         "0mE8YfO-qb",
         "fI2od0TJYp",
@@ -81,11 +81,11 @@ def test_paragraph_ordering_v3(paths):
         "TcqI79fmwV",
     ]
 
-    ann = load_ann(paths, 690, fake_image=True)
+    ann = load_ann(paths, 690)
 
     assert len(ann.paragraphs) == 2
 
-    assert [line.box_id for line in ann.paragraphs[0]][:6] == [
+    assert [line.id[:10] for line in ann.paragraphs[0]][:6] == [
         "XhDbxw40iQ",
         "gIMBZ5nlKa",
         "HkIgHqMJAY",
@@ -94,7 +94,7 @@ def test_paragraph_ordering_v3(paths):
         "jMeItlFlAT",
     ]
 
-    assert [line.box_id for line in ann.paragraphs[1]] == [
+    assert [line.id[:10] for line in ann.paragraphs[1]] == [
         "fdroAOvxV0",
         "9iaENiPLJf",
         "RYvD2P4Yso",
@@ -102,9 +102,9 @@ def test_paragraph_ordering_v3(paths):
         "q5aAvQGbt_",
     ]
 
-    ann = load_ann(paths, 332, annotation_number_in_task=1, fake_image=True)
+    ann = load_ann(paths, 332, annotation_number_in_task=1)
 
-    assert [line.box_id for line in ann.paragraphs[0]] == [
+    assert [line.id[:10] for line in ann.paragraphs[0]] == [
         "KotWxsgS87",
         "ydPjZ4UtEq",
         "9mI-CXY7JI",

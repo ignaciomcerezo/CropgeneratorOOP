@@ -1,4 +1,6 @@
 from __future__ import annotations
+from cropgen.external_interfaces.external_interface import ExternalInterface
+from typing import Literal, Callable
 
 import os
 import urllib.parse
@@ -10,10 +12,10 @@ import requests
 from dotenv import load_dotenv
 from tqdm.auto import tqdm
 
-from cropgen.shared.PathBundle import PathBundle
+from cropgen.shared.path_bundle import PathBundle
 
 
-class OnlineBucketInterface:
+class OnlineBucketInterface(ExternalInterface):
     """
     Bucket download interface. Uses paths provided by a PathBundle instance.
     """
@@ -24,6 +26,9 @@ class OnlineBucketInterface:
         bucket_url: str | None = None,
         online: bool = True,
         extension_wanted: str = ".png",
+        what_downloading: Literal[
+            "raw_images", "background_images", "stroke_images"
+        ] = "raw_images",
     ) -> None:
         if not bucket_url:
             if "BUCKET_URL" in os.environ:
@@ -37,12 +42,26 @@ class OnlineBucketInterface:
         self.bucket_url = self._normalize_bucket_url(bucket_url)
         self._timeout = 15
         self.online = online
+        self._type_downloading = what_downloading
+        self.corresponding_path_accesor  # to check it is of the correct type
 
         if not extension_wanted.startswith("."):
             extension_wanted = f".{extension_wanted}"
         self.extension = extension_wanted
 
         self.images_url_path = self.bucket_url
+
+    @property
+    def corresponding_path_accesor(self) -> Callable[[str], Path]:
+        match self._type_downloading:
+            case "raw_images":
+                return self.paths.get_raw_image_path
+            case "background_images":
+                return self.paths.get_background_image_path
+            case "stroke_images":
+                return self.paths.get_stroke_image_path
+            case _:
+                raise ValueError("Unsupported type_downloading")
 
     @classmethod
     def from_env(
@@ -118,7 +137,7 @@ class OnlineBucketInterface:
                 continue
 
             page_name = p.stem
-            local_img = self.paths.get_raw_image_path(page_name)
+            local_img = self.corresponding_path_accesor(page_name)
             if not local_img.exists():
                 pending.setdefault(page_name, decoded_name)
 
@@ -140,7 +159,7 @@ class OnlineBucketInterface:
                 continue
 
             page_name = p.stem
-            local_img = self.paths.get_raw_image_path(page_name)
+            local_img = self.corresponding_path_accesor(page_name)
             if not local_img.exists():
                 pending.setdefault(page_name, decoded_name)
 
@@ -168,7 +187,7 @@ class OnlineBucketInterface:
                 img_resp = session.get(img_url, timeout=self._timeout)
                 img_resp.raise_for_status()
 
-                local_img = self.paths.get_raw_image_path(page_name)
+                local_img = self.corresponding_path_accesor(page_name)
                 local_img.write_bytes(img_resp.content)
 
                 Image.open(local_img).convert("L").save(local_img)
@@ -184,3 +203,18 @@ class OnlineBucketInterface:
                 downloaded.append(name)
 
         return downloaded
+
+    def parts_managed(
+        self,
+    ) -> tuple[Literal["raw_images", "background_images", "stroke_images"],]:
+        return (self._type_downloading,)
+
+    def parts_required(self):
+        return []
+
+    def setup(self) -> None:
+        """Download pending bucket images if the interface is online."""
+        if not self.online:
+            return
+        self.update()
+        return
