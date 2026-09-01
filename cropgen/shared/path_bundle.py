@@ -1,3 +1,4 @@
+from typing import Literal
 import urllib.parse
 from pathlib import Path
 from os import getcwd
@@ -5,14 +6,12 @@ import shutil
 
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
-_output_json_filename = "pairs.jsonl"
-_usernames_filename = "usernames.txt"
 
 
 class PathBundle:
     """
-    Clase para almacenar las rutas empleadas durante la generación, y algunas funcionalidades útiles relacionadas
-    con los archivos y esta carpeta.
+    Class used to store all paths used during the structuring, preprocessing and usage of the OCR
+    dataset.
     """
 
     def __init__(self, root: Path | str | None = None):
@@ -25,15 +24,15 @@ class PathBundle:
 
     @property
     def raw_images_path(self) -> Path:
-        return self.data_in_path / "images/raw/"
+        return self.data_in_path / f"images/raw/"
 
     @property
     def stroke_images_path(self) -> Path:
-        return self.data_in_path / "images/stroke/"
+        return self.data_in_path / f"images/stroke/"
 
     @property
     def background_images_path(self) -> Path:
-        return self.data_in_path / "images/background/"
+        return self.data_in_path / f"images/background/"
 
     @property
     def transcriptions_path(self) -> Path:
@@ -53,7 +52,7 @@ class PathBundle:
 
     @property
     def usernames_filepath(self) -> Path:
-        return self.exports_path / _usernames_filename
+        return self.exports_path / "usernames.txt"
 
     @property
     def transcription_path(self) -> Path:
@@ -75,6 +74,24 @@ class PathBundle:
     def ids_path(self) -> Path:
         return self.data_in_path / "ids/"
 
+    @staticmethod
+    def change_image_category_path(
+        image_path: Path, destination_category: Literal["raw", "stroke", "background"]
+    ):
+        """
+        Gets another the corresponding image from a different category. For example, from a background image,
+        with destination_category='raw', gets the corresponding raw image.
+        """
+        if destination_category not in ["raw", "background", "stroke"]:
+            raise ValueError(
+                f"Image destionation invalid: must be 'raw', 'stroke' or 'background', got {destination_category}"
+            )
+        return (
+            image_path.parents[1]
+            / destination_category
+            / (image_path.stem + image_path.suffix)
+        )
+
     def all_dirs(self):
         return [
             self.raw_images_path,
@@ -94,7 +111,7 @@ class PathBundle:
 
     def assert_paths(self) -> None:
         """
-        Comprueba que todas las rutas son accesibles, son instancias de Path válidas y las crea.
+        Checks that all paths are accessibles and exist.
         """
         try:
             for path in self.all_dirs():
@@ -102,17 +119,17 @@ class PathBundle:
                 path.mkdir(parents=True, exist_ok=True)
         except PermissionError:
             raise PermissionError(
-                "Error al crear las carpetas necesarias. Revisa que el path raíz es correcto y que tienes permisos de "
-                "escritura en esa ubicación."
+                "Error creating the folders. Check the project root is correct and sufficient permissions have been granted."
+                f"\nRoot folder: {self.root}"
             )
         except Exception as e:
-            raise Exception(f"Error al crear las carpetas necesarias: {e}")
-
-    # TODO: separate the task logic from the pathbundle logic
+            raise Exception(
+                f"Unexpected exception encountered while creating PathBundle's folders: {e}"
+            )
 
     def remove_all_files(self) -> None:
         """
-        Elimina todos los archivos de datos de los que depende la generación (data_in, data_out, exports).
+        Removes all of the files managed by the project (data_in).
         """
         for path in self.all_dirs():
             if path.exists() and path.is_dir():
@@ -121,72 +138,44 @@ class PathBundle:
             elif path.exists():
                 raise ValueError(f"A folder was expected, but found a file in {path}")
 
-    @staticmethod
-    def _empty_folder(folder):
-        """Vacía una carpeta indicada."""
-        print(f"PathBundle - removing folder <{folder}>")
-        if folder.exists() and folder.is_dir():
-            for item in folder.iterdir():
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-
-    def clean_input_folder(self) -> None:
+    def remove_downloaded_image(
+        self,
+        page_name: str,
+        image_folder: Literal["raw", "stroke", "background"] = "raw",
+    ) -> None:
         """
-        Elimina todos los archivos y carpetas dentro de la carpeta de entrada,
-        pero no elimina la propia carpeta data_out_path.
-        """
-        self._empty_folder(self.data_in_path)
-
-    def clean_export_folder(self) -> None:
-        """
-        Elimina todos los archivos y carpetas dentro de la carpeta de los exports,
-        pero no elimina la propia carpeta data_out_path.
-        """
-        self._empty_folder(self.exports_path)
-
-    def remove_downloaded_image(self, page_name: str) -> None:
-        """
-        Elimina la imagen y la transcripción asociadas a un nombre de página dado.
+        Removes the specified image.
         """
 
-        paths = (
-            self.get_raw_image_path(page_name),
-            self.get_stroke_image_path(page_name),
-            self.get_background_image_path(page_name),
-        )
+        match image_folder.lower():
+            case "raw":
+                path = self.get_raw_image_path(page_name)
+            case "stroke":
+                path = self.get_stroke_image_path(page_name)
+            case "background":
+                path = self.get_background_image_path(page_name)
+            case _:
+                raise ValueError(
+                    f"Unrecognised {image_folder=}. Only raw, stroke and background are accepted"
+                )
 
-        for path in paths:
-            if path.exists():
-                path.unlink()
-                print(f"Remove image: {path}")
-            else:
-                print(f"Unexisting file: {path}")
+        if path.exists():
+            path.unlink()
+            print(f"Removed image stored at {path}.")
+        else:
+            print(f"No image stored at {path} - no need to remove it.")
 
     def has_processed_images(self, page_name: str):
-
         return (
             self.get_background_image_path(page_name).exists()
             and self.get_stroke_image_path(page_name).exists()
         )
 
     def get_raw_image_path(self, page_name: str | int) -> Path:
-        return self.raw_images_path / (self._normalize_page_name(page_name) + ".png")
+        return self.raw_images_path / (str(page_name) + ".png")
 
     def get_stroke_image_path(self, page_name: str | int) -> Path:
-        return self.stroke_images_path / (self._normalize_page_name(page_name) + ".png")
+        return self.stroke_images_path / (str(page_name) + ".png")
 
     def get_background_image_path(self, page_name: str | int) -> Path:
-        return self.background_images_path / (
-            self._normalize_page_name(page_name) + ".png"
-        )
-
-    @staticmethod
-    def _normalize_page_name(page_name: str | int) -> str:
-        """Normaliza el nombre de la página para cuadrar con los usados en el resto del código."""
-        page_name: str = str(page_name)
-        if (".png" == page_name[-4:]) or (".txt" == page_name[-4:]):
-            page_name = page_name[:-4]
-
-        return page_name
+        return self.background_images_path / (str(page_name) + ".png")

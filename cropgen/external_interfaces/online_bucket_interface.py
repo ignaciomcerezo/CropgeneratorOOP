@@ -100,6 +100,17 @@ class OnlineBucketInterface(ExternalInterface):
         quoted_name = urllib.parse.quote(object_name, safe="")
         return self.bucket_url + quoted_name
 
+    def test_connection_successful(self):
+        try:
+            params = {"format": "json"}
+            resp = requests.get(self.bucket_url, params=params, timeout=self._timeout)
+            resp.raise_for_status()
+            print("OBI connection successful.")
+            return True
+        except Exception as e:
+            print("OBI connection unsuccessful.")
+            return False
+
     def _list_bucket_objects(self) -> list[dict]:
         objects: list[dict] = []
         start: str | None = None

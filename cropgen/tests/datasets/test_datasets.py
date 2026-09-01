@@ -43,10 +43,10 @@ def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
         assert isinstance(sample["page_id"], (int, str))
 
 
-def test_segmentation_dataset(paths: PathBundle, patch_synthetic_manuscript):
+def test_segmentation_dataset(paths: PathBundle):
     # TODO: remove the autouse from patch image processing
 
-    annotations = AnnotatedPage.from_path_bundle(paths)
+    annotations = AnnotatedPage.from_path_bundle(paths, length=100)
 
     A, B = SegmentationDataset.from_split(annotations, p=0.95, orders=[2])
 
@@ -54,7 +54,7 @@ def test_segmentation_dataset(paths: PathBundle, patch_synthetic_manuscript):
         sample = A[sample_i]
         assert isinstance(sample[0], Image.Image)
         assert isinstance(sample[1], list)
-        assert len(sample[1]) == 2
+        assert len(sample[1]) == 2, f"{len(A)}, {sample}"
         assert all(isinstance(pol, (Polygon, MultiPolygon)) for pol in sample[1])
 
 
@@ -80,7 +80,7 @@ def test_segmentation_dataset(paths: PathBundle, patch_synthetic_manuscript):
 #         ParagraphTilt(0.1, tilt_axis="horizontal"),
 #         ParagraphTilt(-0.1, tilt_axis="horizontal"),
 #     ]
-#     lsi: LabelStudioInterface = paths.lsi  # ty: ignore[invalid-assignment]
+#     lsi: LabelStudioInterface = paths.lsi
 
 #     annotations = lsi.get_annotated_pages()
 #     dataset = OCRDataset(annotations, orders=[1, 2])

@@ -1,3 +1,4 @@
+from shapely.geometry import Polygon
 import cv2
 import numpy as np
 from PIL import Image
@@ -222,3 +223,39 @@ def crop_or_resize(
         processed = cv2.resize(processed, (curr_w, target_h), interpolation=interp)
 
     return processed
+
+
+from PIL import Image, ImageDraw
+from shapely.geometry import Polygon
+
+
+def crop_image_with_polygon(
+    image: Image.Image, polygon: Polygon, crop_to_bounds: bool = True
+) -> Image.Image:
+
+    rgba_image = image.convert("RGBA")
+
+    mask = Image.new("L", rgba_image.size, 0)
+    draw = ImageDraw.Draw(mask)
+
+    exterior_coords = list(polygon.exterior.coords)
+    draw.polygon(exterior_coords, fill=255)
+
+    for interior in polygon.interiors:
+        draw.polygon(list(interior.coords), fill=0)
+
+    rgba_image.putalpha(mask)
+
+    if crop_to_bounds:
+
+        min_x, min_y, max_x, max_y = map(int, polygon.bounds)
+
+        bbox = (
+            max(0, min_x),
+            max(0, min_y),
+            min(rgba_image.width, max_x),
+            min(rgba_image.height, max_y),
+        )
+        return rgba_image.crop(bbox)
+
+    return rgba_image

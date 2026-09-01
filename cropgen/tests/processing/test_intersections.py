@@ -5,7 +5,7 @@ def test_intersections_and_geometries(paths, lsi):
 
     ann = load_ann(paths, 4, 0)
 
-    boxid2line = {line.id: line for line in ann.lines.values()}
+    boxid2line = {line.id[:10]: line for line in ann.lines.values()}
 
     box_a = boxid2line["_3qKT12Lkm"]
     box_b = boxid2line["9bD_DAaJ9I"]
@@ -28,7 +28,7 @@ def test_intersections_and_geometries(paths, lsi):
 
     # bloques [A][B][C] adyacentes, por otra parte [D][E]
 
-    boxid2line = {line.id: line for line in ann.lines.values()}
+    boxid2line = {line.id[:10]: line for line in ann.lines.values()}
 
     box_a = boxid2line["IiE7GGxUDC"]
     box_b = boxid2line["2xbI1Hl0SF"]

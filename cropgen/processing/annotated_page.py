@@ -1,7 +1,8 @@
+from cropgen.shared.geometry_processing import get_union_rect
 from collections import defaultdict
 from pathlib import Path
 from cropgen.shared.path_bundle import PathBundle
-from cropgen.shared.image_processing import crop_or_resize
+from cropgen.shared.image_processing import crop_or_resize, crop_image_with_polygon
 from cropgen.shared.page_metadata import PageSampleMetadata
 from copy import deepcopy
 from shapely.geometry import Point, Polygon
@@ -15,7 +16,6 @@ import json
 
 from cropgen.processing.helpers.helper_to_classes import (
     get_connected_components,
-    get_union_rect,
     subdictionary,
 )
 from cropgen.processing.helpers.text_regularization import (
@@ -66,7 +66,6 @@ class AnnotatedPage:
         updater: str | None = None,
         polygons_are_in_percentage: bool = True,
     ):
-
         self.background = background
         self.task_id = task_id
         self.page = page
@@ -254,10 +253,11 @@ class AnnotatedPage:
         for polygon, transcription, line_id, rotation in zip(
             polygons, transcriptions, line_ids, rotations
         ):
+            stroke_crop = crop_image_with_polygon(stroke, polygon)
             lines.append(
                 Line(
                     id=line_id,
-                    stroke_crop=stroke,
+                    stroke_crop=stroke_crop,
                     polygon=polygon,
                     rotation=rotation,
                     task_id=self.task_id,
@@ -549,8 +549,9 @@ class AnnotatedPage:
         paths: PathBundle,
         *,
         pages: Collection[str | int] | None = None,
-        tasks: Collection[str | int] | None = None,
+        tasks: Collection[int] | None = None,
         combine_same_page_annotations: bool = True,
+        length: int | None = None,
     ) -> list["AnnotatedPage"]:
         """
         Uses the information stored in paths.metadata_path to access the appropriate
@@ -558,10 +559,8 @@ class AnnotatedPage:
         instances.
         """
 
-        tasks: set[str] | None = (
-            set([str(task) for task in tasks])
-            if isinstance(tasks, Collection)
-            else None
+        tasks: set[int] | None = (
+            set([task for task in tasks]) if isinstance(tasks, Collection) else None
         )
         pages: set[str] | None = (
             set([str(page) for page in pages])
@@ -579,21 +578,22 @@ class AnnotatedPage:
 
             return (task_id in tasks) or (page in pages)
 
-        page2annpage: dict[str, list[AnnotatedPage]] = defaultdict(lambda: list())
+        taskid2annpage: dict[int, list[AnnotatedPage]] = defaultdict(lambda: list())
 
+        k = 0
         for metadata_filepath in tqdm(
-            Path(paths.metadata_path).iterdir(), desc="Loading A.P. data from disk..."
+            list(Path(paths.metadata_path).iterdir()),
+            desc="Loading A.P. data from disk...",
         ):
             metadata = PageSampleMetadata.model_validate(
                 json.loads(metadata_filepath.read_text())
             )
 
-            page = metadata.page
+            task = metadata.page
             task_id = metadata.task_id
-            print(f"\n{page=}\n{task_id=}\n")
 
-            if not _acceptable(page, task_id):
-                print(f"Skipping {task_id=}/{page=} (looking for {tasks=} or {pages=})")
+            if not _acceptable(task, task_id):
+                # print(f"Skipping {task_id=}/{page=} (looking for {tasks=} or {pages=})")
                 continue
 
             completer: str = metadata.completer
@@ -604,10 +604,10 @@ class AnnotatedPage:
 
             polygons_are_in_percentage: bool = metadata.polygons_are_in_percentage
 
-            transcriptions = metadata.transcriptions
-            polygon_coords = metadata.polygon_coords
-            rotations = metadata.rotations
-            ids = metadata.ids
+            transcriptions = metadata.load_transcriptions()
+            polygon_coords = metadata.load_polygon_coords()
+            rotations = metadata.load_rotations()
+            ids = metadata.load_ids()
             image_path = metadata.image_path
 
             # stroke and background separation is not certain at this point
@@ -617,14 +617,14 @@ class AnnotatedPage:
             background = Image.open(
                 paths.background_images_path / (image_path.stem + image_path.suffix)
             )
-            page2annpage[page].append(
+            taskid2annpage[task_id].append(
                 AnnotatedPage(
                     transcriptions=transcriptions,
                     polygon_coords=polygon_coords,
                     line_ids=ids,
                     rotations=rotations,
                     task_id=int(task_id),
-                    page=page,
+                    page=task,
                     stroke=stroke,
                     background=background,
                     completer=completer,
@@ -632,9 +632,12 @@ class AnnotatedPage:
                     polygons_are_in_percentage=polygons_are_in_percentage,
                 )
             )
+            k += 1
+            if length is not None and k > length:
+                break
 
         if combine_same_page_annotations:
-            for page, annotations in page2annpage.items():
-                page2annpage[page] = [AnnotatedPage.combine_annotations(*annotations)]
+            for task, annotations in taskid2annpage.items():
+                taskid2annpage[task] = [AnnotatedPage.combine_annotations(*annotations)]
 
-        return sum(page2annpage.values(), start=[])
+        return sum(taskid2annpage.values(), start=[])

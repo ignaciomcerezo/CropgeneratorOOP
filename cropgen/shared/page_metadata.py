@@ -1,117 +1,120 @@
-from typing import Annotated
+from cropgen.shared.path_bundle import PathBundle
+from typing import Annotated, Union, Any
 import json
-from pydantic import BaseModel, AfterValidator, ValidationError
+from pydantic import BaseModel, AfterValidator, model_validator
 from pathlib import Path
 from PIL import Image
 
 
-def _validate_path_existance(path: Path):
+def _validate_path_and_existance(path):
+
+    if not isinstance(path, (Path, str)):
+        raise ValueError(
+            f"Failed path validation: Incorrect path format (path='{path}')."
+        )
+
+    path = Path(path) if not isinstance(path, Path) else path
+
     if not path.exists():
-        return ValidationError("Failed path validation: path does not exist.")
+        raise ValueError(f"Failed path validation: path does not exist ('{path}').")
 
 
 def _load_path_content(path: Path):
-    _validate_path_existance(path)
     return json.loads(path.read_text())
 
 
-def _validate_polygon_path_content(polygons_path: Path):
-    polygons_list = _load_path_content(polygons_path)
+def _validate_polygons(
+    polygons_list: Any,
+) -> list[list[tuple[float, float]]]:
 
     if not isinstance(polygons_list, list):
-        raise ValidationError(
+        raise ValueError(
             f"Failed polygon path validation: the outer element must be a list, found {type(polygons_list)}."
         )
 
     for polyElement in polygons_list:
 
         if not isinstance(polyElement, list):
-            raise ValidationError(
+            raise ValueError(
                 f"Failed polygon path validation: an element of the outer list is not a list itself, found {type(polyElement)}."
             )
         for xyElement in polyElement:
-            if not isinstance(xyElement, tuple):
-                raise ValidationError(
-                    f"Failed polygon path validation: an element of the inner list is not a tuple, found {type(xyElement)}."
+            if not isinstance(xyElement, (tuple, list)):
+                raise ValueError(
+                    f"Failed polygon path validation: an element of the inner list is not a tuple or list, found {type(xyElement)}."
                 )
             if not (len(xyElement) == 2):
-                raise ValidationError(
+                raise ValueError(
                     f"Failed polygon path validation: one of the tuples in the inner list is of length {len(xyElement)} != 2."
                 )
 
             if not (
-                isinstance(xyElement[0], float) and isinstance(xyElement[1], float)
+                isinstance(xyElement[0], (float, int))
+                and isinstance(xyElement[1], (float, int))
             ):
-                raise ValidationError(
-                    f"Failed polygon path validation: one of the tuples contains non-float objects: {[type(z) for z in xyElement]}"
+                raise ValueError(
+                    f"Failed polygon path validation: one of the tuples contains non-float non-int objects: {[type(z) for z in xyElement]}"
                 )
+    return polygons_list
 
 
-def _validate_transcriptions_path_content(transcriptions_path: Path):
-    transcriptions = _load_path_content(transcriptions_path)
+def _validate_transcriptions(transcriptions: Any) -> list[str]:
 
     if not isinstance(transcriptions, list):
-        raise ValidationError(
+        raise ValueError(
             f"Failed transcriptions path validation: the outer element must be a list, found {type(transcriptions)}."
         )
 
-    for transcription in transcriptions:
-        if not isinstance(transcription, str):
-            raise ValidationError(
-                f"Failed transcrpitions path: expected all elements to be str, found {type(transcription)}"
-            )
+    if not all(isinstance(transcription, str) for transcription in transcriptions):
+        raise ValueError(
+            f"Failed transcrpitions path: expected all elements to be str, found types {set(type(x) for x in transcriptions)}"
+        )
+    return transcriptions
 
 
-def _validate_rotations_path_content(rotations_path: Path):
-    rotations = _load_path_content(rotations_path)
+def _validate_rotations(rotations: Any) -> list[int | float]:
 
     if not isinstance(rotations, list):
-        raise ValidationError(
+        raise ValueError(
             f"Failed rotations path validation: the outer element must be a list, found {type(rotations)}."
         )
 
-    for transcription in rotations:
-        if not isinstance(transcription, float):
-            raise ValidationError(
-                f"Failed rotations path: expected all elements to be float, found {type(transcription)}"
-            )
+    if not all(isinstance(rotation, (int, float)) for rotation in rotations):
+        raise ValueError(
+            f"Failed rotations path: expected all elements to be float or int, found {set(type(x) for x in rotations)}"
+        )
+
+    return rotations
 
 
-def _validate_ids_path_content(ids_path: Path):
-    ids = _load_path_content(ids_path)
+def _validate_ids(ids: Any) -> list[str]:
 
     if not isinstance(ids, list):
-        raise ValidationError(
+        raise ValueError(
             f"Failed ids path validation: the outer element must be a list, found {type(ids)}."
         )
 
-    for individual_id in ids:
-        if not isinstance(individual_id, str):
-            raise ValidationError(
-                f"Failed rotations path: expected all elements to be str, found {type(individual_id)}"
-            )
+    if not all(isinstance(id_i, str) for id_i in ids):
+        raise ValueError(
+            f"Failed ids path: expected all elements to be str, found {set(type(id_i) for id_i in ids)}"
+        )
+
+    return ids
 
 
-def _validate_image_path(image_path: Path):
-    stroke_path = (
-        image_path.parents[1] / "strokes" / (image_path.stem + image_path.suffix)
-    )
-    background_path = image_path.parents[1] / (image_path.stem + image_path.suffix)
+def _validate_image_path(image_path: Path) -> Path:
+    stroke_path = PathBundle.change_image_category_path(image_path, "raw")
+    background_path = PathBundle.change_image_category_path(image_path, "background")
     if not image_path.exists():
-        raise ValidationError("The raw image does not exist.")
+        raise ValueError("The raw image does not exist.")
     if not stroke_path.exists():
-        raise ValidationError("The stroke image does not exist.")
+        print(stroke_path)
+        raise ValueError("The stroke image does not exist.")
     if not background_path.exists():
-        raise ValidationError("The background image does not exist.")
+        print(background_path)
+        raise ValueError("The background image does not exist.")
 
-    # too resource intensive for this general checks.
-    # for path in [image_path, stroke_path, background_path]:
-    #     try:
-    #         Image.open(path).convert("L")
-    #     except Exception as e:
-    #         raise ValidationError(
-    #             f"The image associated with path {path} failed to load and convert to grayscale with exception:\n{e}."
-    #         )
+    return image_path
 
 
 class PageSampleMetadata(BaseModel):
@@ -120,28 +123,63 @@ class PageSampleMetadata(BaseModel):
     subindex: int
     completer: str
     updater: str
-    ann_id: str
+    ann_id: int
     order: int
-    image_path: Annotated[Path, AfterValidator(_validate_image_path)]
-    ids_path: Annotated[Path, AfterValidator(_validate_ids_path_content)]
-    txt_path: Annotated[Path, AfterValidator(_validate_transcriptions_path_content)]
-    polygons_path: Annotated[Path, AfterValidator(_validate_polygon_path_content)]
-    rotations_path: Annotated[Path, AfterValidator(_validate_rotations_path_content)]
+    image_path: Annotated[Path, _validate_image_path]
+    ids_path: Path
+    transcriptions_path: Path
+    polygons_path: Path
+    rotations_path: Path
     polygons_are_in_percentage: bool
     source: str
 
-    @property
-    def transcriptions(self) -> list[str]:
-        return _load_path_content(self.txt_path)
+    @model_validator(mode="after")
+    def setup_check_booleans(self):
+        self.invalidate_caches()
+        return self
 
-    @property
-    def polygon_coords(self) -> list[list[tuple[float, float]]]:
-        return _load_path_content(self.polygons_path)
+    def invalidate_caches(self) -> None:
+        self._polygons: list[list[tuple[float, float]]] | None = None
+        self._transcriptions: list[str] | None = None
+        self._rotations: list[int | float] | None = None
+        self._ids: list[str] | None = None
 
-    @property
-    def rotations(self) -> list[float]:
-        return _load_path_content(self.rotations_path)
+    def load_transcriptions(self) -> list[str]:
+        if self._transcriptions is None:
+            transcriptions = _load_path_content(self.transcriptions_path)
+            self._transcriptions: list[str] = _validate_transcriptions(transcriptions)
+        return self._transcriptions
 
-    @property
-    def ids(self) -> list[str]:
-        return _load_path_content(self.ids_path)
+    def load_polygon_coords(self) -> list[list[tuple[float, float]]]:
+        if self._polygons is None:
+            polygons_list = _load_path_content(self.polygons_path)
+            self._polygons: list[list[tuple[float, float]]] = _validate_polygons(
+                polygons_list
+            )
+        return self._polygons
+
+    def load_rotations(self) -> list[Union[float, int]]:
+        if self._rotations is None:
+            rotations = _load_path_content(self.rotations_path)
+            self._rotations = _validate_rotations(rotations)
+        return self._rotations
+
+    def load_ids(self) -> list[str]:
+        if self._ids is None:
+            ids = _load_path_content(self.ids_path)
+            self._ids = _validate_ids(ids)
+        return self._ids
+
+    def load_raw(self) -> Image.Image:
+        # this, per the current implementation, is equivalent to Image.open(self.image_path), but for futureproofing.
+        return Image.open(PathBundle.change_image_category_path(self.image_path, "raw"))
+
+    def load_stroke(self) -> Image.Image:
+        return Image.open(
+            PathBundle.change_image_category_path(self.image_path, "stroke")
+        )
+
+    def load_background(self) -> Image.Image:
+        return Image.open(
+            PathBundle.change_image_category_path(self.image_path, "background")
+        )

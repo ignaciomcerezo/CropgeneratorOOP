@@ -69,8 +69,6 @@ def number_of_matches(
 
     filters = {x: list(str(y) for y in filters[x]) for x in filters.keys()}
 
-    tasks = paths.lsi.simplified_tasks  # ty: ignore[unresolved-attribute]
-
     total_matches = [0] * len(re_patterns)
 
     for ann in AnnotatedPage.from_path_bundle(

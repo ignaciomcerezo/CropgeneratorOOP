@@ -1,4 +1,7 @@
 # tests/conftest.py
+from cropgen.external_interfaces.image_separation_interface import (
+    ImageSeparationInterface,
+)
 from cropgen.shared.image_processing import separate_background_and_stroke
 from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
@@ -53,55 +56,43 @@ def bucket_url() -> str:
 
 @pytest.fixture(scope="session")
 def lsi(paths: PathBundle, ls_token, ls_url) -> LabelStudioInterface:
-    try:
-        lsi = LabelStudioInterface(paths, ls_url, ls_token)
-        lsi.setup()
-    except ConnectionError:
-        print("Connection errored for LabelStudioInterface, going offline.")
-        lsi = LabelStudioInterface(paths, ls_url, ls_token, online=False)
-        lsi.setup()
+
+    lsi = LabelStudioInterface(paths, ls_url, ls_token)
+    if lsi.test_connection_successful():
+        print("Using online LabelStudioInterface.")
+    else:
+        lsi.online = False
+        print("Using offline LabelStudioInterface.")
     return lsi
 
 
 @pytest.fixture(scope="session")
 def obi(paths: PathBundle, bucket_url: str) -> OnlineBucketInterface:
-    try:
-        obi = OnlineBucketInterface(paths, bucket_url)
-    except ConnectionError:
-        print("Connection errored for , going offline.")
-        obi = OnlineBucketInterface(paths, bucket_url, online=False)
+
+    obi = OnlineBucketInterface(paths, bucket_url)
+    if obi.test_connection_successful():
+        print("Using online OnlineBucketInterface.")
+
+    else:
+        obi.online = False
+        print("Using offline OnlineBucketInterface.")
     return obi
+
+
+@pytest.fixture(scope="session")
+def imsi(paths: PathBundle) -> ImageSeparationInterface:
+    return ImageSeparationInterface(paths)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def prepare_data(
-    paths: PathBundle, obi: OnlineBucketInterface, lsi: LabelStudioInterface
+    paths: PathBundle,
+    obi: OnlineBucketInterface,
+    lsi: LabelStudioInterface,
+    imsi: ImageSeparationInterface,
 ):
-
-    for task in tqdm(
-        [
-            task
-            for task in lsi.simplified_tasks
-            if not paths.has_processed_images(lsi.get_image_stem_from_task(task))
-        ],
-        desc="Stroke/background separation.",
-    ):
-        raw_image_path = lsi.get_raw_image_path_from_task(task)
-
-        if raw_image_path is None:
-            raise ValueError(
-                f"Internal error. Did not download all appropriate images: {raw_image_path}"
-            )
-
-        raw_image = Image.open(raw_image_path)
-
-        background, stroke = separate_background_and_stroke(
-            raw_image,
-            out_longest_side=DATASET_LONGEST_SIZE_PX,
-            processing_longest_side=PROCESSING_LONGEST_SIDE_PX,
-        )
-        stroke.save(paths.stroke_images_path / f"{raw_image_path.stem}.png")
-        background.save(paths.background_images_path / f"{raw_image_path.stem}.png")
+    for external_interface in [obi, imsi, lsi]:
+        external_interface.setup()
 
     yield
 
@@ -170,5 +161,5 @@ def patch_synthetic_manuscript(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def patch_image_open(mode="r", formats=None):
-    return Image.fromarray(np.zeros((100, 100), dtype=np.uint8), mode="L")
+def patch_image_open(monkeypatch):
+    monkeypatch.setattr(Image, "open", lambda *args: Image.new("L", (1, 1)))

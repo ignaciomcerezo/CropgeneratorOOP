@@ -12,38 +12,6 @@ import numpy as np
 import math
 
 
-def calculate_reading_angle(polygon: Polygon) -> float:
-    """
-    Calcula el ángulo "de lectura" de una caja fijando el lado más largo de su rectángulo delimitador mínimo.
-    """
-    min_rect = polygon.minimum_rotated_rectangle
-
-    coords = list(min_rect.exterior.coords)[:-1]
-
-    dx_a = coords[1][0] - coords[0][0]
-    dy_a = coords[1][1] - coords[0][1]
-    len_a = np.hypot(dx_a, dy_a)
-
-    dx_b = coords[2][0] - coords[1][0]
-    dy_b = coords[2][1] - coords[1][1]
-    len_b = np.hypot(dx_b, dy_b)
-
-    if len_a >= len_b:
-        dx, dy = dx_a, dy_a
-    else:
-        dx, dy = dx_b, dy_b
-
-    angle_rad = float(np.arctan2(dy, dx))
-    angle_deg = float(np.degrees(angle_rad))
-
-    if angle_deg > 90:
-        angle_deg -= 180
-    elif angle_deg < -90:
-        angle_deg += 180
-
-    return angle_deg
-
-
 def pair_lines(
     results: list[SimplifiedResultItem],
 ) -> tuple[
@@ -118,22 +86,13 @@ def extract_bounds(
     result: PolygonResult | RectangleResult,
 ) -> list[tuple[float, float]]:
     """
-    Extrae una imagen (sea rectángulo rotado o polígono arbitrario). Devuelve:
-    - residual_crop: el recorte correspondiente del residuo.
-    - polygon: el polígono que corresponde a la región.
-    - rotation: rotación (en grados) de nuestra región. Si era un rectángulo, es la rotación manual, si no se calcula usando heurísticos.
-    - polygon_tool: booleano que representa si la región se hizo usando la herramienta polígono (True) o no.
+    From a LabelStudio polygon or rectangle result, returns a list of vertices
+    of the polygon, in the same percent-of-image units LS uses for polygon points.
     """
-    if isinstance(
-        result, PolygonResult
-    ):  # es un polígono (hecho con la herramienta polígono específicamente)
+    if isinstance(result, PolygonResult):
         points = result.value.points
-
         assert all(len(point) == 2 for point in points)
-
         return [(point[0], point[1]) for point in points]
-
-    result: RectangleResult
 
     x = result.value.x
     y = result.value.y
@@ -141,25 +100,22 @@ def extract_bounds(
     h = result.value.height
     rotation = result.value.rotation
 
+    ow = result.original_width
+    oh = result.original_height
+
     if rotation == 0:
-        corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
-        return corners
+        return [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
 
-    theta_rad = math.radians(rotation)
-    cos_t = math.cos(theta_rad)
-    sin_t = math.sin(theta_rad)
+    x_px, y_px = x / 100.0 * ow, y / 100.0 * oh
+    w_px, h_px = w / 100.0 * ow, h / 100.0 * oh
 
-    cx = x + (w / 2.0) * cos_t - (h / 2.0) * sin_t
-    cy = y + (w / 2.0) * sin_t + (h / 2.0) * cos_t
+    theta = np.radians(rotation)
+    cos_t, sin_t = np.cos(theta), np.sin(theta)
+    R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
 
-    wx = (w / 2.0) * cos_t
-    wy = (w / 2.0) * sin_t
-    hx = -(h / 2.0) * sin_t
-    hy = (h / 2.0) * cos_t
+    local_corners = np.array([[0, 0], [w_px, 0], [w_px, h_px], [0, h_px]])
+    rotated_px = local_corners @ R.T + np.array([x_px, y_px])
 
-    return [
-        (cx - wx - hx, cy - wy - hy),  # arriba-izquierda
-        (cx + wx - hx, cy + wy - hy),  # arriba-derecha
-        (cx + wx + hx, cy + wy + hy),  # abajo-derecha
-        (cx - wx + hx, cy - wy + hy),  # abajo-izquierda
-    ]
+    rotated_pct = rotated_px / np.array([ow, oh]) * 100.0
+
+    return [tuple(pt) for pt in rotated_pct]

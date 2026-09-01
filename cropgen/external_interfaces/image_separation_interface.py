@@ -20,20 +20,22 @@ class ImageSeparationInterface(ExternalInterface):
         return ["background_images", "stroke_images"]
 
     def setup(self):
-        for raw_image_path in tqdm(self.paths.raw_images_path.iterdir()):
+        for raw_image_path in tqdm(
+            list(self.paths.raw_images_path.iterdir()),
+            desc="Stroke/background separation...",
+        ):
 
             raw_image = Image.open(raw_image_path)
+
+            if self.paths.has_processed_images(raw_image_path.stem):
+                continue
 
             background, stroke = separate_background_and_stroke(
                 raw_image,
                 out_longest_side=DATASET_LONGEST_SIZE_PX,
                 processing_longest_side=PROCESSING_LONGEST_SIDE_PX,
             )
-            stroke.save(
-                self.paths.stroke_images_path
-                / f"{raw_image_path.stem}{raw_image_path.suffix}"
-            )
+            stroke.save(PathBundle.change_image_category_path(raw_image_path, "stroke"))
             background.save(
-                self.paths.background_images_path
-                / f"{raw_image_path.stem}{raw_image_path.suffix}"
+                PathBundle.change_image_category_path(raw_image_path, "background")
             )

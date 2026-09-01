@@ -1,3 +1,4 @@
+from cropgen.shared.geometry_processing import get_union_rect
 from cropgen.transforms.transforms import (
     LinewiseTransform,
     IntraparagraphFromLinewiseTransform,
@@ -11,7 +12,6 @@ from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections impor
 )
 from collections import defaultdict
 from PIL import Image
-from cropgen.processing.helpers.helper_to_classes import get_union_rect
 from cropgen.processing import Paragraph
 from cropgen.processing import AnnotatedPage
 from cropgen.transforms import (

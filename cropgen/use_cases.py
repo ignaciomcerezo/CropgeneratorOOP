@@ -8,15 +8,13 @@ from cropgen.shared.path_bundle import PathBundle
 
 
 def setup(
-    path: str | Path | Literal["cwd"],
+    paths: PathBundle,
     external_interfaces: list[ExternalInterface],
 ) -> PathBundle:
     """
     Descarga todos los archivos necesarios para crear el conjunto de datos, y genera sus respectivas interfaces.
     """
     load_dotenv()
-    path: Path = Path(path) if path is not "cwd" else Path(os.getcwd())
-    paths = PathBundle(path)
 
     for external_interface in external_interfaces:
         external_interface.setup()

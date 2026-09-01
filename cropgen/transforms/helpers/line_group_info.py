@@ -1,4 +1,4 @@
-from cropgen.processing.helpers.helper_to_classes import calculate_reading_angle
+from cropgen.shared.geometry_processing import calculate_reading_angle
 import shapely
 from shapely import Polygon
 from cropgen.processing.line import Line

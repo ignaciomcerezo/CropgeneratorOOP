@@ -17,23 +17,24 @@ from cropgen.tests.tests_helper import extract_height_width_from_task
 
 
 def _line_checks(line: Line, paragraph: Paragraph | int, ann: AnnotatedPage):
-    assert isinstance(line, Line)
-    assert isinstance(line.stroke_crop, Image.Image)
-    assert isinstance(line.task_id, int)
+    errmsg = f"Error with line {line} and ann {ann}"
+    assert isinstance(line, Line), errmsg
+    assert isinstance(line.stroke_crop, Image.Image), errmsg
+    assert isinstance(line.task_id, int), errmsg
     assert isinstance(
         line.polygon, (Polygon, MultiPolygon)
-    )  # que pueda ser un multipolygon es una consecuencia de usar el módulo
-    assert isinstance(line.index, int)
+    ), errmsg  # que pueda ser un multipolygon es una consecuencia de usar el módulo
+    assert isinstance(line.index, int), errmsg
 
-    assert line.task_id == ann.task_id
+    assert line.task_id == ann.task_id, errmsg
     if paragraph != -1:
-        assert isinstance(paragraph, Paragraph)
-        assert line.id in paragraph.line_ids
+        assert isinstance(paragraph, Paragraph), errmsg
+        assert line.id in paragraph.line_ids, errmsg
 
-    assert isinstance(line.text, str)
-    assert line.text.strip()  # no vacío
-    assert line.task_id == ann.task_id
-    assert isinstance(line.starting_index, int)
+    assert isinstance(line.text, str), errmsg
+    assert line.text.strip(), errmsg  # no vacío
+    assert line.task_id == ann.task_id, errmsg
+    assert isinstance(line.starting_index, int), errmsg
 
 
 def _compose_error_msg_sindices(ann: AnnotatedPage) -> str:
@@ -65,7 +66,7 @@ def lines_without_paragraph(annotated_page: AnnotatedPage) -> list[Line]:
 @pytest.mark.audit
 def test_audit_annotations(paths: PathBundle, patch_image_open):
 
-    for ann in AnnotatedPage.from_path_bundle(paths):
+    for ann in tqdm(AnnotatedPage.from_path_bundle(paths)):
         seen_lines = set()
         first_sindices_of_paragraphs = []
 
@@ -76,53 +77,52 @@ def test_audit_annotations(paths: PathBundle, patch_image_open):
         ann_graph_keys = set(ann.graph.keys())
 
         for paragraph in ann.paragraphs:
-            assert isinstance(paragraph, Paragraph)
+            errmsg = f"Error with ann {ann} in paragraph {paragraph}"
+            assert isinstance(paragraph, Paragraph), errmsg
 
-            assert paragraph.subgraph is not None
-            assert is_path_graph(paragraph.subgraph)
+            assert paragraph.subgraph is not None, errmsg
+            assert is_path_graph(paragraph.subgraph), errmsg
 
             for order in range(len(paragraph)):
                 for subsubgraph_keys in paragraph.generate_connected_subgraphs(order):
-                    assert set(subsubgraph_keys).issubset(ann_graph_keys)
+                    assert set(subsubgraph_keys).issubset(ann_graph_keys), errmsg
 
             seen_lines_par = set()
 
-            assert len(paragraph.line_ids) != 0
-            assert len(paragraph.line_ids) == len(paragraph.lines)
+            assert len(paragraph.line_ids) != 0, errmsg
+            assert len(paragraph.line_ids) == len(paragraph.lines), errmsg
 
             for line in paragraph.lines:
                 seen_lines_par.add(line.id)
                 _line_checks(line, paragraph, ann)
 
-            assert seen_lines_par == set(paragraph.line_ids)
+            assert seen_lines_par == set(paragraph.line_ids), errmsg
 
             set_keys = set(paragraph.line_ids)
-            assert isinstance(paragraph.subgraph, dict)
+            assert isinstance(paragraph.subgraph, dict), errmsg
 
             for key in paragraph.subgraph.keys():
-                assert paragraph.subgraph[key].issubset(set_keys)
+                assert paragraph.subgraph[key].issubset(set_keys), errmsg
 
             seen_lines.update(paragraph.line_ids)
 
             first_sindices_of_paragraphs.append(paragraph.lines[0].starting_index)
             sindices_par = [line.starting_index for line in paragraph.lines]
 
-            assert all(isinstance(s, int) for s in sindices_par)
-            assert -1 not in sindices_par
-            assert (
-                sorted(sindices_par)  # ty: ignore[invalid-argument-type]
-                == sindices_par
-            )
+            assert all(isinstance(s, int) for s in sindices_par), errmsg
+            assert -1 not in sindices_par, errmsg
+            assert sorted(sindices_par) == sindices_par, errmsg
 
-            transcription_1 = ann.synthetic_transcription(paragraph.line_ids)
-            transcription_2 = paragraph.transcription(ann.line_separator)
+            transcription_1 = ann.synthetic_transcription(paragraph.line_ids), errmsg
+            transcription_2 = paragraph.transcription(ann.line_separator), errmsg
             assert transcription_1 == transcription_2
+
         for line in lines_without_paragraph(ann):
-            assert line.id not in seen_lines
+            assert line.id not in seen_lines, errmsg
             seen_lines.add(line.id)
             _line_checks(line, -1, ann)
 
-        assert seen_lines == set(ann.lines.keys())
+        assert seen_lines == set(ann.lines.keys()), errmsg
 
     assert AnnotatedPage.n_annotation_errors == 0
 
