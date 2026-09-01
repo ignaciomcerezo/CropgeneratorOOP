@@ -1,10 +1,6 @@
-from cropgen.processing.annotated_page import AnnotatedPage
 from cropgen.processing.line import Line
 from typing import Sequence, Callable
 import pytest
-from cropgen.external_interfaces.label_studio.label_studio_interface import (
-    LabelStudioInterface,
-)
 from cropgen.shared.path_bundle import PathBundle
 from cropgen.tests.tests_helper import load_ann
 

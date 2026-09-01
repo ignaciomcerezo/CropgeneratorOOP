@@ -23,12 +23,23 @@ from cropgen.shared.geometry_processing import calculate_reading_angle
 from cropgen.shared.path_bundle import PathBundle
 
 
-class _UnknownUsernames:
-    def __getitem__(self, index):
-        return "Offline-Unknown"
+class _LSUsersManager:
+    def __init__(self):
+        self.usernames: list[str] | None = None
 
-    def __len__(self):
-        return 2**20
+    def __getitem__(self, index):
+        if self.usernames is None:
+            return "Offline/Unknown"
+        elif index < len(self.usernames):
+            return self.usernames[index]
+        else:
+            return "Impossible username"
+
+    def update_usernames(self, usernames: list[str]):
+        self.usernames = usernames
+
+    def __repr__(self):
+        return f"<_LSUsersManager with usernames={self.usernames}.>"
 
 
 class LabelStudioInterface(ExternalInterface):
@@ -58,7 +69,7 @@ class LabelStudioInterface(ExternalInterface):
         self.project_id = project_id
         self.token = token
         self.url = server_url
-        self.usernames: list[str] | _UnknownUsernames = []
+        self._usernames: _LSUsersManager = _LSUsersManager()
 
     @classmethod
     def from_env(
@@ -86,13 +97,6 @@ class LabelStudioInterface(ExternalInterface):
         )
 
         obj = cls(paths, url, token, project_id, online)
-        try:
-            obj.usernames = json.loads(
-                obj.paths.usernames_filepath.read_text(encoding="utf-8")
-            )
-        except Exception:
-            obj.usernames = _UnknownUsernames()
-
         return obj
 
     def __repr__(self):
@@ -101,14 +105,14 @@ class LabelStudioInterface(ExternalInterface):
     def test_connection_successful(self) -> bool:
         try:
             client = Client(url=self.url, api_key=self.token)
-            client.get_project(id=self.project_id)
+            client.check_connection()
             print("LSI Connection successful.")
             return True
         except Exception:
             print("LSI Connection unsuccessful.")
             return False
 
-    def get_usernames(self, ls_client: Client | None = None) -> list[str]:
+    def _update_usernames(self, ls_client: Client | None = None) -> None:
         if ls_client is None:
             ls_client = Client(url=self.url, api_key=self.token)
 
@@ -122,7 +126,7 @@ class LabelStudioInterface(ExternalInterface):
                     ordered_usernames.append(matching[0])
                 else:
                     ordered_usernames.append("Impossible LS user")
-        return ordered_usernames
+        self._usernames.update_usernames(ordered_usernames)
 
     def fetch_simplified_tasks(self) -> list[SimplifiedTask]:
         """Pulls task data from Label Studio and simplifies."""
@@ -133,12 +137,7 @@ class LabelStudioInterface(ExternalInterface):
         ls_client = Client(url=self.url, api_key=self.token)
         project = ls_client.get_project(id=self.project_id)
 
-        self.usernames = self.get_usernames(ls_client)
-        self.paths.usernames_filepath.parent.mkdir(parents=True, exist_ok=True)
-        self.paths.usernames_filepath.write_text(
-            json.dumps(self.usernames), encoding="utf-8"
-        )
-
+        self._update_usernames()
         print("Downloading and simplifying tasks from Label Studio...")
         raw_tasks_data = project.export_tasks()
         raw_tasks_data.sort(
@@ -147,14 +146,8 @@ class LabelStudioInterface(ExternalInterface):
 
         return simplify_tasks(raw_tasks_data)
 
-    def _get_user(self, annotation: SimplifiedAnnotation) -> str:
-        user_index = annotation.completed_by
-        if user_index < len(self.usernames):
-            return self.usernames[user_index]
-        return "Impossible User"
-
-    def users(self) -> list[str] | _UnknownUsernames:
-        return self.usernames
+    def users(self) -> _LSUsersManager:
+        return self._usernames
 
     def page_names(self) -> tuple[str, ...]:
         """Returns unique page names from existing metadata files on disk."""
@@ -185,15 +178,6 @@ class LabelStudioInterface(ExternalInterface):
             print(
                 f"LSI configured with online={self.online}; keeping local generated data."
             )
-            if self.paths.usernames_filepath.exists():
-                try:
-                    self.usernames = json.loads(
-                        self.paths.usernames_filepath.read_text(encoding="utf-8")
-                    )
-                except Exception:
-                    self.usernames = _UnknownUsernames()
-            else:
-                self.usernames = _UnknownUsernames()
             return
 
         tasks = self.fetch_simplified_tasks()
@@ -208,8 +192,9 @@ class LabelStudioInterface(ExternalInterface):
                 poly_coords: list[list[tuple[float, float]]] = []
                 ids: list[str] = []
                 rotations: list[float] = []
-                completer: str = self._get_user(simplified_ann)
-                updater: str = self._get_user(simplified_ann)
+
+                completer: str = self._usernames[simplified_ann.completed_by]
+                updater: str = self._usernames[simplified_ann.updated_by]
                 ann_id = simplified_ann.id
 
                 results = simplified_ann.result

@@ -371,14 +371,24 @@ class AnnotatedPage:
         line_ids: set[str] | list[str] | Literal["all"],
         *,
         tight_layout: bool = True,
-        margin_size_px: int = 0,
+        margin_size_px: int | dict[Literal["left", "right", "top", "bottom"], int] = 0,
         img_poly_transform: ocr_transform | None = None,
         refit_polygons: bool = True,
         overlay_polygons: bool = False,
         overlay_mbr: bool = False,
     ) -> tuple[Image.Image, list[Polygon]]:
 
-        assert margin_size_px >= 0, "The margin size cannot be negative."
+        if isinstance(margin_size_px, int):
+            margin_size_px = {
+                x: margin_size_px for x in ["left", "right", "top", "bottom"]
+            }
+        else:
+            if not (set(margin_size_px.keys()) == {"left", "right", "top", "bottom"}):
+                raise ValueError(
+                    f"margin_size_px must be an int or include each margin (left, right, top, bottom), but got only {margin_size_px.keys()}."
+                )
+        if not all(val >= 0 for val in margin_size_px.values()):
+            raise ValueError("The margin size cannot be negative.")
 
         if line_ids == "all":
             line_ids = set(self.lines.keys())
@@ -409,16 +419,16 @@ class AnnotatedPage:
         bg_w, bg_h = self.image_dimensions
 
         if tight_layout:
-            x0 = int(min_x) - margin_size_px
-            xf = int(max_x) + 1 + margin_size_px
-            y0 = int(min_y) - margin_size_px
-            yf = int(max_y) + 1 + margin_size_px
+            x0 = int(min_x) - margin_size_px["left"]
+            xf = int(max_x) + 1 + margin_size_px["right"]
+            y0 = int(min_y) - margin_size_px["top"]
+            yf = int(max_y) + 1 + margin_size_px["bottom"]
             can_crop = True
         else:
-            x0 = min(0, int(min_x) - margin_size_px)
-            xf = max(bg_w, int(max_x) + 1 + margin_size_px)
-            y0 = min(0, int(min_y) - margin_size_px)
-            yf = max(bg_h, int(max_y) + 1 + margin_size_px)
+            x0 = min(0, int(min_x) - margin_size_px["left"])
+            xf = max(bg_w, int(max_x) + 1 + margin_size_px["right"])
+            y0 = min(0, int(min_y) - margin_size_px["top"])
+            yf = max(bg_h, int(max_y) + 1 + margin_size_px["bottom"])
             can_crop = False
 
         bg_np = np.asarray(self.background)

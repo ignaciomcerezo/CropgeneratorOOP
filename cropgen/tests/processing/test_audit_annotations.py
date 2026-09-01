@@ -1,9 +1,5 @@
 from cropgen.shared.path_bundle import PathBundle
 from cropgen.processing.helpers.helper_to_classes import is_path_graph
-from debugpy.launcher.debuggee import process
-from cropgen.external_interfaces.label_studio.label_studio_interface import (
-    LabelStudioInterface,
-)
 import re
 
 import pytest
@@ -13,7 +9,6 @@ from tqdm.auto import tqdm
 
 from cropgen.processing import AnnotatedPage, Line, Paragraph
 from cropgen.tests.object_mothers import mother_pil_image
-from cropgen.tests.tests_helper import extract_height_width_from_task
 
 
 def _line_checks(line: Line, paragraph: Paragraph | int, ann: AnnotatedPage):

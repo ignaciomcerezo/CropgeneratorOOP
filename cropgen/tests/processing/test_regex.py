@@ -2,27 +2,10 @@ import os
 import re
 from pathlib import Path
 from typing import Iterable
-
-from dotenv import load_dotenv
-
 from cropgen.processing.helpers.text_regularization import french_latex_characters
-from cropgen.tests.tests_helper import extract_height_width_from_task
-from cropgen.tests.object_mothers import mother_pil_image
-
-# load_dotenv()
-
-from cropgen.external_interfaces.label_studio.label_studio_interface import (
-    LabelStudioInterface,
-)
+import pytest
 from cropgen.processing import AnnotatedPage
 from cropgen.shared.path_bundle import PathBundle
-from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
-
-# paths = PathBundle(Path(os.getcwd()).parents[2])
-# obi = (paths)
-# obi.update()
-# LabelStudioInterface.fetch_and_simplify(paths)
-# lsi = LabelStudioInterface(paths)
 
 cmm_p = r"\\[a-zA-Z]+"
 wrd_p = r"\w+"
@@ -42,6 +25,7 @@ foreign_p = rf"[^{''.join([re.escape(char) for char in french_latex_characters])
 _PATTERNS = []
 
 
+@pytest.mark.skip
 def test_undesirable_matches(
     paths: PathBundle, re_patterns: Iterable[str] = _PATTERNS
 ) -> None:

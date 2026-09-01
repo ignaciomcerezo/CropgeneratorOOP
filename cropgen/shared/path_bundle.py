@@ -51,10 +51,6 @@ class PathBundle:
         return self.exports_path / _simplified_export_json_filename
 
     @property
-    def usernames_filepath(self) -> Path:
-        return self.exports_path / "usernames.txt"
-
-    @property
     def transcription_path(self) -> Path:
         return self.data_in_path / "transcriptions/"
 
