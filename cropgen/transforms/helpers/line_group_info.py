@@ -181,21 +181,46 @@ class LineGroupInfo:
         centers_sequence: Sequence[Vector2D],
         avg_rotation: float,
     ) -> Vector2D:
+        default_direction = np.array([1.0, 0.0], dtype=float)
 
-        avg_rot_degrees: float = avg_rotation
-        angle: float = np.radians(avg_rot_degrees)
+        if not np.isfinite(avg_rotation):
+            return default_direction
 
+        angle = np.radians(avg_rotation)
         reading_dir = np.array(
             [np.cos(angle - np.pi / 2), np.sin(angle - np.pi / 2)],
             dtype=float,
         )
 
-        centers = np.array(
-            centers_sequence,
-            dtype=float,
-        )
+        if not np.all(np.isfinite(reading_dir)):
+            return default_direction
+
+        centers = np.asarray(centers_sequence, dtype=float)
+
+        if centers.ndim != 2 or centers.shape[0] < 2 or centers.shape[1] != 2:
+            return default_direction
+
+        if not np.all(np.isfinite(centers)):
+            return default_direction
+
+        unique_centers = np.unique(centers, axis=0)
+        if len(unique_centers) < 2:
+            return default_direction
+
         projections_by_index = centers @ reading_dir
-        slope = np.polyfit(np.arange(len(centers_sequence)), projections_by_index, 1)[0]
+
+        if not np.all(np.isfinite(projections_by_index)):
+            return default_direction
+
+        x = np.arange(len(projections_by_index), dtype=float)
+
+        try:
+            slope = np.polyfit(x, projections_by_index, 1)[0]
+        except (np.linalg.LinAlgError, ValueError):
+            return default_direction
+
+        if not np.isfinite(slope):
+            return default_direction
 
         if slope < 0:
             reading_dir = -reading_dir
