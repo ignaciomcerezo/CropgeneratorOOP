@@ -1,3 +1,4 @@
+import shapely
 from cropgen.shared.geometry_processing import get_union_rect
 from collections import defaultdict
 from pathlib import Path
@@ -411,6 +412,7 @@ class AnnotatedPage:
 
         if img_poly_transform is not None:
             strokes, polygons = img_poly_transform(strokes, polygons)
+            polygons = [shapely.make_valid(g) for g in polygons]
 
         if not strokes:
             return self.background.copy(), polygons
