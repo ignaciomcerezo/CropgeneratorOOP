@@ -3,7 +3,7 @@ from typing import Literal, Collection, Sequence
 from abc import ABC, abstractmethod
 from cropgen.shared.page_metadata import PageSampleMetadata
 
-_PARTS = Sequence[
+_PARTS = set[
     Literal[
         "raw_images",
         "background_images",

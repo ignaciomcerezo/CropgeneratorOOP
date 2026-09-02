@@ -13,11 +13,14 @@ class ImageSeparationInterface(ExternalInterface):
     def __init__(self, paths: PathBundle):
         self.paths = paths
 
+    def __repr__(self):
+        return f"<ImageSeparationInterface with root '{self.paths.root}'>."
+
     def parts_required(self):
-        return ["raw_images"]
+        return {"raw_images"}
 
     def parts_managed(self):
-        return ["background_images", "stroke_images"]
+        return {"background_images", "stroke_images"}
 
     def setup(self):
         for raw_image_path in tqdm(

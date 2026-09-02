@@ -164,10 +164,10 @@ class LabelStudioInterface(ExternalInterface):
         return tuple(sorted(pages))
 
     def parts_managed(self):
-        return ["metadata", "rotations"]
+        return {"metadata", "rotations"}
 
     def parts_required(self):
-        return []
+        return {"raw_images", "background_images", "stroke_images"}
 
     def setup(self) -> None:
         """Fetches remote annotations and writes individual transcription,

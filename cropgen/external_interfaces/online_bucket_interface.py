@@ -217,11 +217,11 @@ class OnlineBucketInterface(ExternalInterface):
 
     def parts_managed(
         self,
-    ) -> tuple[Literal["raw_images", "background_images", "stroke_images"],]:
-        return (self._type_downloading,)
+    ):
+        return {self._type_downloading}
 
     def parts_required(self):
-        return []
+        return set()
 
     def setup(self) -> None:
         """Download pending bucket images if the interface is online."""

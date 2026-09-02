@@ -44,8 +44,6 @@ def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
 
 
 def test_segmentation_dataset(paths: PathBundle):
-    # TODO: remove the autouse from patch image processing
-
     annotations = AnnotatedPage.from_path_bundle(paths, length=100)
 
     A, B = SegmentationDataset.from_split(annotations, p=0.95, orders=[2])
