@@ -14,7 +14,7 @@ from PIL import Image
 
 class SegmentationDataset(BaseAnnotationDataset):
     """
-    Dataset variant intended to be used for line segmentation tasks. Takes as input a sequence of
+    Dataset variant intended to be used for line segmentation training. Takes as input a sequence of
     annotations (of type AnnotatedPage) and a collecion of orders that will be used to sample the pages.
 
     When an item is requested, the dataset deterministically chooses an item (taken from all

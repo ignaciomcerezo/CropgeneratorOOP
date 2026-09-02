@@ -66,7 +66,7 @@ class AnnotatedPage:
         updater: str | None = None,
         polygons_are_in_percentage: bool = True,
     ):
-        self.background = background
+        self.background = background.copy()
         self.task_id = task_id
         self.page = page
         self.line_separator = line_separtor
@@ -78,7 +78,7 @@ class AnnotatedPage:
             transcriptions,
             line_ids,
             rotations,
-            stroke,
+            stroke.copy(),
             polygons_are_in_percentage,
         )
 

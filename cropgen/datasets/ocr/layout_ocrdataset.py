@@ -12,6 +12,13 @@ from cropgen.datasets.ocr.ocrdataset import (
 
 
 class LayoutOCRDataset(Dataset):
+    """
+    Dataset variant intended to be used for OCR model training. It is built atop
+    cropgen.datasets.OCRDataset, but implements more agressive layout modification:
+    When .refresh_layouts() is called, the base OCRDataset is copied and each page´
+    modified, changing the layout (via InterparagraphTransform).
+    """
+
     def __init__(
         self,
         annotations: Sequence[AnnotatedPage],

@@ -16,7 +16,12 @@ _poss_cluster_args_literal = Literal[
     "use_previous_page_in_context",
     "avoid_intersections",
 ]
-_default_cluster_param_values = (True, 0, False, True)
+_default_cluster_param_values = (
+    True,
+    {"left": 0, "right": 0, "top": 0, "bottom": 0},
+    False,
+    True,
+)
 
 _default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
     arg: value
