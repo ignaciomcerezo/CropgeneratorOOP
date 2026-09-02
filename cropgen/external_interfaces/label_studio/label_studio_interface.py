@@ -167,7 +167,7 @@ class LabelStudioInterface(ExternalInterface):
         return {"metadata", "rotations"}
 
     def parts_required(self):
-        return {"raw_images", "background_images", "stroke_images"}
+        return {"background_images", "stroke_images"}
 
     def setup(self) -> None:
         """Fetches remote annotations and writes individual transcription,

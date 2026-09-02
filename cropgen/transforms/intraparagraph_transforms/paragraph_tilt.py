@@ -36,59 +36,123 @@ class ParagraphTilt(IntraparagraphTransform):
         polygons = list(polygons)
 
         LGinfo = LineGroupInfo.from_polygons(polygons)
-        mbr: Polygon = LineGroupInfo.polygon_union(polygons).minimum_rotated_rectangle
-        reading_direction = LGinfo.reading_direction
-        orthogonal_direction = LGinfo.orthogonal_direction
 
-        is_right = lambda point: np.dot(orthogonal_direction, point - LGinfo.center) > 0
-        is_up = lambda point: np.dot(reading_direction, point - LGinfo.center) > 0
+        # The union may be a MultiPolygon, but its minimum rotated rectangle
+        # is still a Polygon, so this is fine.
+        union = LineGroupInfo.polygon_union(polygons)
+        mbr: Polygon = union.minimum_rotated_rectangle
 
-        points: list[Vector2D] = [np.array(point) for point in mbr.exterior.coords[:-1]]
-        a, b, c, d = None, None, None, None
+        reading_direction = np.asarray(LGinfo.reading_direction, dtype=float)
+        orthogonal_direction = np.asarray(LGinfo.orthogonal_direction, dtype=float)
 
-        for point in points:
-            if is_up(point):
-                if is_right(point):
-                    b = point
-                else:
-                    a = point
-            else:
-                if is_right(point):
-                    c = point
-                else:
-                    d = point
+        # Normalize the directions so that projections are comparable.
+        reading_norm = np.linalg.norm(reading_direction)
+        orthogonal_norm = np.linalg.norm(orthogonal_direction)
 
-        if any(obj is None for obj in (a, b, c, d)):
-            raise ValueError("Geometry failed: polygons too mangled.")
+        if reading_norm == 0 or orthogonal_norm == 0:
+            raise ValueError("Geometry failed: invalid reading/orthogonal direction.")
+
+        reading_direction /= reading_norm
+        orthogonal_direction /= orthogonal_norm
+
+        # The four corners of the MBR are returned in cyclic order.
+        points: list[Vector2D] = [
+            np.asarray(point, dtype=float) for point in mbr.exterior.coords[:-1]
+        ]
+
+        if len(points) != 4:
+            raise ValueError(
+                f"Geometry failed: expected 4 MBR corners, got {len(points)}."
+            )
+
+        # IMPORTANT:
+        # Use the MBR's center rather than LGinfo.center. The latter need not be
+        # the center of the bounding rectangle, so sign-based quadrant tests can
+        # incorrectly put two corners in the same quadrant.
+        center = np.asarray(mbr.centroid.coords[0], dtype=float)
+
+        # Project each corner onto the reading and orthogonal axes.
+        #
+        # reading_projection:
+        #   tells us which end of the rectangle the point belongs to.
+        #
+        # orthogonal_projection:
+        #   distinguishes the two corners at that end.
+        projected_points = [
+            (
+                np.dot(reading_direction, point - center),
+                np.dot(orthogonal_direction, point - center),
+                point,
+            )
+            for point in points
+        ]
+
+        # Split the four corners into the two corners at each end of the
+        # reading direction.
+        projected_points.sort(key=lambda item: item[0])
+
+        low_reading = projected_points[:2]
+        high_reading = projected_points[2:]
+
+        # Within each end, distinguish the two corners using the orthogonal
+        # direction.
+        #
+        # At the "low reading" end:
+        #   a = orthogonally negative
+        #   b = orthogonally positive
+        #
+        # At the "high reading" end:
+        #   d = orthogonally negative
+        #   c = orthogonally positive
+        #
+        # This gives the cyclic ordering a -> b -> c -> d for the usual
+        # orientation of reading_direction / orthogonal_direction.
+        low_reading.sort(key=lambda item: item[1])
+        high_reading.sort(key=lambda item: item[1])
+
+        a = low_reading[0][2]
+        b = low_reading[1][2]
+        d = high_reading[0][2]
+        c = high_reading[1][2]
+
+        if not self._tilt_horizontal:
+            # For a vertical tilt, reinterpret the rectangle's axes so that
+            # the same subsequent transformation logic can be used.
+            a, b, c, d = a, d, b, c
 
         t = 0.5 * self.relative()
 
-        if not self._tilt_horizontal:
-            a, b, c, d = a, d, b, c
-
-        a_moved, b_moved = self._symm_lerp(a, b, t)  # ty: ignore[invalid-argument-type]
-        c_moved, d_moved = self._symm_lerp(
-            c, d, -t  # ty: ignore[invalid-argument-type]
-        )
+        a_moved, b_moved = self._symm_lerp(a, b, t)
+        c_moved, d_moved = self._symm_lerp(c, d, -t)
 
         source_points = [a, b, c, d]
         destination_points = [a_moved, b_moved, c_moved, d_moved]
 
         H_fwd = find_homography_matrix(
-            source_points, destination_points  # ty: ignore[invalid-argument-type]
+            source_points,
+            destination_points,
         )
+
         H_inv = np.linalg.inv(H_fwd)
 
         shapely_configured_transform = _get_shapely_perspective_transform(H_fwd)
 
         for i, (image, polygon) in enumerate(zip(images, polygons)):
             orig_bounds = polygon.bounds
-            transformed_polygon = transform(shapely_configured_transform, polygon)
+
+            transformed_polygon = transform(
+                shapely_configured_transform,
+                polygon,
+            )
+
             polygons[i] = transformed_polygon
+
             trans_bounds = transformed_polygon.bounds
 
             expected_size, image_configured_transform = _get_pil_perspective_transform(
-                H_inv, orig_bounds, trans_bounds
+                H_inv,
+                orig_bounds,
+                trans_bounds,
             )
 
             images[i] = image.transform(
