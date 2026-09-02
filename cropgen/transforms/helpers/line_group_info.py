@@ -1,3 +1,4 @@
+from shapely.geometry import MultiPolygon
 from cropgen.shared.geometry_processing import calculate_reading_angle
 import shapely
 from shapely import Polygon
@@ -122,7 +123,9 @@ class LineGroupInfo:
         return [abs(y0 - yf) for (y0, yf) in zip(self.y0s, self.yfs)]
 
     @classmethod
-    def from_polygons(cls, polygons: Sequence[Polygon]) -> "LineGroupInfo":
+    def from_polygons(
+        cls, polygons: Sequence[Polygon | MultiPolygon]
+    ) -> "LineGroupInfo":
         if not polygons:
             raise ValueError(
                 "Cannot get geometric information from an empty sequence of polygons."
@@ -172,8 +175,13 @@ class LineGroupInfo:
         return instance
 
     @staticmethod
-    def polygon_union(polygons: Collection[Polygon]) -> Polygon:
-        snapped_geoms = [shapely.set_precision(g, grid_size=1e-6) for g in polygons]
+    def polygon_union(
+        polygons: Collection[Polygon | MultiPolygon],
+    ) -> Polygon | MultiPolygon:
+        snapped_geoms = [
+            shapely.set_precision(shapely.make_valid(pol), grid_size=1e-6)
+            for pol in polygons
+        ]
         return shapely.unary_union(snapped_geoms)
 
     @staticmethod
@@ -245,7 +253,9 @@ class LineGroupInfo:
 
     @staticmethod
     def center_to_center_vector(
-        poly_a: Polygon, poly_b: Polygon, direction: np.ndarray | None = None
+        poly_a: Polygon | MultiPolygon,
+        poly_b: Polygon | MultiPolygon,
+        direction: np.ndarray | None = None,
     ) -> np.ndarray:
         c_a = LineGroupInfo.poly_center(poly_a)
         c_b = LineGroupInfo.poly_center(poly_b)
@@ -259,15 +269,17 @@ class LineGroupInfo:
 
     @staticmethod
     def centroid_to_centroid_normalized_vector(
-        poly_a: Polygon, poly_b: Polygon, direction: np.ndarray | None = None
+        poly_a: Polygon | MultiPolygon,
+        poly_b: Polygon | MultiPolygon,
+        direction: np.ndarray | None = None,
     ) -> np.ndarray:
         v = LineGroupInfo.center_to_center_distance(poly_a, poly_b, direction)
         return v / np.linalg.norm(v)
 
     @staticmethod
     def center_to_center_distance(
-        poly_a: Polygon,
-        poly_b: Polygon,
+        poly_a: Polygon | MultiPolygon,
+        poly_b: Polygon | MultiPolygon,
         direction: np.ndarray | None = None,
         direction_is_normalized: bool = False,
     ) -> float:
@@ -285,5 +297,5 @@ class LineGroupInfo:
             return abs(np.dot(v, direction_norm))
 
     @staticmethod
-    def poly_center(polygon: Polygon) -> Vector2D:
+    def poly_center(polygon: Polygon | MultiPolygon) -> Vector2D:
         return np.array((sum(polygon.bounds[::2]) / 2, sum(polygon.bounds[1::2]) / 2))
