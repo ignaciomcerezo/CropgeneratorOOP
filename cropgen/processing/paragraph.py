@@ -2,7 +2,6 @@ from cropgen.processing.line import Line
 from typing import Optional, Iterator
 
 import numpy as np
-from PIL import Image
 from shapely import unary_union
 from shapely import Polygon
 from shapely.affinity import affine_transform

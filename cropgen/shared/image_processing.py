@@ -1,11 +1,11 @@
 from shapely.geometry import Polygon
 import cv2
 import numpy as np
-from PIL import Image
 from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
     PROCESSING_LONGEST_SIDE_PX,
 )
+from shapely.geometry import Polygon
 
 
 def extract_strokes(
@@ -121,7 +121,7 @@ def _resize_by_longest_side(img_array: np.ndarray, M: int) -> np.ndarray:
 
 
 def separate_background_and_stroke(
-    image: Image.Image,
+    image: np.ndarray,
     out_longest_side: int = DATASET_LONGEST_SIZE_PX,
     processing_longest_side: int = PROCESSING_LONGEST_SIDE_PX,
     # inpaint_longest_side: int,
@@ -133,12 +133,12 @@ def separate_background_and_stroke(
     inpaint_dilation: int = 3,
     inpaint_radius: int = 1,
     # max_area: int = 10000,
-) -> tuple[Image.Image, Image.Image]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Separates a black and white page image or scan into its stroke and background components.
     """
 
-    image_array = _resize_by_longest_side(np.asarray(image), processing_longest_side)
+    image_array = _resize_by_longest_side(image, processing_longest_side)
 
     _, strokes, stroke_mask = extract_strokes(
         image_array,
@@ -174,7 +174,7 @@ def separate_background_and_stroke(
     clean_background = _resize_by_longest_side(clean_background, out_longest_side)
     strokes = _resize_by_longest_side(strokes, out_longest_side)
 
-    return Image.fromarray(clean_background), Image.fromarray(strokes)
+    return clean_background, strokes
 
 
 def crop_or_resize(
@@ -225,37 +225,44 @@ def crop_or_resize(
     return processed
 
 
-from PIL import Image, ImageDraw
-from shapely.geometry import Polygon
-
-
 def crop_image_with_polygon(
-    image: Image.Image, polygon: Polygon, crop_to_bounds: bool = True
-) -> Image.Image:
+    image: np.ndarray, polygon: Polygon, crop_to_bounds: bool = True
+) -> np.ndarray:
+    if image.ndim == 2:
+        bgra_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGRA)
+    elif image.shape[2] == 3:
+        bgra_image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+    elif image.shape[2] == 4:
+        bgra_image = image.copy()
+    else:
+        raise ValueError(f"Unsupported image shape: {image.shape}")
 
-    rgba_image = image.convert("RGBA")
+    h, w = bgra_image.shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
 
-    mask = Image.new("L", rgba_image.size, 0)
-    draw = ImageDraw.Draw(mask)
+    exterior_pts = np.array(polygon.exterior.coords, dtype=np.int32).reshape((-1, 1, 2))
+    cv2.fillPoly(mask, [exterior_pts], color=255)
 
-    exterior_coords = list(polygon.exterior.coords)
-    draw.polygon(exterior_coords, fill=255)
+    if polygon.interiors:
+        interior_pts = [
+            np.array(interior.coords, dtype=np.int32).reshape((-1, 1, 2))
+            for interior in polygon.interiors
+        ]
+        cv2.fillPoly(mask, interior_pts, color=0)
 
-    for interior in polygon.interiors:
-        draw.polygon(list(interior.coords), fill=0)
-
-    rgba_image.putalpha(mask)
+    bgra_image[:, :, 3] = mask
 
     if crop_to_bounds:
-
         min_x, min_y, max_x, max_y = map(int, polygon.bounds)
 
-        bbox = (
-            max(0, min_x),
-            max(0, min_y),
-            min(rgba_image.width, max_x),
-            min(rgba_image.height, max_y),
-        )
-        return rgba_image.crop(bbox)
+        x1 = max(0, min_x)
+        y1 = max(0, min_y)
+        x2 = min(w, max_x)
+        y2 = min(h, max_y)
 
-    return rgba_image
+        if x1 >= x2 or y1 >= y2:
+            return np.empty((0, 0, 4), dtype=bgra_image.dtype)
+
+        return bgra_image[y1:y2, x1:x2]
+
+    return bgra_image

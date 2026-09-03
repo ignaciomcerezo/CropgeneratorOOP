@@ -4,13 +4,20 @@ from shapely.geometry import Polygon
 from typing import Collection, Sequence, TYPE_CHECKING, Literal
 from abc import ABC, abstractmethod
 import shapely
-from PIL import Image
+import numpy as np
 import numpy as np
 from shapely.affinity import translate
 from copy import copy
 
-if TYPE_CHECKING:
-    from cropgen.processing import AnnotatedPage, Paragraph, Line
+
+from cropgen.processing import AnnotatedPage, Paragraph, Line
+
+line_group_equivalent_type = (
+    Paragraph
+    | Paragraph
+    | Sequence[Line]
+    | tuple[Sequence[np.ndarray], Sequence[Polygon]]
+)
 
 
 class OCRTransform(ABC):
@@ -28,19 +35,14 @@ class LinewiseTransform(OCRTransform):
 
     @abstractmethod
     def __call__(
-        self, image: Image.Image, polygon: Polygon
-    ) -> tuple[Image.Image, shapely.Polygon]:
+        self, image: np.ndarray, polygon: Polygon
+    ) -> tuple[np.ndarray, shapely.Polygon]:
         raise NotImplementedError
 
     def bulk_transform(
         self,
-        line_equivalent_group: (
-            Paragraph
-            | Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         new_imgs, new_polygons = [], []
 
         for img, poly in zip(*self._extract_polygons_and_images(line_equivalent_group)):
@@ -60,12 +62,8 @@ class LinewiseTransform(OCRTransform):
 
     @staticmethod
     def _extract_polygons_and_images(
-        line_equivalent_group: (
-            Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[shapely.Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[shapely.Polygon]]:
         if isinstance(line_equivalent_group, tuple) and isinstance(
             line_equivalent_group[0], list
         ):
@@ -85,7 +83,7 @@ class LinewiseTransform(OCRTransform):
         )
 
     @staticmethod
-    def _extract_polygon_and_image(line: Line) -> tuple[Image.Image, shapely.Polygon]:
+    def _extract_polygon_and_image(line: Line) -> tuple[np.ndarray, shapely.Polygon]:
         return line.stroke_crop, line.polygon
 
 
@@ -99,13 +97,8 @@ class IntraparagraphTransform(OCRTransform):
     @abstractmethod
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph
-            | Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[shapely.Polygon]]:
         raise NotImplementedError
 
     @staticmethod
@@ -126,9 +119,9 @@ class IntraparagraphTransform(OCRTransform):
         line_equivalent_group: (
             Paragraph
             | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[shapely.Polygon]]
+            | tuple[Sequence[np.ndarray], Sequence[shapely.Polygon]]
         ),
-    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+    ) -> tuple[list[np.ndarray], list[shapely.Polygon]]:
         if isinstance(line_equivalent_group, tuple) and isinstance(
             line_equivalent_group[0], list
         ):
@@ -148,7 +141,7 @@ class IntraparagraphTransform(OCRTransform):
         )
 
     @staticmethod
-    def _extract_polygon_and_image(line: Line) -> tuple[Image.Image, shapely.Polygon]:
+    def _extract_polygon_and_image(line: Line) -> tuple[np.ndarray, shapely.Polygon]:
         return line.stroke_crop, line.polygon
 
 
@@ -162,13 +155,8 @@ class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph
-            | Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[shapely.Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[shapely.Polygon]]:
         return self._transform.bulk_transform(line_equivalent_group)
 
 
@@ -184,8 +172,8 @@ class InterparagraphTransform(OCRTransform):
         self,
         *line_equivalent_groups: Paragraph
         | Sequence[Line]
-        | tuple[Sequence[Image.Image], Sequence[Polygon]],
-    ) -> tuple[list[list[Image.Image]], list[list[Polygon]]]:
+        | tuple[Sequence[np.ndarray], Sequence[Polygon]],
+    ) -> tuple[list[list[np.ndarray]], list[list[Polygon]]]:
         raise NotImplementedError
 
     def in_place(self, *line_groups: Paragraph | Sequence[Line]) -> None:
@@ -201,12 +189,10 @@ class InterparagraphTransform(OCRTransform):
     @staticmethod
     def _extract_polygon_and_image_groups(
         line_equivalent_groups: tuple[
-            Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[Polygon]],
+            line_group_equivalent_type,
             ...,
         ],
-    ) -> tuple[list[list[Image.Image]], list[list[Polygon]]]:
+    ) -> tuple[list[list[np.ndarray]], list[list[Polygon]]]:
 
         groups = [
             IntraparagraphTransform._extract_polygons_and_images(element)

@@ -5,7 +5,6 @@ from shapely import Polygon
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
 from typing import Collection, Sequence, Literal
-from PIL import Image
 import numpy as np
 
 Vector2D = np.ndarray[tuple[Literal[2]], np.dtype[np.float64]]

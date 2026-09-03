@@ -1,14 +1,16 @@
 from typing import Literal, Sequence
 import cv2
 import numpy as np
-from PIL import Image
 from shapely.geometry import Polygon
 
 from cropgen.processing import Line, Paragraph
 from cropgen.shared.geometry_processing import calculate_reading_angle
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo, Vector2D
-from cropgen.transforms.transforms import IntraparagraphTransform
+from cropgen.transforms.transforms import (
+    IntraparagraphTransform,
+    line_group_equivalent_type,
+)
 
 
 class ParagraphTilt(IntraparagraphTransform):
@@ -25,10 +27,8 @@ class ParagraphTilt(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
         images = list(images)
         polygons = list(polygons)
@@ -143,9 +143,8 @@ class ParagraphTilt(IntraparagraphTransform):
 
             H_local = T_dst_inv @ H_global @ T_src
 
-            img_array = np.asarray(image)
-            warped_array = cv2.warpPerspective(
-                img_array,
+            warped_image = cv2.warpPerspective(
+                image,
                 H_local,
                 (new_width, new_height),
                 flags=cv2.INTER_LINEAR,
@@ -153,7 +152,7 @@ class ParagraphTilt(IntraparagraphTransform):
                 borderValue=(0, 0, 0, 0),
             )
 
-            images[i] = Image.fromarray(warped_array)
+            images[i] = warped_image
 
         return images, polygons
 

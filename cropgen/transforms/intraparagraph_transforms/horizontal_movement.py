@@ -2,6 +2,7 @@ from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from shapely.geometry import Polygon
 from cropgen.transforms.transforms import (
     IntraparagraphFromLinewiseTransform,
+    line_group_equivalent_type,
 )
 from sympy.stats import Uniform
 from cropgen.shared.parameters import (
@@ -19,7 +20,6 @@ from cropgen.transforms import (
 )
 from shapely.affinity import translate
 import numpy as np
-from PIL import Image
 
 _NOISES = Literal["linear", "wave", "from_amplitude_parameter", "zigzag"]
 _PARAMETERS = Literal["period", "amplitude", "slope", "intercept"]
@@ -171,13 +171,8 @@ class HorizontalMovement(IntraparagraphFromLinewiseTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph
-            | Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
         v = LineGroupInfo.from_polygons(polygons).reading_direction
         horizontal_direciton = np.array([[0, -1], [1, 0]]) @ v

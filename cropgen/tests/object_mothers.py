@@ -1,35 +1,31 @@
+import cv2
 from cropgen.shared.parameters import Parameter
 from cropgen.processing.annotated_page import AnnotatedPage
 from typing import Optional
-from PIL import Image
 import numpy as np
 
 
-def mother_pil_image(
+def mother_image(
     *,
     width: Optional[int] = None,
     height: Optional[int] = None,
-    color: Optional[tuple[int, int, int]] = None,
-) -> Image.Image:
+) -> np.ndarray:
     width: int = width if width is not None else int(np.random.randint(5, 20))
     height: int = height if height is not None else int(np.random.randint(5, 20))
 
-    if color is None:
-        arr = np.random.randint(
-            0,
-            256,
-            (height, width, 3),
-            dtype=np.uint8,
-        )
-        return Image.fromarray(arr)
-
-    return Image.new("RGB", (width, height), color)
+    arr = np.random.randint(
+        0,
+        256,
+        (height, width, 3),
+        dtype=np.uint8,
+    )
+    return arr
 
 
 def mother_annotated_page(
     *,
-    stroke_img: Image.Image | None = None,
-    background_img: Image.Image | None = None,
+    stroke_img: np.ndarray | None = None,
+    background_img: np.ndarray | None = None,
     n_lines_per_paragraph: int = 4,
     n_paragraphs: int = 2,
     line_separator: str = "\n",
@@ -40,14 +36,12 @@ def mother_annotated_page(
         else background_img.size if background_img is not None else (700, 100)
     )
     stroke_img = (
-        Image.fromarray(
-            np.random.randint(low=0, high=128, size=shape, dtype=np.uint8)
-        ).convert("L")
+        np.random.randint(low=0, high=128, size=shape, dtype=np.uint8)
         if stroke_img is None
         else stroke_img
     )
-    background_img = (
-        Image.fromarray(np.full(shape, 255, dtype=np.uint8)).convert("L")
+    background_img: np.ndarray = (
+        np.full(shape, 255, dtype=np.uint8)
         if background_img is None
         else background_img
     )

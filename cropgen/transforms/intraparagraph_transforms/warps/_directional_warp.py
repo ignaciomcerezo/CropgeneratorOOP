@@ -3,9 +3,11 @@ from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.shared.parameters import Parameter
-from cropgen.transforms.transforms import IntraparagraphTransform
+from cropgen.transforms.transforms import (
+    IntraparagraphTransform,
+    line_group_equivalent_type,
+)
 from typing import Sequence
-from PIL import Image
 from shapely import Polygon
 import numpy as np
 import shapely
@@ -34,10 +36,8 @@ class _DirectionalArchWarp(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
         if not polygons:
@@ -153,7 +153,7 @@ class _DirectionalArchWarp(IntraparagraphTransform):
 
     def _apply_arch_img(
         self,
-        pil_img: Image.Image,
+        image: np.ndarray,
         amplitude: float,
         domain_dir: np.ndarray,
         disp_dir: np.ndarray,
@@ -161,11 +161,10 @@ class _DirectionalArchWarp(IntraparagraphTransform):
         domain_max: float,
         orig_bounds: tuple,
         new_bounds: tuple,
-    ) -> Image.Image:
+    ) -> np.ndarray:
         """
         Applies the same warp to the line's raster image via cv2.remap.
         """
-        img_array = np.array(pil_img)
 
         orig_box_x0, orig_box_y0, _, _ = orig_bounds
         new_box_x0, new_box_y0, new_box_x2, new_box_y2 = new_bounds
@@ -200,13 +199,11 @@ class _DirectionalArchWarp(IntraparagraphTransform):
         x_s = (x_s_global - orig_box_x0).astype(np.float32)
         y_s = (y_s_global - orig_box_y0).astype(np.float32)
 
-        arched_array = cv2.remap(
-            img_array,
+        return cv2.remap(
+            image,
             x_s,
             y_s,
             interpolation=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0, 0, 0, 0),
         )
-
-        return Image.fromarray(arched_array)

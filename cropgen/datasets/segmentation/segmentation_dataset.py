@@ -9,7 +9,7 @@ from cropgen.datasets.base_annotation_dataset import (
 from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
 from cropgen.processing.annotated_page import AnnotatedPage
 from typing import Any, Sequence
-from PIL import Image
+import numpy as np
 
 
 class SegmentationDataset(BaseAnnotationDataset):
@@ -44,7 +44,7 @@ class SegmentationDataset(BaseAnnotationDataset):
     def __repr__(self):
         return f"<OCRDataset ({len(self)} samples: {len(self._annotated_pages)} pages using orders {self.orders}>"
 
-    def __getitem__(self, index: int) -> tuple[Image.Image, list[Polygon]]:
+    def __getitem__(self, index: int) -> tuple[np.ndarray, list[Polygon]]:
         """
         Chooses a line cluster / paragraph / full page according to the available orders.
         Each sample is chosen uniformly, and applies the layout transforms defined.

@@ -1,3 +1,4 @@
+import cv2
 import shapely
 from cropgen.shared.geometry_processing import get_union_rect
 from collections import defaultdict
@@ -26,8 +27,8 @@ from cropgen.processing.helpers.text_regularization import (
 from tqdm.auto import tqdm
 
 ocr_transform = Callable[
-    [list[Image.Image], list[Polygon]],
-    tuple[list[Image.Image], list[Polygon]],
+    [list[np.ndarray], list[Polygon]],
+    tuple[list[np.ndarray], list[Polygon]],
 ]
 
 
@@ -61,14 +62,16 @@ class AnnotatedPage:
         rotations: list[float],
         task_id: int,
         page: str,
-        stroke: Image.Image,
-        background: Image.Image,
+        stroke: np.ndarray,
+        background: np.ndarray,
         line_separtor: str = "\n",
         completer: str | None = None,
         updater: str | None = None,
         polygons_are_in_percentage: bool = True,
     ):
-        self.background = background.copy()
+        if not (stroke.shape == background.shape):
+            raise ValueError("Stroke and background must have the same dimensions.")
+        self.background = background
         self.task_id = task_id
         self.page = page
         self.line_separator = line_separtor
@@ -80,7 +83,7 @@ class AnnotatedPage:
             transcriptions,
             line_ids,
             rotations,
-            stroke.copy(),
+            stroke,
             polygons_are_in_percentage,
         )
 
@@ -93,14 +96,14 @@ class AnnotatedPage:
 
     @property
     def image_dimensions(self) -> tuple[int, int]:
-        """Returns the dimensions of the background in the format (width, height)."""
-        return self.background.size
+        """Returns the dimensions of the background in the format (height, width)."""
+        return self.background.shape
 
     @staticmethod
     def from_paragraphs(
         paragraphs: list[Paragraph],
         task_id: int,
-        background: Image.Image,
+        background: np.ndarray,
         page: str,
         line_separator: str = "\n",
         completer: str = "Unknown",
@@ -214,7 +217,7 @@ class AnnotatedPage:
         transcriptions: list[str],
         line_ids: list[str],
         rotations: list[float],
-        stroke: Image.Image,
+        stroke: np.ndarray,
         polygons_are_in_percentage: bool,
     ) -> list[Line]:
 
@@ -234,7 +237,7 @@ class AnnotatedPage:
             )
 
         if polygons_are_in_percentage:
-            page_width, page_height = stroke.size
+            page_height, page_width = stroke.shape
             polygons = []
             for i in range(len(polygon_coords)):
                 polygon_coord = polygon_coords[i]
@@ -382,7 +385,7 @@ class AnnotatedPage:
         refit_polygons: bool = True,
         overlay_polygons: bool = False,
         overlay_mbr: bool = False,
-    ) -> tuple[Image.Image, list[Polygon]]:
+    ) -> tuple[np.ndarray, list[Polygon]]:
 
         if isinstance(margin_size_px, int):
             margin_size_px = {
@@ -452,7 +455,7 @@ class AnnotatedPage:
             paste_x = int(poly_x0 - x0)
             paste_y = int(poly_y0 - y0)
 
-            sw, sh = stroke_img.width, stroke_img.height
+            sh, sw = stroke_img.shape[:2]
 
             src_x0 = max(0, -paste_x)
             src_y0 = max(0, -paste_y)
@@ -468,9 +471,24 @@ class AnnotatedPage:
                 continue
 
             # Convert stroke to RGBA and slice the active region
-            stroke_rgba = np.asarray(stroke_img.convert("RGBA"), dtype=np.float32)[
-                src_y0:src_y1, src_x0:src_x1
-            ]
+            # cv2 manages this slightly less concisely than PIL
+            stroke_crop = stroke_img[src_y0:src_y1, src_x0:src_x1]
+
+            if stroke_crop.ndim == 2:
+                stroke_rgba = cv2.cvtColor(stroke_crop, cv2.COLOR_GRAY2RGBA).astype(
+                    np.float32
+                )
+            elif stroke_crop.shape[2] == 3:
+                stroke_rgba = cv2.cvtColor(stroke_crop, cv2.COLOR_BGR2RGBA).astype(
+                    np.float32
+                )
+            elif stroke_crop.shape[2] == 4:
+                stroke_rgba = cv2.cvtColor(stroke_crop, cv2.COLOR_BGRA2RGBA).astype(
+                    np.float32
+                )
+            else:
+                stroke_rgba = stroke_crop.astype(np.float32)
+
             stroke_val = stroke_rgba[..., 0]
             alpha = stroke_rgba[..., 3] / 255.0
             masked_stroke = stroke_val * alpha
@@ -484,52 +502,50 @@ class AnnotatedPage:
 
             canvas[dst_y0:dst_y1, dst_x0:dst_x1] = blended_roi.astype(np.uint8)
 
-        img = Image.fromarray(canvas)
-
         if refit_polygons:
             # displace the polygons to the new dimensions of the image
             polygons = [translate(polygon, -x0, -y0) for polygon in polygons]
 
         if overlay_mbr or overlay_polygons:
-            img = self._overlay_polygons_mbr(
+            canvas = self._overlay_polygons_mbr(
                 refitted_polygons=(
                     polygons
                     if refit_polygons
                     else [translate(polygon, -x0, -y0) for polygon in polygons]
                 ),
-                manuscript=img,
+                manuscript=canvas,
                 overlay_polygons=overlay_polygons,
                 overlay_mbr=overlay_mbr,
             )
 
-        return img, polygons
+        return canvas, polygons
 
     @staticmethod
     def _overlay_polygons_mbr(
         *,
         refitted_polygons: list[Polygon],
-        manuscript: Image.Image,
+        manuscript: np.ndarray,
         overlay_polygons: bool,
         overlay_mbr: bool,
     ):
-
-        manuscript_rgb = manuscript.convert("RGB")
-
-        draw = ImageDraw.Draw(manuscript_rgb)
+        img = cv2.cvtColor(manuscript, cv2.COLOR_GRAY2BGR)
 
         for polygon in refitted_polygons:
             if overlay_polygons:
-                # pointwise tranlation of all points
-                polygon_points = [(x, y) for x, y in polygon.exterior.coords]
-                draw.line(polygon_points, fill=(255, 0, 0), width=3)
+                poly_pts = np.round(polygon.exterior.coords).astype(np.int32)
+                cv2.polylines(
+                    img, [poly_pts], isClosed=True, color=(0, 0, 255), thickness=3
+                )
 
             if overlay_mbr:
-                mbr_points = [
-                    (x, y) for x, y in polygon.minimum_rotated_rectangle.exterior.coords
-                ]
-                draw.line(mbr_points, fill=(0, 255, 0), width=3)
+                mbr_pts = np.round(
+                    polygon.minimum_rotated_rectangle.exterior.coords
+                ).astype(np.int32)
+                cv2.polylines(
+                    img, [mbr_pts], isClosed=True, color=(0, 255, 0), thickness=3
+                )
 
-        return manuscript_rgb
+        return img
 
     def synthetic_sample(
         self,
@@ -538,10 +554,10 @@ class AnnotatedPage:
         tight_layout: bool = True,
         margin_size_px: int = 0,
         img_poly_transform: ocr_transform | None = None,
-    ) -> tuple[Image.Image, str, int]:
+    ) -> tuple[np.ndarray, str, int]:
         """
         Given a list of ImageBox ids, returns:
-        - their synthetic manuscript PIL.Image given by .synthetic_manuscript,
+        - their synthetic manuscript (image as np.ndarray) given by .synthetic_manuscript,
         - the transcription corresponding to this image,
         - the starting index of this text in the page transcription.
         """
@@ -608,10 +624,10 @@ class AnnotatedPage:
                 json.loads(metadata_filepath.read_text())
             )
 
-            task = metadata.page
+            page = metadata.page
             task_id = metadata.task_id
 
-            if not _acceptable(task, task_id):
+            if not _acceptable(page, task_id):
                 # print(f"Skipping {task_id=}/{page=} (looking for {tasks=} or {pages=})")
                 continue
 
@@ -630,12 +646,19 @@ class AnnotatedPage:
             image_path = metadata.image_path
 
             # stroke and background separation is not certain at this point
-            stroke = Image.open(
-                paths.stroke_images_path / (image_path.stem + image_path.suffix)
+            stroke = cv2.imread(
+                paths.stroke_images_path / (image_path.stem + image_path.suffix),
+                cv2.IMREAD_GRAYSCALE,
             )
-            background = Image.open(
-                paths.background_images_path / (image_path.stem + image_path.suffix)
+            background = cv2.imread(
+                paths.background_images_path / (image_path.stem + image_path.suffix),
+                cv2.IMREAD_GRAYSCALE,
             )
+            if (stroke is None) or (background is None):
+                raise ValueError(
+                    f"Stroke or background images could not be loaded for task {task_id}/page {page}."
+                )
+
             taskid2annpage[task_id].append(
                 AnnotatedPage(
                     transcriptions=transcriptions,
@@ -643,7 +666,7 @@ class AnnotatedPage:
                     line_ids=ids,
                     rotations=rotations,
                     task_id=int(task_id),
-                    page=task,
+                    page=page,
                     stroke=stroke,
                     background=background,
                     completer=completer,
@@ -656,7 +679,7 @@ class AnnotatedPage:
                 break
 
         if combine_same_page_annotations:
-            for task, annotations in taskid2annpage.items():
-                taskid2annpage[task] = [AnnotatedPage.combine_annotations(*annotations)]
+            for page, annotations in taskid2annpage.items():
+                taskid2annpage[page] = [AnnotatedPage.combine_annotations(*annotations)]
 
         return sum(taskid2annpage.values(), start=[])

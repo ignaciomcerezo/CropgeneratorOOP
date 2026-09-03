@@ -1,4 +1,5 @@
 # tests/conftest.py
+import cv2
 from cropgen.external_interfaces.image_separation_interface import (
     ImageSeparationInterface,
 )
@@ -13,7 +14,6 @@ from tkinter import Label
 import multiprocessing
 import os
 from pathlib import Path
-from PIL import Image
 import pytest
 from dotenv import load_dotenv
 from cropgen.external_interfaces.label_studio.label_studio_interface import (
@@ -22,7 +22,6 @@ from cropgen.external_interfaces.label_studio.label_studio_interface import (
 from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
 from cropgen.shared.path_bundle import PathBundle
 from requests.exceptions import ConnectionError
-from PIL import Image
 
 
 @pytest.fixture(scope="session")
@@ -144,12 +143,13 @@ def set_multiprocessing_start_method():
     multiprocessing.set_start_method("spawn", force=True)
 
 
+import numpy as np
 import cropgen.shared.image_processing as imgproc
 from cropgen.processing.annotated_page import AnnotatedPage
 
 
 def _fake_synthetic_manuscript(*args, **kwargs):
-    return Image.Image(), []
+    return np.zeros((1, 1)), []
 
 
 @pytest.fixture
@@ -162,4 +162,4 @@ def patch_synthetic_manuscript(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def patch_image_open(monkeypatch):
-    monkeypatch.setattr(Image, "open", lambda *args: Image.new("L", (1, 1)))
+    monkeypatch.setattr(cv2, "imread", lambda *args: np.zeros((1, 1), dtype=np.uint8))

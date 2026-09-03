@@ -1,10 +1,10 @@
 from cropgen.shared.parameters import Parameter
-from PIL import Image
 from shapely.affinity import scale
 from shapely.geometry import Polygon
-
+import cv2
 from cropgen.processing.line import Line
 from cropgen.transforms.transforms import LinewiseTransform
+import numpy as np
 
 
 class LinewiseHorizontalStretch(LinewiseTransform):
@@ -13,12 +13,15 @@ class LinewiseHorizontalStretch(LinewiseTransform):
         self.scale_factor = Parameter(scale_factor)
 
     def __call__(
-        self, image: Image.Image, polygon: Polygon
-    ) -> tuple[Image.Image, Polygon]:
+        self, image: np.ndarray, polygon: Polygon
+    ) -> tuple[np.ndarray, Polygon]:
+        height, width = image.shape[:2]
+        new_width = max(1, round(width * abs(self.scale_factor())))
         image = image
-        stretched_image = image.resize(
-            (max(1, round(image.width * abs(self.scale_factor()))), image.height),
-            resample=Image.Resampling.BILINEAR,
+        stretched_image = cv2.resize(
+            image,
+            (new_width, height),
+            interpolation=cv2.INTER_LINEAR,
         )
 
         min_x, min_y, max_x, max_y = polygon.bounds

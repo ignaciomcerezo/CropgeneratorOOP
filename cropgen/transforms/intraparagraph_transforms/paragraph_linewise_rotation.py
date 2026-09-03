@@ -2,13 +2,15 @@ from typing import Literal, Sequence
 
 import cv2
 import numpy as np
-from PIL import Image
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
 
 from cropgen.processing import Line, Paragraph
 from cropgen.shared.parameters import Parameter
-from cropgen.transforms.transforms import IntraparagraphTransform
+from cropgen.transforms.transforms import (
+    IntraparagraphTransform,
+    line_group_equivalent_type,
+)
 
 
 class ParagraphLinewiseRotation(IntraparagraphTransform):
@@ -31,10 +33,8 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
         match self._metric:
@@ -90,13 +90,12 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
 
     @staticmethod
     def rotate_img(
-        pil_img: Image.Image,
+        image: np.ndarray,
         angle: float,
         center: tuple[float, float],
         orig_bounds: tuple[float, float, float, float],
         new_bounds: tuple[float, float, float, float],
-    ) -> Image.Image:
-        img_array = np.asarray(pil_img)
+    ) -> np.ndarray:
 
         orig_x0, orig_y0, _, _ = orig_bounds
         new_x0, new_y0, new_x1, new_y1 = new_bounds
@@ -120,13 +119,11 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
             dtype=np.float32,
         )
 
-        rotated_array = cv2.warpAffine(
-            img_array,
+        return cv2.warpAffine(
+            image,
             affine_matrix,
             (new_width, new_height),
             flags=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0, 0, 0, 0),
         )
-
-        return Image.fromarray(rotated_array)

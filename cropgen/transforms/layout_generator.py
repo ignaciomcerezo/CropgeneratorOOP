@@ -1,3 +1,4 @@
+import cv2
 from cropgen.shared.geometry_processing import get_union_rect
 from cropgen.transforms.transforms import (
     LinewiseTransform,
@@ -11,7 +12,6 @@ from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections impor
     AvoidLineIntersections,
 )
 from collections import defaultdict
-from PIL import Image
 from cropgen.processing import Paragraph
 from cropgen.processing import AnnotatedPage
 from cropgen.transforms import (
@@ -150,8 +150,8 @@ class LayoutGenerator:
         x2, y2 = int(x2) + 1, int(y2) + 1
 
         w, h = max(1, x2 - x1), max(1, y2 - y1)
-        background = new_ann.background.resize(
-            size=(w, h), resample=Image.Resampling.BICUBIC
+        background = cv2.resize(
+            new_ann.background, (w, h), interpolation=cv2.INTER_CUBIC
         )
         new_ann.background = background
 

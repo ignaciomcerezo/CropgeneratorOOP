@@ -1,10 +1,10 @@
 from cropgen.shared.parameters import Parameter
 from typing import Sequence
 from shapely.geometry import Polygon
-from PIL import Image
 from cropgen.processing import Paragraph, Line
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
+    line_group_equivalent_type,
 )
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from shapely.affinity import translate
@@ -27,10 +27,8 @@ class ReadingDirectionClearance(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
         if len(polygons) < 2:
             raise ValueError("Paragraph too small")

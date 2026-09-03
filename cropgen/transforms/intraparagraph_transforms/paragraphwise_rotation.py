@@ -5,15 +5,14 @@ from shapely import Polygon
 from shapely.affinity import rotate
 import numpy as np
 import cv2
-from PIL import Image
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
+    line_group_equivalent_type,
 )
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from typing import Sequence
 import cv2
 import numpy as np
-from PIL import Image
 from shapely import Polygon
 from shapely.affinity import rotate
 
@@ -39,11 +38,10 @@ class ParagraphwiseRotation(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
+
         if not polygons:
             return images, polygons
 
@@ -97,13 +95,12 @@ class ParagraphwiseRotation(IntraparagraphTransform):
 
     @staticmethod
     def _rotate_img(
-        pil_img: Image.Image,
+        img_array: np.ndarray,
         angle: float,
         center: tuple[float, float],
         orig_bounds: tuple[float, float, float, float],
         new_bounds: tuple[float, float, float, float],
-    ) -> Image.Image:
-        img_array = np.asarray(pil_img)
+    ) -> np.ndarray:
 
         orig_x0, orig_y0, _, _ = orig_bounds
         new_x0, new_y0, new_x1, new_y1 = new_bounds
@@ -127,7 +124,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
             dtype=np.float32,
         )
 
-        rotated_array = cv2.warpAffine(
+        return cv2.warpAffine(
             img_array,
             affine_matrix,
             (new_width, new_height),
@@ -135,5 +132,3 @@ class ParagraphwiseRotation(IntraparagraphTransform):
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0, 0, 0, 0),
         )
-
-        return Image.fromarray(rotated_array)

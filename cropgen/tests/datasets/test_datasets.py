@@ -22,8 +22,8 @@ from cropgen.external_interfaces.label_studio.label_studio_interface import (
 )
 from cropgen.shared.path_bundle import PathBundle
 import pytest
-from PIL import Image
 from tqdm.auto import tqdm
+import numpy as np
 
 
 def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
@@ -34,7 +34,7 @@ def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
 
     for sample_i in tqdm(range(len(A)), desc="Checking every single sample"):
         sample = A[sample_i]
-        assert isinstance(sample["image"], Image.Image)
+        assert isinstance(sample["image"], np.ndarray)
         assert isinstance(sample["text"], str)
         assert isinstance(sample["sindex"], int)
         assert isinstance(sample["context"], str)
@@ -50,7 +50,7 @@ def test_segmentation_dataset(paths: PathBundle):
 
     for sample_i in tqdm(range(100), desc="Checking 100 samples"):
         sample = A[sample_i]
-        assert isinstance(sample[0], Image.Image)
+        assert isinstance(sample[0], np.ndarray)
         assert isinstance(sample[1], list)
         assert len(sample[1]) == 2, f"{len(A)}, {sample}"
         assert all(isinstance(pol, (Polygon, MultiPolygon)) for pol in sample[1])

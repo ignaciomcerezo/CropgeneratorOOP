@@ -6,8 +6,10 @@ from cropgen.transforms.helpers.polygon_separation import (
 )
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
-from cropgen.transforms.transforms import InterparagraphTransform
-from PIL import Image
+from cropgen.transforms.transforms import (
+    InterparagraphTransform,
+    line_group_equivalent_type,
+)
 from shapely import Polygon
 from shapely.affinity import translate
 
@@ -37,9 +39,7 @@ class AvoidParagraphIntersections(InterparagraphTransform):
 
     def __call__(
         self,
-        *line_equivalent_groups: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
+        *line_equivalent_groups: (line_group_equivalent_type),
     ):
         image_groups, polygon_groups = self._extract_polygon_and_image_groups(
             line_equivalent_groups

@@ -1,10 +1,9 @@
 from typing import Callable, Any, Sequence
-from PIL import Image
 from shapely import Polygon, MultiPolygon
 import numpy as np
 import cv2
 
-_formatter_type = Callable[[Image.Image, Sequence[Polygon]], Any]
+_formatter_type = Callable[[np.ndarray, Sequence[Polygon]], Any]
 
 
 def _polygon_to_mask(poly: Polygon | MultiPolygon, h: int, w: int) -> np.ndarray:
@@ -13,7 +12,6 @@ def _polygon_to_mask(poly: Polygon | MultiPolygon, h: int, w: int) -> np.ndarray
         return mask
 
     if poly.area == 0:
-        # we expand the polygon if it has no area
         poly = poly.buffer(1.5)
 
     if isinstance(poly, Polygon):

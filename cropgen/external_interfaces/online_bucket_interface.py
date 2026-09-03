@@ -1,4 +1,5 @@
 from __future__ import annotations
+import cv2
 
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -9,7 +10,6 @@ import urllib.parse
 from cropgen.external_interfaces.external_interface import ExternalInterface
 from cropgen.shared.path_bundle import PathBundle
 from dotenv import load_dotenv
-from PIL import Image
 import requests
 from tqdm.auto import tqdm
 
@@ -179,9 +179,7 @@ class OnlineBucketInterface(ExternalInterface):
         pending = self._compute_pending_objects()
         if not pending:
             return []
-        print(
-            f" - Downloading images into {str(self.corresponding_path_accesor(str()))}"
-        )
+        print(f" - Downloading images into {str(self.corresponding_path_accesor('*'))}")
 
         def download_image(item: tuple[str, str]) -> str:
             page_name, object_name = item
@@ -193,8 +191,8 @@ class OnlineBucketInterface(ExternalInterface):
                 local_img = self.corresponding_path_accesor(page_name)
                 local_img.parent.mkdir(parents=True, exist_ok=True)
                 local_img.write_bytes(img_resp.content)
-
-                Image.open(local_img).convert("L").save(local_img)
+                img = cv2.imread(str(local_img), cv2.IMREAD_GRAYSCALE)
+                cv2.imwrite(str(local_img), img)  # ty: ignore[no-matching-overload]
                 return page_name
 
         downloaded: list[str] = []

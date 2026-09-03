@@ -7,7 +7,6 @@ from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
     SimplifiedResultItem,
     SimplifiedTextCorrectionResult,
 )
-from PIL import Image
 import numpy as np
 import math
 

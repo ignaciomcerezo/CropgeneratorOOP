@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-
-from PIL import Image
+import numpy as np
 from shapely import Polygon, box as boxshape
 from shapely.affinity import scale
 
@@ -13,7 +12,7 @@ class Line:
     """
 
     id: str
-    stroke_crop: Image.Image
+    stroke_crop: np.ndarray
     polygon: Polygon
     rotation: float
     task_id: int

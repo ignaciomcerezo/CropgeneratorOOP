@@ -1,16 +1,16 @@
 from shapely.geometry import MultiPolygon
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo, Vector2D
-from typing import Any, Literal, Sequence, cast
+from typing import Any, Literal, Sequence
 import numpy as np
-from numpy.random import permutation
-from PIL import Image
 from shapely import Polygon, STRtree
 from shapely.affinity import translate
-import numpy.typing as npt
 
 from cropgen.processing.line import Line
 from cropgen.processing.paragraph import Paragraph
-from cropgen.transforms.transforms import IntraparagraphTransform
+from cropgen.transforms.transforms import (
+    IntraparagraphTransform,
+    line_group_equivalent_type,
+)
 
 
 class AvoidLineIntersections(IntraparagraphTransform):
@@ -25,10 +25,8 @@ class AvoidLineIntersections(IntraparagraphTransform):
 
     def __call__(
         self,
-        line_equivalent_group: (
-            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
-        ),
-    ) -> tuple[list[Image.Image], list[Polygon]]:
+        line_equivalent_group: line_group_equivalent_type,
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, raw_polygons = self._extract_polygons_and_images(line_equivalent_group)
         polygon_list = list(raw_polygons)
 

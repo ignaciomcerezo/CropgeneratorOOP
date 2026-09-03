@@ -5,7 +5,7 @@ from shapely.geometry import Polygon
 from cropgen.transforms.transforms import LinewiseTransform, InterparagraphTransform
 from cropgen.transforms import IntraparagraphTransform
 from numpy.random import rand
-from PIL import Image
+import numpy as np
 
 
 class OCROnTheFlyTransformPack:
@@ -41,16 +41,19 @@ class OCROnTheFlyTransformPack:
             )
 
     def __call__(
-        self, images: list[Image.Image], polygons: list[Polygon]
-    ) -> tuple[list[Image.Image], list[Polygon]]:
-        for i, (image, polygon) in enumerate(zip(images, polygons)):
-            for linewise, p in zip(self._linewise, self._linewise_p):
-                if (p == 1) or ((p <= 1) and (rand() < p)):
-                    images[i], polygons[i] = linewise(image, polygon)
+        self, images: list[np.ndarray], polygons: list[Polygon]
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
 
-        for intraparagraph, p in zip(self._intraparagraph, self._intraparagraph_p):
+        for i, (image, polygon) in enumerate(zip(images, polygons)):
+            for linewise_transform, p in zip(self._linewise, self._linewise_p):
+                if (p == 1) or ((p <= 1) and (rand() < p)):
+                    images[i], polygons[i] = linewise_transform(image, polygon)
+
+        for intraparagraph_transform, p in zip(
+            self._intraparagraph, self._intraparagraph_p
+        ):
             if (p == 1) or ((p <= 1) and (rand() < p)):
-                images, polygons = intraparagraph((images, polygons))
+                images, polygons = intraparagraph_transform((images, polygons))
 
         if self._avoid_intersections:
             ali = AvoidLineIntersections(0.5)

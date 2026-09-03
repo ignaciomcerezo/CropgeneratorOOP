@@ -3,18 +3,17 @@ from cropgen.processing.helpers.helper_to_classes import is_path_graph
 import re
 
 import pytest
-from PIL import Image
 from shapely import Polygon, MultiPolygon
 from tqdm.auto import tqdm
-
+import numpy as np
 from cropgen.processing import AnnotatedPage, Line, Paragraph
-from cropgen.tests.object_mothers import mother_pil_image
+from cropgen.tests.object_mothers import mother_image
 
 
 def _line_checks(line: Line, paragraph: Paragraph | int, ann: AnnotatedPage):
     errmsg = f"Error with line {line} and ann {ann}"
     assert isinstance(line, Line), errmsg
-    assert isinstance(line.stroke_crop, Image.Image), errmsg
+    assert isinstance(line.stroke_crop, np.ndarray), errmsg
     assert isinstance(line.task_id, int), errmsg
     assert isinstance(
         line.polygon, (Polygon, MultiPolygon)

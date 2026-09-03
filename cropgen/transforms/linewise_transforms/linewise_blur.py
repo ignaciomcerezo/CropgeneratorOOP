@@ -1,6 +1,6 @@
+import cv2
 from cropgen.shared.parameters import Parameter
-from PIL import Image, ImageFilter
-
+import numpy as np
 from cropgen.processing.line import Line
 from cropgen.transforms.transforms import LinewiseTransform
 from shapely.geometry import Polygon
@@ -11,9 +11,9 @@ class Blur(LinewiseTransform):
         self.radius: Parameter = Parameter(radius)
 
     def __call__(
-        self, image: Image.Image, polygon: Polygon
-    ) -> tuple[Image.Image, Polygon]:
+        self, image: np.ndarray, polygon: Polygon
+    ) -> tuple[np.ndarray, Polygon]:
         return (
-            image.filter(ImageFilter.GaussianBlur(self.radius())),
+            cv2.GaussianBlur(image, (0, 0), sigmaX=self.radius()),
             polygon,
         )

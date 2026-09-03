@@ -1,3 +1,4 @@
+import cv2
 from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
     PROCESSING_LONGEST_SIDE_PX,
@@ -6,7 +7,7 @@ from cropgen.external_interfaces.external_interface import ExternalInterface
 from cropgen.shared.path_bundle import PathBundle
 from cropgen.shared.image_processing import separate_background_and_stroke
 from tqdm.auto import tqdm
-from PIL import Image
+import numpy as np
 
 
 class ImageSeparationInterface(ExternalInterface):
@@ -28,7 +29,10 @@ class ImageSeparationInterface(ExternalInterface):
             desc="Stroke/background separation...",
         ):
 
-            raw_image = Image.open(raw_image_path)
+            raw_image = cv2.imread(raw_image_path, cv2.IMREAD_GRAYSCALE)
+
+            if raw_image is None:
+                raise ValueError("Tried to separate nonexistent image.")
 
             if self.paths.has_processed_images(raw_image_path.stem):
                 continue
@@ -38,7 +42,10 @@ class ImageSeparationInterface(ExternalInterface):
                 out_longest_side=DATASET_LONGEST_SIZE_PX,
                 processing_longest_side=PROCESSING_LONGEST_SIDE_PX,
             )
-            stroke.save(PathBundle.change_image_category_path(raw_image_path, "stroke"))
-            background.save(
-                PathBundle.change_image_category_path(raw_image_path, "background")
+            cv2.imwrite(
+                PathBundle.change_image_category_path(raw_image_path, "stroke"), stroke
+            )
+            cv2.imwrite(
+                PathBundle.change_image_category_path(raw_image_path, "background"),
+                background,
             )

@@ -1,4 +1,4 @@
-from cropgen.training_helpers.part_detector import extract_collator_markers
+from cropgen.training_helpers.unsloth.part_detector import extract_collator_markers
 import jiwer  # ty: ignore[unresolved-import]
 
 

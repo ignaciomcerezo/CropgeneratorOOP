@@ -1,9 +1,10 @@
+import cv2
 from cropgen.shared.path_bundle import PathBundle
 from typing import Annotated, Union, Any
 import json
 from pydantic import BaseModel, AfterValidator, model_validator
 from pathlib import Path
-from PIL import Image
+import numpy as np
 
 
 def _validate_path_and_existance(path):
@@ -170,16 +171,23 @@ class PageSampleMetadata(BaseModel):
             self._ids = _validate_ids(ids)
         return self._ids
 
-    def load_raw(self) -> Image.Image:
-        # this, per the current implementation, is equivalent to Image.open(self.image_path), but for futureproofing.
-        return Image.open(PathBundle.change_image_category_path(self.image_path, "raw"))
+    def load_raw(self) -> np.ndarray:
+        path = str(PathBundle.change_image_category_path(self.image_path, "raw"))
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            raise FileNotFoundError(f"Failed to load image from: {path}")
+        return img
 
-    def load_stroke(self) -> Image.Image:
-        return Image.open(
-            PathBundle.change_image_category_path(self.image_path, "stroke")
-        )
+    def load_stroke(self) -> np.ndarray:
+        path = str(PathBundle.change_image_category_path(self.image_path, "stroke"))
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            raise FileNotFoundError(f"Failed to load image from: {path}")
+        return img
 
-    def load_background(self) -> Image.Image:
-        return Image.open(
-            PathBundle.change_image_category_path(self.image_path, "background")
-        )
+    def load_background(self) -> np.ndarray:
+        path = str(PathBundle.change_image_category_path(self.image_path, "background"))
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            raise FileNotFoundError(f"Failed to load image from: {path}")
+        return img
