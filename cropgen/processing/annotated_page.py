@@ -97,7 +97,7 @@ class AnnotatedPage:
     @property
     def image_dimensions(self) -> tuple[int, int]:
         """Returns the dimensions of the background in the format (height, width)."""
-        return self.background.shape
+        return self.background.shape[:2]
 
     @staticmethod
     def from_paragraphs(
@@ -426,7 +426,7 @@ class AnnotatedPage:
             return self.background.copy(), polygons
 
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
-        bg_w, bg_h = self.image_dimensions
+        bg_h, bg_w = self.image_dimensions
 
         if tight_layout:
             x0 = int(min_x) - margin_size_px["left"]
@@ -554,6 +554,8 @@ class AnnotatedPage:
         tight_layout: bool = True,
         margin_size_px: int = 0,
         img_poly_transform: ocr_transform | None = None,
+        overlay_polygons: bool = False,
+        overlay_mbr: bool = True,
     ) -> tuple[np.ndarray, str, int]:
         """
         Given a list of ImageBox ids, returns:
@@ -572,6 +574,8 @@ class AnnotatedPage:
             tight_layout=tight_layout,
             margin_size_px=margin_size_px,
             img_poly_transform=img_poly_transform,
+            overlay_polygons=overlay_polygons,
+            overlay_mbr=overlay_mbr,
         )[0]
 
         transcription = self.synthetic_transcription(line_ids)

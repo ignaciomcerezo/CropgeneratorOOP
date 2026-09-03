@@ -15,6 +15,8 @@ _poss_cluster_args_literal = Literal[
     "margin_size_px",
     "use_previous_page_in_context",
     "avoid_intersections",
+    "overlay_polygons",
+    "overlay_mbr",
 ]
 
 _default_cluster_param_values = (
@@ -22,6 +24,8 @@ _default_cluster_param_values = (
     {"left": 0, "right": 0, "top": 0, "bottom": 0},
     False,
     True,
+    False,
+    False,
 )
 
 _default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
@@ -69,6 +73,10 @@ class BaseAnnotationDataset(Dataset, ABC):
     def set_cluster_param(
         self, cluster_param_name: _poss_cluster_args_literal, value: Any
     ):
+        if cluster_param_name not in _default_cluster_parameters:
+            raise ValueError(
+                f"Unknown cluster parameter '{cluster_param_name}' (expected one of {_default_cluster_parameters})."
+            )
         if value is not None:
             self._cluster_params[cluster_param_name] = value
         else:

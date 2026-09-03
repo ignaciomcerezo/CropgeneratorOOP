@@ -63,8 +63,8 @@ class SegmentationDataset(BaseAnnotationDataset):
             tight_layout=self._cluster_params["tight_layout"],
             margin_size_px=self._cluster_params["margin_size_px"],
             img_poly_transform=self._transforms,
-            overlay_polygons=False,
-            overlay_mbr=False,
+            overlay_polygons=self._cluster_params["overlay_polygons"],
+            overlay_mbr=self._cluster_params["overlay_mbr"],
         )
 
         return image, polygons
