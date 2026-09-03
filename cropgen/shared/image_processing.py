@@ -228,41 +228,50 @@ def crop_or_resize(
 def crop_image_with_polygon(
     image: np.ndarray, polygon: Polygon, crop_to_bounds: bool = True
 ) -> np.ndarray:
-    if image.ndim == 2:
-        bgra_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGRA)
-    elif image.shape[2] == 3:
-        bgra_image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
-    elif image.shape[2] == 4:
-        bgra_image = image.copy()
+    h, w = image.shape[:2]
+
+    if not crop_to_bounds:
+        min_x, min_y, max_x, max_y = 0, 0, w, h
+        x1, y1, x2, y2 = 0, 0, w, h
+        cropped = image.copy()
     else:
-        raise ValueError(f"Unsupported image shape: {image.shape}")
-
-    h, w = bgra_image.shape[:2]
-    mask = np.zeros((h, w), dtype=np.uint8)
-
-    exterior_pts = np.array(polygon.exterior.coords, dtype=np.int32).reshape((-1, 1, 2))
-    cv2.fillPoly(mask, [exterior_pts], color=255)
-
-    if polygon.interiors:
-        interior_pts = [
-            np.array(interior.coords, dtype=np.int32).reshape((-1, 1, 2))
-            for interior in polygon.interiors
-        ]
-        cv2.fillPoly(mask, interior_pts, color=0)
-
-    bgra_image[:, :, 3] = mask
-
-    if crop_to_bounds:
         min_x, min_y, max_x, max_y = map(int, polygon.bounds)
-
         x1 = max(0, min_x)
         y1 = max(0, min_y)
         x2 = min(w, max_x)
         y2 = min(h, max_y)
 
         if x1 >= x2 or y1 >= y2:
-            return np.empty((0, 0, 4), dtype=bgra_image.dtype)
+            return np.empty((0, 0, 4), dtype=np.uint8)
 
-        return bgra_image[y1:y2, x1:x2]
+        # we copy to detach the object from the original (instead of using a view)
+        cropped = image[y1:y2, x1:x2].copy()
 
-    return bgra_image
+    crop_h, crop_w = cropped.shape[:2]
+
+    # only the crop gets converted
+    if cropped.ndim == 2:
+        bgra_crop = cv2.cvtColor(cropped, cv2.COLOR_GRAY2BGRA)
+    elif cropped.shape[2] == 3:
+        bgra_crop = cv2.cvtColor(cropped, cv2.COLOR_BGR2BGRA)
+    elif cropped.shape[2] == 4:
+        bgra_crop = cropped
+    else:
+        raise ValueError(f"Unsupported image shape: {image.shape}")
+
+    offset = np.array([x1, y1], dtype=np.int32)
+    shifted_exterior = np.array(polygon.exterior.coords, dtype=np.int32) - offset
+
+    local_mask = np.zeros((crop_h, crop_w), dtype=np.uint8)
+    cv2.fillPoly(local_mask, [shifted_exterior.reshape((-1, 1, 2))], color=255)
+
+    if polygon.interiors:
+        shifted_interiors = [
+            (np.array(interior.coords, dtype=np.int32) - offset).reshape((-1, 1, 2))
+            for interior in polygon.interiors
+        ]
+        cv2.fillPoly(local_mask, shifted_interiors, color=0)
+
+    bgra_crop[:, :, 3] = local_mask
+
+    return bgra_crop
