@@ -31,9 +31,6 @@ class LineGroupInfo:
         ]
         self.rotations = [line.rotation for line in line_group]
 
-        self.union_polygon = self.polygon_union([box.polygon for box in line_group])
-        self.area: float = self.union_polygon.area
-
         total_area = sum(box.polygon.area for box in line_group)
 
         self.avg_rotation = (
@@ -130,10 +127,8 @@ class LineGroupInfo:
             raise ValueError(
                 "Cannot get geometric information from an empty sequence of polygons."
             )
-
         instance = object.__new__(cls)
         instance.line_bounds = [polygon.bounds for polygon in polygons]
-        instance.area = LineGroupInfo.polygon_union(polygons).area
 
         instance.centers = [
             np.array([(b[0] + b[2]) / 2, (b[1] + b[3]) / 2])
@@ -163,7 +158,6 @@ class LineGroupInfo:
             instance.union_bounds = (min_x, min_y, max_x, max_y)
             instance.center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
 
-        instance.union_polygon = LineGroupInfo.polygon_union(polygons)
         instance.center = (
             (instance.x0 + instance.xf) / 2,
             (instance.y0 + instance.yf) / 2,

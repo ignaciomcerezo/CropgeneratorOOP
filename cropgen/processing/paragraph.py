@@ -3,7 +3,7 @@ from typing import Optional, Iterator
 
 import numpy as np
 from PIL import Image
-from shapely import coverage_union_all
+from shapely import unary_union
 from shapely import Polygon
 from shapely.affinity import affine_transform
 
@@ -73,7 +73,7 @@ class Paragraph:
         return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
 
     def union_polygon(self) -> Polygon:
-        return coverage_union_all([line.polygon for line in self.lines])
+        return unary_union([line.polygon for line in self.lines])
 
     def corrected_polygon(self, line: Line):
         t: float = np.radians(self.avg_rotation)

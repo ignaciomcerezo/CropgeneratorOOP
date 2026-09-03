@@ -43,6 +43,9 @@ class LayoutGenerator:
         self.inter_transforms: list[InterparagraphTransform] = []
         self._avoid_intersections = avoid_intersections
 
+        self.ali = AvoidLineIntersections(0.5)
+        self.api = AvoidParagraphIntersections(0.5)
+
     def add_transform(
         self,
         *transforms: InterparagraphTransform
@@ -136,13 +139,10 @@ class LayoutGenerator:
         polygons.extend(paragraph.union_polygon() for paragraph in new_ann.paragraphs)
 
         if self._avoid_intersections:
-            ali = AvoidLineIntersections(0.5)
-            api = AvoidParagraphIntersections(0.5)
-
             for paragraph in new_ann.paragraphs:
-                ali.in_place(paragraph)
+                self.ali.in_place(paragraph)
 
-            api.in_place(*new_ann.paragraphs)
+            self.api.in_place(*new_ann.paragraphs)
 
         x1, y1, x2, y2 = get_union_rect(polygons)
 

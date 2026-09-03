@@ -90,7 +90,7 @@ class OCRDataset(BaseAnnotationDataset):
 
         # TODO: improve context generation - implement the use_previous_page_in_context cluster parameter here
         if sindex > 0:
-            context = ann.synthetic_transcription("all")[:sindex]
+            context = ann.full_transcription[:sindex]
         else:
             context = ""
 

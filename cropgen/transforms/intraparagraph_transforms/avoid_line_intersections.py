@@ -120,9 +120,16 @@ class AvoidLineIntersections(IntraparagraphTransform):
             cumulative_shifts[i] += movement
 
         for k in range(1, n):
-            i = order[k]
+            max_reversal: float = raw_forward_push[k]
 
+            if max_reversal <= 1e-12:
+                continue
+
+            i = order[k]
             polygon = polygons[i]
+
+            previous_polygons = [polygons[order[prev_k]] for prev_k in range(k)]
+            tree = STRtree(previous_polygons)
 
             def intersects_previous(distance: float) -> bool:
                 candidate = translate(
@@ -130,32 +137,10 @@ class AvoidLineIntersections(IntraparagraphTransform):
                     xoff=-reading_dir[0] * distance,
                     yoff=-reading_dir[1] * distance,
                 )
-
-                for previous_k in range(k):
-                    j = order[previous_k]
-
-                    if candidate.intersects(polygons[j]):
-                        return True
-
-                return False
-
-            # The coarse pass never pushed this line forward at all, so
-            # there's nothing to walk back.
-            max_reversal: float = raw_forward_push[k]
-
-            if max_reversal <= 1e-12:
-                continue
+                # Query index with GEOS intersection predicate in C
+                return tree.query(candidate, predicate="intersects").size > 0
 
             if not intersects_previous(max_reversal):
-                # Even undoing the *entire* coarse push doesn't produce an
-                # intersection with any earlier line. That means the coarse
-                # 1D-projected-overlap estimate was simply wrong for this
-                # pair (typically because the lines are offset enough
-                # perpendicular to reading_dir that they don't really
-                # overlap in 2D) — cancel the push entirely rather than
-                # silently keeping it, which is what let lines get shoved
-                # far enough forward to land beside their neighbour instead
-                # of staying below it.
                 displacement = max_reversal
             else:
                 lo, hi = 0, max_reversal

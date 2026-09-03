@@ -49,6 +49,7 @@ class AnnotatedPage:
         "paragraphs",
         "line_separator",
         "page",
+        "full_transcription",
     )
 
     def __init__(
@@ -88,7 +89,7 @@ class AnnotatedPage:
         self._setup_graph_and_paragraphs()
 
         # only pages that lay inside of a paragraph have an sindex
-        self._correct_text_and_set_sindices()
+        self._correct_text_and_set_sindices_and_transcription()
 
     @property
     def image_dimensions(self) -> tuple[int, int]:
@@ -149,7 +150,7 @@ class AnnotatedPage:
                 graph[line_id] = set(neighbours)
         ann._graph = graph
 
-        ann._correct_text_and_set_sindices()
+        ann._correct_text_and_set_sindices_and_transcription()
 
         return ann
 
@@ -305,7 +306,7 @@ class AnnotatedPage:
             ]
         )
 
-    def _correct_text_and_set_sindices(self):
+    def _correct_text_and_set_sindices_and_transcription(self):
         sindex = 0
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
@@ -326,6 +327,10 @@ class AnnotatedPage:
                 line.text = regularize_line(new_transcription)
                 line.starting_index = sindex
                 sindex += len(line.text) + len(self.line_separator)
+        lines = sorted(
+            list(self.lines.values()), key=lambda line: line.starting_index
+        )  # ty: ignore[no-matching-overload]
+        self.full_transcription = self.line_separator.join(line.text for line in lines)
 
     def __repr__(self):
         pageif = (
@@ -434,23 +439,18 @@ class AnnotatedPage:
             can_crop = False
 
         bg_np = np.asarray(self.background)
-        transformed_bg = crop_or_resize(
+        canvas = crop_or_resize(
             bg_np, x0=x0, xf=xf, y0=y0, yf=yf, can_crop=can_crop
-        )
+        ).copy()
 
-        canvas_h, canvas_w = transformed_bg.shape[:2]
-        overlay = np.zeros((canvas_h, canvas_w), dtype=np.float32)
+        canvas_h, canvas_w = canvas.shape[:2]
+        is_multichannel = canvas.ndim == 3 and canvas.shape[2] in (3, 4)
 
         for stroke_img, polygon in zip(strokes, polygons):
             poly_x0, poly_y0, _, _ = polygon.bounds
 
             paste_x = int(poly_x0 - x0)
             paste_y = int(poly_y0 - y0)
-
-            stroke_rgba = np.asarray(stroke_img.convert("RGBA"), dtype=np.float32)
-            stroke_val = stroke_rgba[..., 0]
-            alpha = stroke_rgba[..., 3] / 255.0
-            masked_stroke = stroke_val * alpha
 
             sw, sh = stroke_img.width, stroke_img.height
 
@@ -464,20 +464,27 @@ class AnnotatedPage:
             dst_x1 = min(canvas_w, paste_x + sw)
             dst_y1 = min(canvas_h, paste_y + sh)
 
-            if dst_x1 > dst_x0 and dst_y1 > dst_y0:
-                overlay[dst_y0:dst_y1, dst_x0:dst_x1] += masked_stroke[
-                    src_y0:src_y1, src_x0:src_x1
-                ]
+            if dst_x1 <= dst_x0 or dst_y1 <= dst_y0:
+                continue
 
-        bg_float = transformed_bg.astype(np.float32)
-        if bg_float.ndim == 3 and bg_float.shape[2] in (3, 4):
-            final_array = np.clip(bg_float - overlay[..., None], 0, 255).astype(
-                np.uint8
-            )
-        else:
-            final_array = np.clip(bg_float - overlay, 0, 255).astype(np.uint8)
+            # Convert stroke to RGBA and slice the active region
+            stroke_rgba = np.asarray(stroke_img.convert("RGBA"), dtype=np.float32)[
+                src_y0:src_y1, src_x0:src_x1
+            ]
+            stroke_val = stroke_rgba[..., 0]
+            alpha = stroke_rgba[..., 3] / 255.0
+            masked_stroke = stroke_val * alpha
 
-        img = Image.fromarray(final_array)
+            # Perform the blend strictly on the slice
+            roi = canvas[dst_y0:dst_y1, dst_x0:dst_x1].astype(np.float32)
+            if is_multichannel:
+                blended_roi = np.clip(roi - masked_stroke[..., None], 0, 255)
+            else:
+                blended_roi = np.clip(roi - masked_stroke, 0, 255)
+
+            canvas[dst_y0:dst_y1, dst_x0:dst_x1] = blended_roi.astype(np.uint8)
+
+        img = Image.fromarray(canvas)
 
         if refit_polygons:
             # displace the polygons to the new dimensions of the image

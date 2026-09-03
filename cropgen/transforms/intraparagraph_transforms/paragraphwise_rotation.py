@@ -10,6 +10,17 @@ from cropgen.transforms.transforms import (
     IntraparagraphTransform,
 )
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
+from typing import Sequence
+import cv2
+import numpy as np
+from PIL import Image
+from shapely import Polygon
+from shapely.affinity import rotate
+
+from cropgen.processing import Line, Paragraph
+from cropgen.shared.geometry_processing import calculate_reading_angle
+from cropgen.shared.parameters import Parameter
+from cropgen.transforms.transforms import IntraparagraphTransform
 
 
 class ParagraphwiseRotation(IntraparagraphTransform):
@@ -19,50 +30,40 @@ class ParagraphwiseRotation(IntraparagraphTransform):
 
     def __init__(
         self,
+        absolute: Parameter | float,
         *,
-        relative: Parameter | float | None = None,
-        absolute: Parameter | float | None = None,
         metric: str = "degrees",
     ):
-        if relative is None and absolute is None:
-            raise ValueError("Either relative or absolute rotations must be provided")
-
-        self._relative = Parameter(relative) if relative is not None else None
-        self._absolute = Parameter(absolute) if absolute is not None else None
+        self._absolute = Parameter(absolute)
         self._metric = metric
 
     def __call__(
         self,
         line_equivalent_group: (
-            Paragraph
-            | Paragraph
-            | Sequence[Line]
-            | tuple[Sequence[Image.Image], Sequence[Polygon]]
+            Paragraph | Sequence[Line] | tuple[Sequence[Image.Image], Sequence[Polygon]]
         ),
     ) -> tuple[list[Image.Image], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
-        info = LineGroupInfo.from_polygons(polygons)
+        if not polygons:
+            return images, polygons
 
-        if self._relative is not None:
-            rotation = info.avg_rotation * self._relative()
-        else:
-            if self._absolute is None:
-                raise ValueError("Either relative or absolute must be provided")
+        min_x = min(p.bounds[0] for p in polygons)
+        min_y = min(p.bounds[1] for p in polygons)
+        max_x = max(p.bounds[2] for p in polygons)
+        max_y = max(p.bounds[3] for p in polygons)
+        center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
 
-            match self._metric:
-                case "degrees":
-                    rotation = self._absolute()
-                case "radians":
-                    rotation = self._absolute() / np.pi * 180
-                case "pi radians":
-                    rotation = self._absolute() * 180
-                case _:
-                    raise ValueError(f"Unknown metric: {self._metric}")
-
-        center = info.center
+        match self._metric:
+            case "degrees":
+                rotation = float(self._absolute())
+            case "radians":
+                rotation = float(self._absolute()) / np.pi * 180.0
+            case "pi radians":
+                rotation = float(self._absolute()) * 180.0
+            case _:
+                raise ValueError(f"Unknown metric: {self._metric}")
 
         for i, (image, polygon) in enumerate(zip(images, polygons)):
-
             orig_bounds = polygon.bounds
 
             polygons[i] = self._rotate_poly(
@@ -87,7 +88,6 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         angle: float,
         center: tuple[float, float],
     ) -> Polygon:
-
         return rotate(
             poly,
             angle,
@@ -103,48 +103,35 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         orig_bounds: tuple[float, float, float, float],
         new_bounds: tuple[float, float, float, float],
     ) -> Image.Image:
-
         img_array = np.asarray(pil_img)
 
         orig_x0, orig_y0, _, _ = orig_bounds
         new_x0, new_y0, new_x1, new_y1 = new_bounds
 
-        new_width = max(
-            1,
-            int(np.ceil(new_x1 - new_x0)),
-        )
-        new_height = max(
-            1,
-            int(np.ceil(new_y1 - new_y0)),
-        )
-
-        x_d, y_d = np.meshgrid(
-            np.arange(new_width),
-            np.arange(new_height),
-        )
-
-        x_global = new_x0 + x_d
-        y_global = new_y0 + y_d
+        new_width = max(1, int(np.ceil(new_x1 - new_x0)))
+        new_height = max(1, int(np.ceil(new_y1 - new_y0)))
 
         cx, cy = center
-
         theta = np.radians(angle)
-        c = np.cos(theta)
-        s = np.sin(theta)
+        c = float(np.cos(theta))
+        s = float(np.sin(theta))
 
-        x_source_global = c * (x_global - cx) + s * (y_global - cy) + cx
+        tx = c * (orig_x0 - cx) - s * (orig_y0 - cy) + cx - new_x0
+        ty = s * (orig_x0 - cx) + c * (orig_y0 - cy) + cy - new_y0
 
-        y_source_global = -s * (x_global - cx) + c * (y_global - cy) + cy
+        affine_matrix = np.array(
+            [
+                [c, -s, tx],
+                [s, c, ty],
+            ],
+            dtype=np.float32,
+        )
 
-        x_source = (x_source_global - orig_x0).astype(np.float32)
-
-        y_source = (y_source_global - orig_y0).astype(np.float32)
-
-        rotated_array = cv2.remap(
+        rotated_array = cv2.warpAffine(
             img_array,
-            x_source,
-            y_source,
-            interpolation=cv2.INTER_LINEAR,
+            affine_matrix,
+            (new_width, new_height),
+            flags=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0, 0, 0, 0),
         )
