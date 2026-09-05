@@ -59,13 +59,13 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
                 (y0 + y1) / 2.0,
             )
 
-            polygons[i] = self.rotate_poly(
+            polygons[i] = self._rotate_poly(
                 polygon,
                 rotation,
                 center,
             )
 
-            images[i] = self.rotate_img(
+            images[i] = self._rotate_img(
                 image,
                 rotation,
                 center,
@@ -76,7 +76,7 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
         return images, polygons
 
     @staticmethod
-    def rotate_poly(
+    def _rotate_poly(
         poly: Polygon,
         angle: float,
         center: tuple[float, float],
@@ -89,7 +89,7 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
         )
 
     @staticmethod
-    def rotate_img(
+    def _rotate_img(
         image: np.ndarray,
         angle: float,
         center: tuple[float, float],

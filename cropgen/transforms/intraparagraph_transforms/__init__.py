@@ -3,5 +3,4 @@ from .horizontal_movement import HorizontalMovement
 from .paragraphwise_rotation import ParagraphwiseRotation
 from .reading_direction_clearance import ReadingDirectionClearance
 from .paragraph_tilt import ParagraphTilt
-from .avoid_line_intersections import AvoidLineIntersections
 from .warps import VerticalWarp, HorizontalWarp

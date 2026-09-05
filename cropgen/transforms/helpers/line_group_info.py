@@ -1,3 +1,4 @@
+from cropgen.shared.parameters import Vector2D
 from shapely.geometry import MultiPolygon
 from cropgen.shared.geometry_processing import calculate_reading_angle
 import shapely
@@ -5,8 +6,6 @@ from shapely import Polygon
 from cropgen.ocr_units import OCRLine, OCRParagraph
 from typing import Collection, Sequence, Literal
 import numpy as np
-
-Vector2D = np.ndarray[tuple[Literal[2]], np.dtype[np.float64]]
 
 
 class LineGroupInfo:

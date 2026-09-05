@@ -48,7 +48,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     _orders: list[int]
     _use_paragraphs: bool
     _use_full_pages: bool
-    _transforms: OCRTransformPack = OCRTransformPack()
+    _transforms: OCRTransformPack
     _cluster_params = field(default_factory=lambda: _default_cluster_parameters.copy())
 
     @property
@@ -73,7 +73,7 @@ class BaseAnnotationDataset(Dataset, ABC):
 
     @property
     def cluster_params(self):
-        return self._cluster_params.copy()
+        return tuple([(key, value) for key, value in self._cluster_params.items()])
 
     def set_cluster_param(
         self, cluster_param_name: _poss_cluster_args_literal, value: Any
@@ -88,6 +88,8 @@ class BaseAnnotationDataset(Dataset, ABC):
             self._cluster_params[cluster_param_name] = _default_cluster_parameters[
                 cluster_param_name
             ]
+        if cluster_param_name == "avoid_intersections":
+            self._transforms._avoid_intersections = value
 
     def _update_orders(
         self,
@@ -304,7 +306,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         probability: float = 1,
     ) -> None:
         if transform is not None:
-            self._transforms.add_transform(transform)
+            self._transforms.add_transform(transform, probability)
 
     def set_transform(
         self,
@@ -328,7 +330,9 @@ class BaseAnnotationDataset(Dataset, ABC):
         transform: (
             None | IntraparagraphTransform | LinewiseTransform | InterparagraphTransform
         )
-        self._transforms = OCRTransformPack()
+        self._transforms = OCRTransformPack(
+            avoid_intersections=self._cluster_params["avoid_intersections"]
+        )
         for transform, probability in transform_probability_pairs:
             if probability != 0:
                 self.add_transform(transform, probability)

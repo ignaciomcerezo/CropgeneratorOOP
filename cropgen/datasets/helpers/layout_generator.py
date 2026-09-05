@@ -6,11 +6,9 @@ from cropgen.transforms.transforms import (
     IntraparagraphFromLinewiseTransform,
 )
 from typing import Literal
-from cropgen.transforms.interparagraph_transforms.avoid_paragraph_intersections import (
-    AvoidParagraphIntersections,
-)
-from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections import (
-    AvoidLineIntersections,
+from cropgen.datasets.helpers.intersection_correction import (
+    avoid_line_intersections,
+    avoid_paragraph_intersections,
 )
 from collections import defaultdict
 from cropgen.ocr_units import OCRParagraph, OCRPage
@@ -31,7 +29,7 @@ class LayoutGenerator:
 
     def __init__(
         self,
-        avoid_intersections: bool = True,
+        avoid_line_intersections: bool = True,
     ):
         self._transform_index = 0
 
@@ -41,10 +39,7 @@ class LayoutGenerator:
         ] = defaultdict(lambda: list())
 
         self.inter_transforms: list[InterparagraphTransform] = []
-        self._avoid_intersections = avoid_intersections
-
-        self.ali = AvoidLineIntersections(0.5)
-        self.api = AvoidParagraphIntersections(0.5)
+        self._avoid_line_intersections = avoid_line_intersections
 
     def add_transform(
         self,
@@ -115,7 +110,7 @@ class LayoutGenerator:
             self.intra_transforms_specific
             or self.inter_transforms
             or self.intra_transforms_to_all
-            or self._avoid_intersections
+            or self._avoid_line_intersections
         ):
             return new_ann
 
@@ -141,11 +136,26 @@ class LayoutGenerator:
             for paragraph in new_ann.paragraphs
         )
 
-        if self._avoid_intersections:
+        if self._avoid_line_intersections:
             for paragraph in new_ann.paragraphs:
-                self.ali.in_place(paragraph)
+                polygons = avoid_line_intersections(
+                    [line.polygon for line in paragraph.lines]
+                )
+                for line, polygon in zip(paragraph.lines, polygons):
+                    line.polygon = polygon
 
-            self.api.in_place(new_ann.paragraphs)
+        # if self._avoid_paragraph_intersections:
+        #     new_polygons_by_paragraph = avoid_paragraph_intersections(
+        #         [
+        #             [line.polygon for line in paragraph]
+        #             for paragraph in new_ann.paragraphs
+        #         ]
+        #     )
+        #     for paragraph, new_polys in zip(
+        #         new_ann.paragraphs, new_polygons_by_paragraph
+        #     ):
+        #         for line, polygon in zip(paragraph.lines, new_polys):
+        #             line.polygon = polygon
 
         x1, y1, x2, y2 = get_union_rect(polygons)
 

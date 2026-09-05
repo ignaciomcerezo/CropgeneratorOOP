@@ -1,6 +1,6 @@
 from copy import deepcopy
 from torch.utils.data import Dataset
-from cropgen.transforms.layout_generator import LayoutGenerator
+from cropgen.datasets.helpers.layout_generator import LayoutGenerator
 from typing import Sequence, Any, Literal
 from cropgen.ocr_units import OCRPage
 from cropgen.datasets.base_annotation_dataset import (

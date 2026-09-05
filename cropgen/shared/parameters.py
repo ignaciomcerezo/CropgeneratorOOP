@@ -1,5 +1,7 @@
-from typing import Callable
+from typing import Callable, Literal, Any
 import numpy as np
+
+Vector2D = np.ndarray[tuple[Literal[2], Any]]
 
 
 class Parameter:

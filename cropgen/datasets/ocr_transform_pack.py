@@ -1,6 +1,7 @@
 from typing import Callable
-from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections import (
-    AvoidLineIntersections,
+from cropgen.datasets.helpers.intersection_correction import (
+    avoid_line_intersections,
+    avoid_paragraph_intersections,
 )
 from shapely.geometry import Polygon
 from cropgen.transforms import (
@@ -21,7 +22,6 @@ class OCRTransformPack:
         self._inter: list[InterparagraphTransform] = []
         self._inter_prob: list[float] = []
         self._avoid_intersections = avoid_intersections
-        self._line_intersection_avoider = AvoidLineIntersections(0.5)
 
     @property
     def is_identity(self):
@@ -57,7 +57,7 @@ class OCRTransformPack:
     def __call__(
         self,
         paragraph_eq_list: list[tuple[list[np.ndarray], list[Polygon]]],
-    ) -> list[tuple[list[np.ndarray], list[Polygon]]]:
+    ) -> tuple[list[np.ndarray], list[Polygon]]:
         """
         Takes as input a list of 2-tuples (list of images, list of polygons) that represent the crop
         and polygons of each paragraph
@@ -67,28 +67,48 @@ class OCRTransformPack:
             (p == 1) or ((p <= 1) and (rand() < p))
         )
 
-        for i, (images, polygons) in enumerate(paragraph_eq_list):
-            # for each paragraph
+        for i in range(len(paragraph_eq_list)):
+            images, polygons = paragraph_eq_list[i]
 
-            for i, (image, polygon) in enumerate(zip(images, polygons)):
-                # for each line
-
+            # Process each line
+            for j in range(len(images)):
+                cur_image = images[j]
+                cur_polygon = polygons[j]
                 for linewise_transform, p in zip(self._linewise, self._linewise_prob):
                     if prob_ok(p):
-                        images[i], polygons[i] = linewise_transform(image, polygon)
+                        cur_image, cur_polygon = linewise_transform(
+                            cur_image, cur_polygon
+                        )
+                images[j] = cur_image
+                polygons[j] = cur_polygon
 
-            # for each paragraph
+            current_paragraph = (images, polygons)
+
+            # Process paragraph-level transforms
             for intraparagraph_transform, p in zip(self._intra, self._intra_prob):
                 if prob_ok(p):
-                    images, polygons = intraparagraph_transform((images, polygons))
+                    current_paragraph = intraparagraph_transform(current_paragraph)
 
-            if self._avoid_intersections:
-                images, polygons = self._line_intersection_avoider((images, polygons))
+            paragraph_eq_list[i] = current_paragraph
 
-            paragraph_eq_list[i] = (images, polygons)
-
-        for interparagraph in self._inter:
+        # Process interparagraph transforms
+        for interparagraph, p in zip(self._inter, self._inter_prob):
             if prob_ok(p):
                 paragraph_eq_list = list(zip(*interparagraph(paragraph_eq_list)))
 
-        return paragraph_eq_list
+        polys_by_par = [pp[1] for pp in paragraph_eq_list]
+        polygons = sum(polys_by_par, start=[])
+
+        if self._avoid_intersections:
+            polygons = avoid_line_intersections(polygons)
+
+            # by-paragraph
+            # polys_by_par = [avoid_line_intersections(p) for p in polys_by_par]
+            # if len(polys_by_par) > 1:
+            #     polys_by_par = avoid_paragraph_intersections(polys_by_par)
+
+        crops: list[np.ndarray] = sum(
+            (paragraph_eq[0] for paragraph_eq in paragraph_eq_list), start=[]
+        )
+
+        return crops, polygons

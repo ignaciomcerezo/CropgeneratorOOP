@@ -28,7 +28,7 @@ from tqdm.auto import tqdm
 
 ocr_transform = Callable[
     [list[tuple[list[np.ndarray], list[Polygon]]]],
-    list[tuple[list[np.ndarray], list[Polygon]]],
+    tuple[list[np.ndarray], list[Polygon]],
 ]
 
 
@@ -380,32 +380,24 @@ class OCRPage:
         if len(line_ids) != len(set(line_ids)):
             raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
 
-        line_groups = self._group_sorted_by_paragraph(
-            sorted(  # ty: ignore[no-matching-overload]
-                [self.lines[box_id] for box_id in line_ids],
-                key=lambda line: line.starting_index,
-            )
-        )
-
-        paragraph_equivalent_pairs = [
-            ([line.crop for line in line_group], [line.polygon for line in line_group])
-            for line_group in line_groups
-        ]
-
-        images = [[line.crop for line in line_group] for line_group in line_groups]
-        polygons = [[line.polygon for line in line_group] for line_group in line_groups]
-
         if img_poly_transform is not None:
-            paragraph_equivalent_pairs = img_poly_transform(paragraph_equivalent_pairs)
-
-        strokes: list[np.ndarray] = sum(
-            (paragraph_eq[0] for paragraph_eq in paragraph_equivalent_pairs),
-            start=list(),
-        )
-        polygons: list[Polygon] = sum(
-            (paragraph_eq[1] for paragraph_eq in paragraph_equivalent_pairs),
-            start=list(),
-        )
+            line_groups = self._group_sorted_by_paragraph(
+                sorted(  # ty: ignore[no-matching-overload]
+                    [self.lines[box_id] for box_id in line_ids],
+                    key=lambda line: line.starting_index,
+                )
+            )
+            paragraph_equivalent_pairs = [
+                (
+                    [line.crop for line in line_group],
+                    [line.polygon for line in line_group],
+                )
+                for line_group in line_groups
+            ]
+            crops, polygons = img_poly_transform(paragraph_equivalent_pairs)
+        else:
+            polygons = [self.lines[line_id].polygon for line_id in line_ids]
+            crops = [self.lines[line_id].crop for line_id in line_ids]
 
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
         bg_h, bg_w = self.image_dimensions
@@ -431,7 +423,7 @@ class OCRPage:
         canvas_h, canvas_w = canvas.shape[:2]
         is_multichannel = canvas.ndim == 3 and canvas.shape[2] in (3, 4)
 
-        for stroke_img, polygon in zip(strokes, polygons):
+        for stroke_img, polygon in zip(crops, polygons):
             poly_x0, poly_y0, _, _ = polygon.bounds
 
             paste_x = int(poly_x0 - x0)
@@ -516,6 +508,7 @@ class OCRPage:
                 line_groups.append(group)
                 group = []
             group.append(line)
+            last_paragraph = line.paragraph_index
 
         line_groups.append(group)
         return [group for group in line_groups if group]

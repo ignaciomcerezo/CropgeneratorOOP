@@ -55,13 +55,15 @@ class OCRDataset(BaseAnnotationDataset):
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
-        self._transforms: OCRTransformPack | None = None
         self._update_orders(orders)  # the three previous attributes are updated here
         self._formatter: _formatter_signature | None = None
 
         self._cluster_params = _default_cluster_parameters.copy()
         self._cluster_params.update(
             cluster_transform_params if cluster_transform_params is not None else dict()
+        )
+        self._transforms: OCRTransformPack = OCRTransformPack(
+            avoid_intersections=self._cluster_params["avoid_intersections"]
         )
 
     def __repr__(self):
