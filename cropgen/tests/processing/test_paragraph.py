@@ -1,4 +1,4 @@
-from cropgen.processing.line import Line
+from cropgen.ocr_units import OCRLine
 from typing import Sequence, Callable
 import pytest
 from cropgen.shared.path_bundle import PathBundle

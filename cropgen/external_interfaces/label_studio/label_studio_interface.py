@@ -58,13 +58,11 @@ class LabelStudioInterface(ExternalInterface):
 
     def __init__(
         self,
-        paths: PathBundle,
         server_url: str,
         token: str,
         project_id: int = 4,
         online: bool = True,
     ):
-        self.paths = paths
         self.online = online
         self.project_id = project_id
         self.token = token
@@ -74,7 +72,6 @@ class LabelStudioInterface(ExternalInterface):
     @classmethod
     def from_env(
         cls,
-        paths: PathBundle,
         online: bool = True,
         project_id: int = 4,
         ls_token: str | None = None,
@@ -96,7 +93,7 @@ class LabelStudioInterface(ExternalInterface):
             ls_server_url if ls_server_url is not None else str(os.getenv(url_env_var))
         )
 
-        obj = cls(paths, url, token, project_id, online)
+        obj = cls(url, token, project_id, online)
         return obj
 
     def __repr__(self):
@@ -149,27 +146,13 @@ class LabelStudioInterface(ExternalInterface):
     def users(self) -> _LSUsersManager:
         return self._usernames
 
-    def page_names(self) -> tuple[str, ...]:
-        """Returns unique page names from existing metadata files on disk."""
-        if not self.paths.metadata_path.exists():
-            return ()
-        pages = set()
-        for meta_file in self.paths.metadata_path.glob("*.json"):
-            try:
-                data = json.loads(meta_file.read_text(encoding="utf-8"))
-                if "page" in data:
-                    pages.add(data["page"])
-            except Exception:
-                continue
-        return tuple(sorted(pages))
-
     def parts_managed(self):
         return {"metadata", "rotations"}
 
     def parts_required(self):
         return {"background_images", "stroke_images"}
 
-    def setup(self) -> None:
+    def setup(self, paths: PathBundle) -> None:
         """Fetches remote annotations and writes individual transcription,
 
         polygon, rotation, id, and metadata files.
@@ -230,11 +213,11 @@ class LabelStudioInterface(ExternalInterface):
 
                 json_name = f"s{subindex}_pg{page}.json"
 
-                transcriptions_filepath = self.paths.transcription_path / json_name
-                polygons_filepath = self.paths.polygons_path / json_name
-                rotations_filepath = self.paths.rotations_path / json_name
-                ids_path = self.paths.ids_path / json_name
-                image_path = str(self.paths.raw_images_path / f"{page}.png")
+                transcriptions_filepath = paths.transcription_path / json_name
+                polygons_filepath = paths.polygons_path / json_name
+                rotations_filepath = paths.rotations_path / json_name
+                ids_path = paths.ids_path / json_name
+                image_path = str(paths.raw_images_path / f"{page}.png")
 
                 transcriptions_filepath.write_text(json.dumps(transcriptions))
                 polygons_filepath.write_text(json.dumps(poly_coords))
@@ -258,4 +241,4 @@ class LabelStudioInterface(ExternalInterface):
                     "source": "Label Studio",
                 }
 
-                (self.paths.metadata_path / json_name).write_text(json.dumps(metadata))
+                (paths.metadata_path / json_name).write_text(json.dumps(metadata))

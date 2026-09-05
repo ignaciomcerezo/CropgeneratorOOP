@@ -1,7 +1,6 @@
-from cropgen.processing.annotated_page import AnnotatedPage
+from cropgen.ocr_units.ocr_page import OCRPage
 from shapely.geometry import Polygon, MultiPolygon
 from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
-from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
 from cropgen.transforms.intraparagraph_transforms.horizontal_movement import (
     HorizontalMovement,
 )
@@ -16,7 +15,7 @@ from cropgen.transforms.intraparagraph_transforms.warps.horizontal_warp import (
     HorizontalWarp,
 )
 from cropgen.transforms.intraparagraph_transforms.paragraph_tilt import ParagraphTilt
-from cropgen.datasets.ocr.ocrdataset import OCRDataset
+from cropgen.datasets.transcription.ocrdataset import OCRDataset
 from cropgen.external_interfaces.label_studio.label_studio_interface import (
     LabelStudioInterface,
 )
@@ -28,7 +27,7 @@ import numpy as np
 
 def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
 
-    annotations = AnnotatedPage.from_path_bundle(paths)
+    annotations = OCRPage.from_path_bundle(paths)
 
     A, B = OCRDataset.from_split(annotations, p=0.95, orders=[2])
 
@@ -44,7 +43,7 @@ def test_ocrdataset(paths: PathBundle, patch_synthetic_manuscript):
 
 
 def test_segmentation_dataset(paths: PathBundle):
-    annotations = AnnotatedPage.from_path_bundle(paths, length=100)
+    annotations = OCRPage.from_path_bundle(paths, length=100)
 
     A, B = SegmentationDataset.from_split(annotations, p=0.95, orders=[2])
 

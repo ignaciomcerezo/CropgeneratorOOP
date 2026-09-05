@@ -1,4 +1,4 @@
-from cropgen.processing.line import Line
+from cropgen.ocr_units.ocr_line import OCRLine
 from typing import Optional, Iterator
 
 import numpy as np
@@ -6,12 +6,12 @@ from shapely import unary_union
 from shapely import Polygon
 from shapely.affinity import affine_transform
 
-from cropgen.processing.helpers.helper_to_classes import (
+from cropgen.ocr_units.helpers.helper_to_classes import (
     is_path_graph,
 )
 
 
-class Paragraph:
+class OCRParagraph:
     __slots__ = (
         "lines",
         "line_ids",
@@ -23,43 +23,67 @@ class Paragraph:
         "right",
         "bot",
         "task_id",
-        "index",
-        "subgraph",
+        "_index",
     )
 
     def __init__(
         self,
-        lines: list[Line] | None = None,
-        task_id: int | None = None,
+        *,
+        lines: list[OCRLine],
+        task_id: int,
+        subgraph: dict[str, set[str]],
         index: int | None = None,
-        subgraph: dict[str, set[str]] | None = None,
     ):
 
         if not lines:
             raise ValueError("Lines cannot be empty.")
 
+        if len(subgraph) != len(lines):
+            raise ValueError(
+                "The length of the subgraph passed to an OCRParagraph must be equal to the number of lines it contains."
+            )
+
+            r
+
         self.lines = lines
         self.task_id: int | None = task_id
-        self.index: int | None = index
-        self.subgraph: Optional[dict[str, set[str]]] = subgraph
+        self._index: int | None = index
 
         self._calculate_total_area_and_centroid()
 
-        self._sort_lines_using_centroid_and_subgraph()
+        self._sort_lines_using_centroid_and_subgraph(subgraph)
 
         self.line_ids = [line.id for line in self.lines]
 
-    def __iter__(self) -> Iterator[Line]:
+        if set(subgraph.keys()) != set(self.line_ids):
+            raise ValueError("The subgraph keys does not match the lines passed.")
+
+        for line in self.lines:
+            if line.paragraph_index is not None:
+                raise ValueError("Line with paragraph already set.")
+            line.paragraph_index = index
+
+    @property
+    def index(self):
+        return self._index
+
+    @index.setter
+    def index(self, value: int):
+        self._index = value
+        for line in self.lines:
+            line.paragraph_index = value
+
+    def __iter__(self) -> Iterator[OCRLine]:
         for x in self.lines:
             yield x
 
-    def __getitem__(self, index) -> Line:
+    def __getitem__(self, index) -> OCRLine:
         return self.lines[index]
 
-    def __lt__(self, other: "Paragraph"):
+    def __lt__(self, other: "OCRParagraph"):
         return (self.top, self.left) < (other.top, other.left)
 
-    def __gt__(self, other: "Paragraph"):
+    def __gt__(self, other: "OCRParagraph"):
         return (self.top, self.left) > (other.top, other.left)
 
     def transcription(self, separator: str = " "):
@@ -71,19 +95,6 @@ class Paragraph:
     def __repr__(self):
         return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
 
-    def union_polygon(self) -> Polygon:
-        return unary_union([line.polygon for line in self.lines])
-
-    def corrected_polygon(self, line: Line):
-        t: float = np.radians(self.avg_rotation)
-        a: float = np.cos(t)
-        b: float = -np.sin(t)
-        c: float = np.sin(t)
-        d: float = np.cos(t)
-        x_c: float = -float(self.centroid[0])
-        y_c: float = -float(self.centroid[1])
-        return affine_transform(line.polygon, [a, b, c, d, -x_c, -y_c])
-
     @staticmethod
     def _get_average_rotation(
         angles_in_degrees: list[float], areas: list[float]
@@ -93,27 +104,6 @@ class Paragraph:
         sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
         sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
         return -float(np.degrees(np.arctan2(sum_sin, sum_cos)))
-
-    def generate_connected_subgraphs(
-        self, order: int, max_subgraphs_to_generate: Optional[int] = None
-    ) -> list[list[str]]:
-        """
-        genera los subgrafos conexos.
-        !!! - Asume que el subgrafo es de tipo camino, pero no lo comprueba! para eso están los tests
-        """
-        if len(self.line_ids) < order:
-            return []
-        if (max_subgraphs_to_generate is not None) and (
-            max_subgraphs_to_generate < (len(self.line_ids) - order + 1)
-        ):
-            random_sequence = np.random.choice(
-                range(len(self.lines) - order + 1), size=max_subgraphs_to_generate
-            )
-            return [self.line_ids[i : i + order] for i in random_sequence]
-        else:
-            return [
-                self.line_ids[i : i + order] for i in range(len(self.lines) - order + 1)
-            ]
 
     def _calculate_total_area_and_centroid(self):
         self.centroid: np.ndarray = np.zeros((2,))
@@ -141,10 +131,10 @@ class Paragraph:
         self.bot = max([line.bot for line in self.lines])
         self.right = max([line.right for line in self.lines])
 
-    def _sort_lines_using_centroid_and_subgraph(self) -> None:
+    def _sort_lines_using_centroid_and_subgraph(
+        self, subgraph: dict[str, set[str]]
+    ) -> None:
 
-        if self.subgraph is None:
-            raise ValueError("Cannot sort lines for a paragraph with a null subgraph.")
         theta_rad = -np.radians(-self.avg_rotation)
         cos_theta = np.cos(theta_rad)
         sin_theta = np.sin(theta_rad)
@@ -166,7 +156,7 @@ class Paragraph:
             )
 
         if not is_path_graph(
-            self.subgraph
+            subgraph
         ):  # si no es un grafo camino, empleamos el orden de lectura dado por las proyecciones
             self.lines = sorted(
                 self.lines,
@@ -180,9 +170,7 @@ class Paragraph:
         if len(self.lines) == 1:
             return
 
-        terminal_vertices = [
-            line for line in self.lines if len(self.subgraph[line.id]) == 1
-        ]
+        terminal_vertices = [line for line in self.lines if len(subgraph[line.id]) == 1]
         assert len(terminal_vertices) == 2
 
         top_line = min(
@@ -202,7 +190,7 @@ class Paragraph:
         while len(ordered_lines) < len(self.lines):
             next_candidates = [
                 neighbor_id
-                for neighbor_id in self.subgraph[current_id]
+                for neighbor_id in subgraph[current_id]
                 if neighbor_id != previous_id and neighbor_id not in visited
             ]
             assert len(next_candidates) == 1

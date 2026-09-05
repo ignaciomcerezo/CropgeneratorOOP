@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal, Callable, Sequence
 
 
-from cropgen.processing import Paragraph, Line
+from cropgen.ocr_units import OCRParagraph, OCRLine
 from cropgen.transforms import (
     LinewiseTransform,
 )

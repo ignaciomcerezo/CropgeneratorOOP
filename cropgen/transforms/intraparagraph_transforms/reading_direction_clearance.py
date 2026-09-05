@@ -1,7 +1,7 @@
 from cropgen.shared.parameters import Parameter
 from typing import Sequence
 from shapely.geometry import Polygon
-from cropgen.processing import Paragraph, Line
+from cropgen.ocr_units import OCRParagraph, OCRLine
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     line_group_equivalent_type,

@@ -1,7 +1,7 @@
 import cv2
 from cropgen.shared.parameters import Parameter
 import numpy as np
-from cropgen.processing.line import Line
+from cropgen.ocr_units import OCRLine
 from cropgen.transforms.transforms import LinewiseTransform
 from shapely.geometry import Polygon
 

@@ -1,6 +1,6 @@
 from cropgen.shared.parameters import Parameter
 from typing import Sequence
-from cropgen.processing import Paragraph, Line
+from cropgen.ocr_units import OCRParagraph, OCRLine
 from shapely import Polygon
 from shapely.affinity import rotate
 import numpy as np
@@ -15,8 +15,6 @@ import cv2
 import numpy as np
 from shapely import Polygon
 from shapely.affinity import rotate
-
-from cropgen.processing import Line, Paragraph
 from cropgen.shared.geometry_processing import calculate_reading_angle
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import IntraparagraphTransform

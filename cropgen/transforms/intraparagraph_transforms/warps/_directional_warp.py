@@ -1,6 +1,5 @@
 from abc import abstractmethod
-from cropgen.processing.line import Line
-from cropgen.processing.paragraph import Paragraph
+from cropgen.ocr_units import OCRLine, OCRParagraph
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import (

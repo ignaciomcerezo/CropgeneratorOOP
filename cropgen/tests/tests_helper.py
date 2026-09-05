@@ -1,4 +1,4 @@
-from cropgen.processing import AnnotatedPage
+from cropgen.ocr_units import OCRPage
 
 from cropgen.shared.path_bundle import PathBundle
 
@@ -7,13 +7,13 @@ def load_ann(
     paths: PathBundle,
     task_id: int,
     annotation_number_in_task: int = 0,
-) -> AnnotatedPage:
+) -> OCRPage:
     """
     Carga la anotación annotation_number_in_task-ésima de la tarea task_id, y la devuelve como una instancia
     de la clase AnnotatedPage
     """
 
-    anns = AnnotatedPage.from_path_bundle(
+    anns = OCRPage.from_path_bundle(
         paths, tasks=[task_id], combine_same_page_annotations=False
     )
 

@@ -2,8 +2,7 @@ from shapely.geometry import MultiPolygon
 from cropgen.shared.geometry_processing import calculate_reading_angle
 import shapely
 from shapely import Polygon
-from cropgen.processing.line import Line
-from cropgen.processing.paragraph import Paragraph
+from cropgen.ocr_units import OCRLine, OCRParagraph
 from typing import Collection, Sequence, Literal
 import numpy as np
 
@@ -17,7 +16,7 @@ class LineGroupInfo:
 
     def __init__(
         self,
-        line_group: Paragraph | Sequence[Line],
+        line_group: OCRParagraph | Sequence[OCRLine],
     ):
         if not line_group:
             raise ValueError("Empty line group.")

@@ -22,6 +22,9 @@ from cropgen.external_interfaces.label_studio.label_studio_interface import (
 from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInterface
 from cropgen.shared.path_bundle import PathBundle
 from requests.exceptions import ConnectionError
+import numpy as np
+import cropgen.shared.image_processing as imgproc
+from cropgen.ocr_units import OCRPage
 
 
 @pytest.fixture(scope="session")
@@ -54,33 +57,29 @@ def bucket_url() -> str:
 
 
 @pytest.fixture(scope="session")
-def lsi(paths: PathBundle, ls_token, ls_url) -> LabelStudioInterface:
+def lsi(paths: PathBundle, ls_token, ls_url) -> LabelStudioInterface | None:
 
-    lsi = LabelStudioInterface(paths, ls_url, ls_token)
+    lsi = LabelStudioInterface(ls_url, ls_token)
     if lsi.test_connection_successful():
         print("Using online LabelStudioInterface.")
-    else:
-        lsi.online = False
-        print("Using offline LabelStudioInterface.")
-    return lsi
+
+        return lsi
+    return None
 
 
 @pytest.fixture(scope="session")
-def obi(paths: PathBundle, bucket_url: str) -> OnlineBucketInterface:
+def obi(paths: PathBundle, bucket_url: str) -> OnlineBucketInterface | None:
 
-    obi = OnlineBucketInterface(paths, bucket_url)
+    obi = OnlineBucketInterface(bucket_url)
     if obi.test_connection_successful():
         print("Using online OnlineBucketInterface.")
-
-    else:
-        obi.online = False
-        print("Using offline OnlineBucketInterface.")
-    return obi
+        return obi
+    return None
 
 
 @pytest.fixture(scope="session")
 def imsi(paths: PathBundle) -> ImageSeparationInterface:
-    return ImageSeparationInterface(paths)
+    return ImageSeparationInterface()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -91,7 +90,7 @@ def prepare_data(
     imsi: ImageSeparationInterface,
 ):
     for external_interface in [obi, imsi, lsi]:
-        external_interface.setup()
+        external_interface.setup(paths)
 
     yield
 
@@ -143,11 +142,6 @@ def set_multiprocessing_start_method():
     multiprocessing.set_start_method("spawn", force=True)
 
 
-import numpy as np
-import cropgen.shared.image_processing as imgproc
-from cropgen.processing.annotated_page import AnnotatedPage
-
-
 def _fake_synthetic_manuscript(*args, **kwargs):
     return np.zeros((1, 1)), []
 
@@ -155,9 +149,7 @@ def _fake_synthetic_manuscript(*args, **kwargs):
 @pytest.fixture
 def patch_synthetic_manuscript(monkeypatch):
     print("Patching synthetic image generation.")
-    monkeypatch.setattr(
-        AnnotatedPage, "synthetic_manuscript", _fake_synthetic_manuscript
-    )
+    monkeypatch.setattr(OCRPage, "synthetic_manuscript", _fake_synthetic_manuscript)
 
 
 @pytest.fixture(autouse=True)

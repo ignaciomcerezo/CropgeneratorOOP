@@ -1,3 +1,4 @@
+from shapely import unary_union
 import cv2
 from cropgen.shared.geometry_processing import get_union_rect
 from cropgen.transforms.transforms import (
@@ -12,8 +13,7 @@ from cropgen.transforms.intraparagraph_transforms.avoid_line_intersections impor
     AvoidLineIntersections,
 )
 from collections import defaultdict
-from cropgen.processing import Paragraph
-from cropgen.processing import AnnotatedPage
+from cropgen.ocr_units import OCRParagraph, OCRPage
 from cropgen.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,
@@ -104,7 +104,7 @@ class LayoutGenerator:
     def _add_inter(self, layout: InterparagraphTransform):
         self.inter_transforms.append(layout)
 
-    def apply(self, ann: AnnotatedPage) -> AnnotatedPage:
+    def apply(self, ann: OCRPage) -> OCRPage:
         """
         Generates a new AnnotatedPage instance by applying the transforms to an annotated page.
         """
@@ -131,18 +131,21 @@ class LayoutGenerator:
                 transform.in_place(paragraph)
 
         for layout in self.inter_transforms:
-            layout.in_place(*new_ann.paragraphs)
+            layout.in_place(new_ann.paragraphs)
 
         self.refresh_annotations_geometric_info(new_ann)
 
         polygons = [box.polygon for box in new_ann.lines.values()]
-        polygons.extend(paragraph.union_polygon() for paragraph in new_ann.paragraphs)
+        polygons.extend(
+            unary_union([line.polygon for line in paragraph.lines])
+            for paragraph in new_ann.paragraphs
+        )
 
         if self._avoid_intersections:
             for paragraph in new_ann.paragraphs:
                 self.ali.in_place(paragraph)
 
-            self.api.in_place(*new_ann.paragraphs)
+            self.api.in_place(new_ann.paragraphs)
 
         x1, y1, x2, y2 = get_union_rect(polygons)
 
@@ -158,7 +161,7 @@ class LayoutGenerator:
         return new_ann
 
     @staticmethod
-    def refresh_annotations_geometric_info(annotation: AnnotatedPage) -> None:
+    def refresh_annotations_geometric_info(annotation: OCRPage) -> None:
         """
         Refreshes the geometric information of a page to not cause errors. Useful after applying transforms.
         """

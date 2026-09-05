@@ -1,7 +1,7 @@
 from __future__ import annotations
 import cv2
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from pathlib import Path
 from typing import Callable, Literal
@@ -19,7 +19,6 @@ class OnlineBucketInterface(ExternalInterface):
 
     def __init__(
         self,
-        paths: PathBundle,
         bucket_url: str | None = None,
         folder: str | None = None,
         online: bool = True,
@@ -35,12 +34,9 @@ class OnlineBucketInterface(ExternalInterface):
                 raise ValueError(
                     "Either a bucket_url is provided or one can be found in the env variables (as BUCKET_URL)."
                 )
-
-        self.paths = paths
         self.bucket_url = self._normalize_bucket_url(bucket_url)
         self.folder = self._normalize_folder(folder)
         self._timeout = 15
-        self.online = online
         self._type_downloading = what_downloading
         self.corresponding_path_accesor  # to check it is of the correct type
 
@@ -57,15 +53,14 @@ class OnlineBucketInterface(ExternalInterface):
         clean = folder.strip().strip("/").replace("\\", "/")
         return f"{clean}/" if clean else None
 
-    @property
-    def corresponding_path_accesor(self) -> Callable[[str], Path]:
+    def corresponding_path_accesor(self, paths: PathBundle) -> Callable[[str], Path]:
         match self._type_downloading:
             case "raw_images":
-                return self.paths.get_raw_image_path
+                return paths.get_raw_image_path
             case "background_images":
-                return self.paths.get_background_image_path
+                return paths.get_background_image_path
             case "stroke_images":
-                return self.paths.get_stroke_image_path
+                return paths.get_stroke_image_path
             case _:
                 raise ValueError("Unsupported type_downloading")
 
@@ -76,7 +71,6 @@ class OnlineBucketInterface(ExternalInterface):
         bucket_url: str | None = None,
         folder: str | None = None,
         env_var: str = "BUCKET_URL",
-        online: bool = True,
     ) -> OnlineBucketInterface:
         """Generates an instance taking missing data from the environment variables and dotenv."""
         try:
@@ -89,7 +83,7 @@ class OnlineBucketInterface(ExternalInterface):
             raise ValueError(
                 f"Did not find {env_var} in the .env or environment variables"
             )
-        return cls(paths=paths, bucket_url=bucket_url, folder=folder, online=online)
+        return cls(bucket_url=bucket_url, folder=folder)
 
     @staticmethod
     def _normalize_bucket_url(url: str) -> str:
@@ -140,7 +134,7 @@ class OnlineBucketInterface(ExternalInterface):
 
         return objects
 
-    def _compute_pending_objects(self) -> dict[str, str]:
+    def _compute_pending_objects(self, paths: PathBundle) -> dict[str, str]:
         objects = self._list_bucket_objects()
         pending: dict[str, str] = {}
 
@@ -160,51 +154,11 @@ class OnlineBucketInterface(ExternalInterface):
                 continue
 
             page_name = p.stem
-            local_img = self.corresponding_path_accesor(page_name)
+            local_img = self.corresponding_path_accesor(paths)(page_name)
             if not local_img.exists():
                 pending.setdefault(page_name, decoded_name)
 
         return pending
-
-    def _compute_updates(self) -> list[str]:
-        return sorted(self._compute_pending_objects())
-
-    def check_updates(self) -> list[str]:
-        return self._compute_updates()
-
-    def update(self) -> list[str]:
-        if not self.online:
-            return []
-
-        pending = self._compute_pending_objects()
-        if not pending:
-            return []
-        print(f" - Downloading images into {str(self.corresponding_path_accesor('*'))}")
-
-        def download_image(item: tuple[str, str]) -> str:
-            page_name, object_name = item
-            with requests.Session() as session:
-                img_url = self._object_url(object_name)
-                img_resp = session.get(img_url, timeout=self._timeout)
-                img_resp.raise_for_status()
-
-                local_img = self.corresponding_path_accesor(page_name)
-                local_img.parent.mkdir(parents=True, exist_ok=True)
-                local_img.write_bytes(img_resp.content)
-                img = cv2.imread(str(local_img), cv2.IMREAD_GRAYSCALE)
-                cv2.imwrite(str(local_img), img)  # ty: ignore[no-matching-overload]
-                return page_name
-
-        downloaded: list[str] = []
-        with ThreadPoolExecutor() as executor:
-            for name in tqdm(
-                executor.map(download_image, pending.items()),
-                total=len(pending),
-                desc=f" Downloading {self._type_downloading}...",
-            ):
-                downloaded.append(name)
-
-        return downloaded
 
     def parts_managed(self):
         return {self._type_downloading}
@@ -212,8 +166,37 @@ class OnlineBucketInterface(ExternalInterface):
     def parts_required(self):
         return set()
 
-    def setup(self) -> None:
+    def _download_image(self, paths, page_name, object_name) -> str:
+        with requests.Session() as session:
+            img_url = self._object_url(object_name)
+            img_resp = session.get(img_url, timeout=self._timeout)
+            img_resp.raise_for_status()
+
+            local_img = self.corresponding_path_accesor(paths)(page_name)
+            local_img.parent.mkdir(parents=True, exist_ok=True)
+            local_img.write_bytes(img_resp.content)
+            img = cv2.imread(str(local_img), cv2.IMREAD_GRAYSCALE)
+            cv2.imwrite(str(local_img), img)  # ty: ignore[no-matching-overload]
+            return page_name
+
+    def setup(self, paths: PathBundle) -> None:
         """Download pending bucket images if the interface is online."""
-        if not self.online:
+
+        pending = self._compute_pending_objects(paths)
+        if not pending:
             return
-        self.update()
+        print(
+            f" - Downloading images into {str(self.corresponding_path_accesor(paths)('*'))}"
+        )
+
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(lambda item: self._download_image(paths, *item), item)
+                for item in pending.items()
+            ]
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc=f" Downloading {self._type_downloading}...",
+            ):
+                future.result()

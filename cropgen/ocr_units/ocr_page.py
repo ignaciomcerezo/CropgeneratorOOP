@@ -8,31 +8,31 @@ from cropgen.shared.image_processing import crop_or_resize, crop_image_with_poly
 from cropgen.shared.page_metadata import PageSampleMetadata
 from copy import deepcopy
 from shapely.geometry import Point, Polygon
-from cropgen.processing.line import Line
-from cropgen.processing.paragraph import Paragraph
+from cropgen.ocr_units.ocr_line import OCRLine
+from cropgen.ocr_units.ocr_paragraph import OCRParagraph
 from typing import Literal, Callable, Collection
 from shapely.affinity import translate
 import numpy as np
 from PIL import Image, ImageDraw
 import json
 
-from cropgen.processing.helpers.helper_to_classes import (
+from cropgen.ocr_units.helpers.helper_to_classes import (
     get_connected_components,
     subdictionary,
 )
-from cropgen.processing.helpers.text_regularization import (
-    regularize_text,
+from cropgen.ocr_units.helpers.text_regularization import (
     regularize_line,
+    regularize_text,
 )
 from tqdm.auto import tqdm
 
 ocr_transform = Callable[
-    [list[np.ndarray], list[Polygon]],
-    tuple[list[np.ndarray], list[Polygon]],
+    [list[tuple[list[np.ndarray], list[Polygon]]]],
+    list[tuple[list[np.ndarray], list[Polygon]]],
 ]
 
 
-class AnnotatedPage:
+class OCRPage:
     """
     Single annotated page, gathers all the information about lines and paragraphs, and implements some
     methods to create synthetic annotations by using only some of the lines in a page (.synthetic_sample).
@@ -99,66 +99,8 @@ class AnnotatedPage:
         """Returns the dimensions of the background in the format (height, width)."""
         return self.background.shape[:2]
 
-    @staticmethod
-    def from_paragraphs(
-        paragraphs: list[Paragraph],
-        task_id: int,
-        background: np.ndarray,
-        page: str,
-        line_separator: str = "\n",
-        completer: str = "Unknown",
-        updater: str = "Unknown",
-    ) -> "AnnotatedPage":
-        """
-        Alternate constructor that builds an AnnotatedPage directly from a list of already
-        assembled Paragraph instances, bypassing the init pipeline.
-        """
-        if not paragraphs:
-            raise ValueError(
-                "Cannot build an AnnotatedPage from an empty list of paragraphs."
-            )
-
-        ann: "AnnotatedPage" = object.__new__(AnnotatedPage)
-
-        ann.paragraphs = sorted(
-            deepcopy(paragraphs), key=lambda paragraph: paragraph.lines[0].top
-        )
-        for index, paragraph in enumerate(ann.paragraphs):
-            paragraph.index = index
-        ann.task_id = task_id
-        ann.line_separator = line_separator
-        ann.completer = completer
-        ann.updater = updater
-        ann.background = background
-        ann.page = page
-
-        ann.lines = {}
-        for paragraph in ann.paragraphs:
-            for line in paragraph.lines:
-                if line.id in ann.lines:
-                    raise ValueError(
-                        f"Duplicate line id {line.id!r} found while combining paragraphs "
-                        "into a single AnnotatedPage."
-                    )
-                ann.lines[line.id] = line
-
-        graph: dict[str, set[str]] = {}
-        for paragraph in ann.paragraphs:
-            if paragraph.subgraph is None:
-                raise ValueError(
-                    "Every paragraph passed to from_paragraphs must carry a subgraph in "
-                    "order to rebuild the page's intersection graph."
-                )
-            for line_id, neighbours in paragraph.subgraph.items():
-                graph[line_id] = set(neighbours)
-        ann._graph = graph
-
-        ann._correct_text_and_set_sindices_and_transcription()
-
-        return ann
-
-    @staticmethod
-    def combine_annotations(*annotations: "AnnotatedPage") -> "AnnotatedPage":
+    @classmethod
+    def combine_annotations(cls, *annotations: "OCRPage") -> "OCRPage":
         """
         Combines several AnnotatedPage instances into a single new one.
 
@@ -191,15 +133,38 @@ class AnnotatedPage:
 
         first = annotations[0]
 
-        return AnnotatedPage.from_paragraphs(
-            all_paragraphs,
-            task_id=first.task_id,
-            line_separator=first.line_separator,
-            completer=first.completer,
-            background=background,
-            updater=first.updater,
-            page=annotations[0].page,
+        combined_ocr_page: "OCRPage" = object.__new__(OCRPage)
+
+        combined_ocr_page._graph = {}
+
+        for other in annotations:
+            combined_ocr_page._graph.update(other.graph)
+
+        combined_ocr_page.paragraphs = sorted(
+            deepcopy(all_paragraphs), key=lambda paragraph: paragraph.lines[0].top
         )
+        for index, paragraph in enumerate(combined_ocr_page.paragraphs):
+            paragraph.index = index
+        combined_ocr_page.task_id = first.task_id
+        combined_ocr_page.line_separator = first.line_separator
+        combined_ocr_page.completer = first.completer
+        combined_ocr_page.updater = "+".join(other.completer for other in annotations)
+        combined_ocr_page.background = background
+        combined_ocr_page.page = first.page
+
+        combined_ocr_page.lines = {}
+        for paragraph in combined_ocr_page.paragraphs:
+            for line in paragraph.lines:
+                if line.id in combined_ocr_page.lines:
+                    raise ValueError(
+                        f"Duplicate line id {line.id!r} found while combining paragraphs "
+                        "into a single AnnotatedPage."
+                    )
+                combined_ocr_page.lines[line.id] = line
+
+        combined_ocr_page._correct_text_and_set_sindices_and_transcription()
+
+        return combined_ocr_page
 
     @property
     def order(self) -> int:
@@ -219,7 +184,7 @@ class AnnotatedPage:
         rotations: list[float],
         stroke: np.ndarray,
         polygons_are_in_percentage: bool,
-    ) -> list[Line]:
+    ) -> list[OCRLine]:
 
         if not (
             len(
@@ -260,9 +225,9 @@ class AnnotatedPage:
         ):
             stroke_crop = crop_image_with_polygon(stroke, polygon)
             lines.append(
-                Line(
+                OCRLine(
                     id=line_id,
-                    stroke_crop=stroke_crop,
+                    crop=stroke_crop,
                     polygon=polygon,
                     rotation=rotation,
                     task_id=self.task_id,
@@ -297,17 +262,23 @@ class AnnotatedPage:
             for component in connected_components
         ]
 
-        subgraphs_ccs = [
-            subdictionary(component, subdictionary(component, self.graph))
-            for component in connected_components
+        line_ccs.sort(key=lambda line_cc: min(line.top for line in line_cc))
+
+        line_id_ccs = [
+            subdictionary([line.id for line in line_cc], self.graph)
+            for line_cc in line_ccs
         ]
 
-        self.paragraphs: list[Paragraph] = sorted(
-            [
-                Paragraph(box_cc, task_id=self.task_id, subgraph=subgraph)
-                for (box_cc, subgraph) in zip(line_ccs, subgraphs_ccs)
-            ]
-        )
+        self.paragraphs = [
+            OCRParagraph(
+                lines=line_cc, task_id=self.task_id, subgraph=line_ids_cc, index=idx
+            )
+            for (idx, (line_cc, line_ids_cc)) in enumerate(zip(line_ccs, line_id_ccs))
+        ]
+
+        # self.paragraphs.sort(key=lambda paragraph: paragraph.lines[0].top)
+        # for i, paragraph in enumerate(self.paragraphs):
+        #     paragraph.index = i
 
     def _correct_text_and_set_sindices_and_transcription(self):
         sindex = 0
@@ -369,7 +340,7 @@ class AnnotatedPage:
         )
 
         # using .starting_index has the same ordering as the reading order in image_boxes by design
-        lines: list[Line] = sorted(
+        lines: list[OCRLine] = sorted(
             lines, key=lambda x: x.starting_index
         )  # ty: ignore[no-matching-overload]
 
@@ -402,28 +373,39 @@ class AnnotatedPage:
         if line_ids == "all":
             line_ids = set(self.lines.keys())
 
-        lines = sorted(
-            [self.lines[box_id] for box_id in line_ids],
-            key=lambda line: line.starting_index,
-        )  # ty: ignore[no-matching-overload]
-
         if not isinstance(line_ids, (set, list)):
             raise ValueError(
                 f"line_ids must be a set[str], list[str] or Literal['all'], but got {type(line_ids)}"
             )
-
-        if len(lines) != len(set(line_ids)):
+        if len(line_ids) != len(set(line_ids)):
             raise ValueError("Duplicate line_ids passed to synthetic_manuscript.")
 
-        strokes = [line.stroke_crop for line in lines]
-        polygons = [line.polygon for line in lines]
+        line_groups = self._group_sorted_by_paragraph(
+            sorted(  # ty: ignore[no-matching-overload]
+                [self.lines[box_id] for box_id in line_ids],
+                key=lambda line: line.starting_index,
+            )
+        )
+
+        paragraph_equivalent_pairs = [
+            ([line.crop for line in line_group], [line.polygon for line in line_group])
+            for line_group in line_groups
+        ]
+
+        images = [[line.crop for line in line_group] for line_group in line_groups]
+        polygons = [[line.polygon for line in line_group] for line_group in line_groups]
 
         if img_poly_transform is not None:
-            strokes, polygons = img_poly_transform(strokes, polygons)
-            polygons = [shapely.make_valid(g) for g in polygons]
+            paragraph_equivalent_pairs = img_poly_transform(paragraph_equivalent_pairs)
 
-        if not strokes:
-            return self.background.copy(), polygons
+        strokes: list[np.ndarray] = sum(
+            (paragraph_eq[0] for paragraph_eq in paragraph_equivalent_pairs),
+            start=list(),
+        )
+        polygons: list[Polygon] = sum(
+            (paragraph_eq[1] for paragraph_eq in paragraph_equivalent_pairs),
+            start=list(),
+        )
 
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
         bg_h, bg_w = self.image_dimensions
@@ -520,6 +502,24 @@ class AnnotatedPage:
 
         return canvas, polygons
 
+    def _group_sorted_by_paragraph(self, lines: list[OCRLine]) -> list[list[OCRLine]]:
+        """
+        Groups lines by paragraph, assuming they are sorted by paragraph.
+        """
+
+        line_groups: list[list[OCRLine]] = []
+        last_paragraph = None
+        group = []
+
+        for line in lines:
+            if line.paragraph_index != last_paragraph:
+                line_groups.append(group)
+                group = []
+            group.append(line)
+
+        line_groups.append(group)
+        return [group for group in line_groups if group]
+
     @staticmethod
     def _overlay_polygons_mbr(
         *,
@@ -591,7 +591,7 @@ class AnnotatedPage:
         tasks: Collection[int] | None = None,
         combine_same_page_annotations: bool = True,
         length: int | None = None,
-    ) -> list["AnnotatedPage"]:
+    ) -> list["OCRPage"]:
         """
         Uses the information stored in paths.metadata_path to access the appropriate
         images, transcriptions, polygons, ids and rotations and creates AnnotatedPage
@@ -617,7 +617,7 @@ class AnnotatedPage:
 
             return (task_id in tasks) or (page in pages)
 
-        taskid2annpage: dict[int, list[AnnotatedPage]] = defaultdict(lambda: list())
+        taskid2annpage: dict[int, list[OCRPage]] = defaultdict(lambda: list())
 
         k = 0
         for metadata_filepath in tqdm(
@@ -664,7 +664,7 @@ class AnnotatedPage:
                 )
 
             taskid2annpage[task_id].append(
-                AnnotatedPage(
+                OCRPage(
                     transcriptions=transcriptions,
                     polygon_coords=polygon_coords,
                     line_ids=ids,
@@ -684,6 +684,6 @@ class AnnotatedPage:
 
         if combine_same_page_annotations:
             for page, annotations in taskid2annpage.items():
-                taskid2annpage[page] = [AnnotatedPage.combine_annotations(*annotations)]
+                taskid2annpage[page] = [OCRPage.combine_annotations(*annotations)]
 
         return sum(taskid2annpage.values(), start=[])

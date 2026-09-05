@@ -1,6 +1,6 @@
 import cv2
 from cropgen.shared.parameters import Parameter
-from cropgen.processing.annotated_page import AnnotatedPage
+from cropgen.ocr_units import OCRPage
 from typing import Optional
 import numpy as np
 
@@ -29,7 +29,7 @@ def mother_annotated_page(
     n_lines_per_paragraph: int = 4,
     n_paragraphs: int = 2,
     line_separator: str = "\n",
-) -> AnnotatedPage:
+) -> OCRPage:
     shape = (
         stroke_img.size
         if stroke_img is not None
@@ -64,7 +64,7 @@ def mother_annotated_page(
         v_i += 1
     totlines = n_lines_per_paragraph * n_paragraphs
 
-    return AnnotatedPage(
+    return OCRPage(
         transcriptions=[
             f"Sample transcription {i} for paragraph {j}"
             for j in range(n_paragraphs)

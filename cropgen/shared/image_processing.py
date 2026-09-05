@@ -8,14 +8,17 @@ from cropgen.shared.default_parameters import (
 from shapely.geometry import Polygon
 
 
-def extract_strokes(
+def extract_stroke_and_stroke_mask(
     page_image_array: np.ndarray,
     background_diameter: int = 15,
     small_diameter: int | None = None,  # 1 or 3 before
     threshold: float = 8.0,
     min_area: int = 3,
     # max_area: int = 10000,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extracts the strokes and the stroke mask from a page scan.
+    """
 
     if page_image_array.dtype != np.uint8:
         page_image_array = page_image_array.astype(np.uint8)
@@ -64,7 +67,6 @@ def extract_strokes(
     stroke_residual = cv2.bitwise_and(residual, residual, mask=clean_mask)
 
     return (
-        background,
         stroke_residual,
         clean_mask,
     )
@@ -140,7 +142,7 @@ def separate_background_and_stroke(
 
     image_array = _resize_by_longest_side(image, processing_longest_side)
 
-    _, strokes, stroke_mask = extract_strokes(
+    strokes, stroke_mask = extract_stroke_and_stroke_mask(
         image_array,
         background_diameter,
         small_diameter,
@@ -165,7 +167,7 @@ def separate_background_and_stroke(
     # image_array = _resize_by_longest_side(image_array, inpaint_longest_side)
 
     clean_background = cv2.inpaint(
-        np.asarray(image_array, dtype=np.uint8),
+        image_array,
         inpaint_mask,
         inpaintRadius=inpaint_radius,
         flags=cv2.INPAINT_TELEA,

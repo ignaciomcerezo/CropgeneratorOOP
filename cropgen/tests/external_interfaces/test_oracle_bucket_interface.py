@@ -4,20 +4,33 @@ from cropgen.external_interfaces.online_bucket_interface import OnlineBucketInte
 from cropgen.shared.path_bundle import PathBundle
 
 
-def test_obi_setup_is_explicit(monkeypatch, paths: PathBundle):
-    calls = []
+def test_obi_downloads_are_explicit(monkeypatch, paths: PathBundle):
+    aimed_numer_of_calls = 5
 
-    def fake_update(self):
-        calls.append("update")
+    def fake_download(*args, **kwargs):
+        if hasattr(fake_download, "download_calls"):
+            fake_download.download_calls += 1
+        else:
+            setattr(fake_download, "download_calls", 1)
         return []
 
-    monkeypatch.setattr(OnlineBucketInterface, "update", fake_update)
+    def fake_test_connection(*args, **kwargs):
+        return True
 
-    obi = OnlineBucketInterface(paths, "https://example.test/bucket/")
-    assert calls == []
+    monkeypatch.setattr(OnlineBucketInterface, "_download_image", fake_download)
+    monkeypatch.setattr(
+        OnlineBucketInterface, "test_connection_successful", fake_test_connection
+    )
+    monkeypatch.setattr(
+        OnlineBucketInterface,
+        "_compute_pending_objects",
+        lambda *args, **kwargs: {str(x): str(x) for x in range(aimed_numer_of_calls)},
+    )
+    obi = OnlineBucketInterface("https://example.test/bucket/")
+    assert getattr(fake_download, "download_calls", 0) == 0
 
-    obi.setup()
-    assert calls == ["update"]
+    obi.setup(paths)
+    assert getattr(fake_download, "download_calls") == aimed_numer_of_calls
 
 
 @pytest.mark.parametrize("page_name", ["015", "154"])
@@ -26,7 +39,7 @@ def test_download_single_image(
 ):
     paths.remove_downloaded_image(page_name)
 
-    obi.update()
+    obi.setup(paths)
 
     image_path = paths.get_raw_image_path(page_name)
 
@@ -36,14 +49,11 @@ def test_download_single_image(
 def test_check_updates_and_update(paths: PathBundle, obi: OnlineBucketInterface):
     page_name = "015"
     paths.remove_downloaded_image(page_name)
-    pendientes = obi.check_updates()
-    assert isinstance(pendientes, list)
+    pendientes = list(obi._compute_pending_objects(paths).keys())
     assert page_name in pendientes or len(pendientes) == 0
-    descargadas = obi.update()
-    assert isinstance(descargadas, list)
-    assert page_name in descargadas or len(descargadas) == 0
-    descargadas2 = obi.update()
-    assert descargadas2 == []
+    obi.setup(paths)
+    pendientes = list(obi._compute_pending_objects(paths).keys())
+    assert len(pendientes) == 0
 
 
 def test_from_env(paths: PathBundle, bucket_url):
@@ -53,8 +63,7 @@ def test_from_env(paths: PathBundle, bucket_url):
 
 
 def test_no_download_when_up_to_date(paths: PathBundle, obi: OnlineBucketInterface):
-    pendientes = obi.check_updates()
-    if pendientes:
-        obi.update()
-    descargadas = obi.update()
-    assert descargadas == []
+
+    obi.setup(paths)
+    pendientes = list(obi._compute_pending_objects(paths).keys())
+    assert pendientes == []

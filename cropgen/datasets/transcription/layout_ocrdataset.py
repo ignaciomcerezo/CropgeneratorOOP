@@ -2,13 +2,14 @@ from copy import deepcopy
 from torch.utils.data import Dataset
 from cropgen.transforms.layout_generator import LayoutGenerator
 from typing import Sequence, Any, Literal
-from cropgen.processing.annotated_page import AnnotatedPage
-from cropgen.datasets.ocr.ocrdataset import (
-    OCRDataset,
+from cropgen.ocr_units import OCRPage
+from cropgen.datasets.base_annotation_dataset import (
     orders_type,
     _poss_cluster_args_literal,
     _default_cluster_parameters,
 )
+from cropgen.datasets.ocr_transform_pack import OCRTransformPack
+from cropgen.datasets.transcription.ocrdataset import OCRDataset
 
 
 class LayoutOCRDataset(Dataset):
@@ -21,7 +22,7 @@ class LayoutOCRDataset(Dataset):
 
     def __init__(
         self,
-        annotations: Sequence[AnnotatedPage],
+        annotations: Sequence[OCRPage],
         layout_generator: LayoutGenerator,
         *,
         orders: orders_type,

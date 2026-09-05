@@ -43,6 +43,6 @@ def setup(
         parts.update(pm)
 
     for external_interface in external_interfaces:
-        external_interface.setup()
+        external_interface.setup(paths)
 
     return paths

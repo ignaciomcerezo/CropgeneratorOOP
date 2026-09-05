@@ -6,10 +6,10 @@ from cropgen.datasets.base_annotation_dataset import (
     _default_cluster_parameters,
     orders_type,
 )
-from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
-from cropgen.processing.annotated_page import AnnotatedPage
+from cropgen.ocr_units import OCRPage
 from typing import Any, Sequence
 import numpy as np
+from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 
 
 class SegmentationDataset(BaseAnnotationDataset):
@@ -24,7 +24,7 @@ class SegmentationDataset(BaseAnnotationDataset):
 
     def __init__(
         self,
-        annotations: Sequence[AnnotatedPage],
+        annotations: Sequence[OCRPage],
         *,
         orders: orders_type,
         cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
@@ -33,7 +33,7 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
-        self._transforms: OCROnTheFlyTransformPack | None = None
+        self._transforms: OCRTransformPack | None = None
         self._update_orders(orders)  # the three previous attributes are updated here
 
         self._cluster_params = _default_cluster_parameters.copy()

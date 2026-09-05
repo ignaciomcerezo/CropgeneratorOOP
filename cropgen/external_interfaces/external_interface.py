@@ -1,3 +1,4 @@
+from cropgen.shared.path_bundle import PathBundle
 from pathlib import Path
 from typing import Literal, Collection, Sequence
 from abc import ABC, abstractmethod
@@ -19,7 +20,7 @@ _PARTS = set[
 class ExternalInterface(ABC):
 
     @abstractmethod
-    def setup(self, *args, **kwargs) -> None:
+    def setup(self, paths: PathBundle) -> None:
         """
         Completes the setup related to this external interface's managed data in's parts.
         They are created with the .setup() method.

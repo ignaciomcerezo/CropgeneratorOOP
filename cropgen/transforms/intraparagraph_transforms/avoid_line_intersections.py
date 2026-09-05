@@ -5,8 +5,7 @@ import numpy as np
 from shapely import Polygon, STRtree
 from shapely.affinity import translate
 
-from cropgen.processing.line import Line
-from cropgen.processing.paragraph import Paragraph
+from cropgen.ocr_units import OCRLine, OCRParagraph
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     line_group_equivalent_type,

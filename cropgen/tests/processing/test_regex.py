@@ -2,9 +2,9 @@ import os
 import re
 from pathlib import Path
 from typing import Iterable
-from cropgen.processing.helpers.text_regularization import french_latex_characters
+from cropgen.ocr_units.helpers.text_regularization import french_latex_characters
+from cropgen.ocr_units import OCRPage
 import pytest
-from cropgen.processing import AnnotatedPage
 from cropgen.shared.path_bundle import PathBundle
 
 cmm_p = r"\\[a-zA-Z]+"
@@ -55,7 +55,7 @@ def number_of_matches(
 
     total_matches = [0] * len(re_patterns)
 
-    for ann in AnnotatedPage.from_path_bundle(
+    for ann in OCRPage.from_path_bundle(
         paths,
         combine_same_page_annotations=False,
         tasks=filters["id"] if "id" in filters else None,

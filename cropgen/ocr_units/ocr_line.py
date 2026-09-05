@@ -6,13 +6,13 @@ from shapely.affinity import scale
 
 
 @dataclass(slots=True, kw_only=True)
-class Line:
+class OCRLine:
     """
     Contains teh information about a single line: the polygon it occupies in the page, its stroke crop and its transcription.
     """
 
     id: str
-    stroke_crop: np.ndarray
+    crop: np.ndarray
     polygon: Polygon
     rotation: float
     task_id: int
@@ -20,6 +20,7 @@ class Line:
     index: Optional[int] = -1
     corrected_centroid: Optional[tuple[float, float]] = None
     starting_index: Optional[int] = None
+    paragraph_index: Optional[int] = None
 
     def __hash__(self):
         return hash(

@@ -2,7 +2,7 @@ from cropgen.shared.parameters import Parameter
 from shapely.affinity import scale
 from shapely.geometry import Polygon
 import cv2
-from cropgen.processing.line import Line
+from cropgen.ocr_units import OCRLine
 from cropgen.transforms.transforms import LinewiseTransform
 import numpy as np
 

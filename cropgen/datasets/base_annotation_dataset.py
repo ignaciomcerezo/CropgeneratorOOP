@@ -1,6 +1,11 @@
+from cropgen.transforms.transforms import (
+    LinewiseTransform,
+    IntraparagraphTransform,
+    InterparagraphTransform,
+)
 from warnings import warn
-from cropgen.transforms.on_the_fly_transform_pack import OCROnTheFlyTransformPack
-from cropgen.processing.annotated_page import AnnotatedPage
+from cropgen.datasets.ocr_transform_pack import OCRTransformPack
+from cropgen.ocr_units import OCRPage
 from typing import Sequence, Optional, TypeVar
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
@@ -39,11 +44,11 @@ T = TypeVar("T")
 
 
 class BaseAnnotationDataset(Dataset, ABC):
-    _annotated_pages: Sequence[AnnotatedPage]
+    _annotated_pages: Sequence[OCRPage]
     _orders: list[int]
     _use_paragraphs: bool
     _use_full_pages: bool
-    _transforms: OCROnTheFlyTransformPack | None
+    _transforms: OCRTransformPack = OCRTransformPack()
     _cluster_params = field(default_factory=lambda: _default_cluster_parameters.copy())
 
     @property
@@ -122,7 +127,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         self._update_orders(new_orders)
 
     @staticmethod
-    def _is_single_paragraph_page(ann: AnnotatedPage) -> bool:
+    def _is_single_paragraph_page(ann: OCRPage) -> bool:
         """
         Whether the page consists of exactly one paragraph.
 
@@ -131,7 +136,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         """
         return len(ann.paragraphs) == 1
 
-    def _page_is_additional_sample(self, ann: AnnotatedPage) -> bool:
+    def _page_is_additional_sample(self, ann: OCRPage) -> bool:
         """
         Whether the complete-page sample should be counted separately.
 
@@ -189,7 +194,7 @@ class BaseAnnotationDataset(Dataset, ABC):
         return self._size
 
     def _gets_ann_ids_order_and_identifier(self, index: int) -> tuple[
-        AnnotatedPage,
+        OCRPage,
         Sequence[str],
         int | Literal["paragraph", "page"],
         str,
@@ -222,7 +227,7 @@ class BaseAnnotationDataset(Dataset, ABC):
 
         rel_idx = index - page_offset
 
-        ann: AnnotatedPage = self._annotated_pages[page_idx]
+        ann: OCRPage = self._annotated_pages[page_idx]
 
         # A page sample only occupies its own index when it was actually
         # counted as an additional sample.
@@ -284,39 +289,53 @@ class BaseAnnotationDataset(Dataset, ABC):
 
         return ann, selected_line_ids, order, identifier
 
+    @property
+    def transforms(self) -> OCRTransformPack | None:
+        if self._transforms is None or self._transforms.is_identity:
+            return None
+        else:
+            return self._transforms
+
+    def add_transform(
+        self,
+        transform: (
+            LinewiseTransform | IntraparagraphTransform | InterparagraphTransform | None
+        ),
+        probability: float = 1,
+    ) -> None:
+        if transform is not None:
+            self._transforms.add_transform(transform)
+
     def set_transform(
         self,
-        transforms: OCROnTheFlyTransformPack | None,
-    ):
-        if transforms is None:
-            self._transforms = transforms
-            return
+        *transform_probability_pairs: tuple[
+            LinewiseTransform
+            | IntraparagraphTransform
+            | InterparagraphTransform
+            | None,
+            float,
+        ],
+    ) -> None:
 
-        elif isinstance(transforms, OCROnTheFlyTransformPack):
-            if (
-                transforms._avoid_intersections
-                != self.cluster_params["avoid_intersections"]
+        for transform in (transform for transform, _ in transform_probability_pairs):
+            if transform is not None and not isinstance(
+                transform,
+                (LinewiseTransform, IntraparagraphTransform, InterparagraphTransform),
             ):
-                warn(
-                    "Overwriting the transforms avoid_intersection parameter "
-                    "in acordance with cluster_params."
+                raise ValueError(
+                    f"Only accepts LinewiseTransform, IntraparagraphTransform or InterparagraphTransform, got {type(transform)}"
                 )
-
-                transforms._avoid_intersections = self.cluster_params[
-                    "avoid_intersections"
-                ]
-
-            self._transforms = transforms
-
-        else:
-            raise ValueError(
-                "Only accepts transforms as None (no transform) or instances "
-                "of OCROnTheFlyTransformPack."
-            )
+        transform: (
+            None | IntraparagraphTransform | LinewiseTransform | InterparagraphTransform
+        )
+        self._transforms = OCRTransformPack()
+        for transform, probability in transform_probability_pairs:
+            if probability != 0:
+                self.add_transform(transform, probability)
 
     @staticmethod
     def samples_in_annotation(
-        ann: AnnotatedPage,
+        ann: OCRPage,
         orders: Collection[int | Literal["paragraph", "page"]],
     ):
         use_paragraphs = "paragraph" in orders
@@ -344,11 +363,11 @@ class BaseAnnotationDataset(Dataset, ABC):
 
     @staticmethod
     def montecarlo_ann_split(
-        annotations: list[AnnotatedPage],
+        annotations: list[OCRPage],
         p=0.95,
         orders: Collection[int | Literal["paragraph", "page"]] = [1],
         n_trials: int = 1000,
-    ) -> tuple[list[AnnotatedPage], list[AnnotatedPage]]:
+    ) -> tuple[list[OCRPage], list[OCRPage]]:
 
         print(f"Performing Monte Carlo page split with {n_trials} trials")
 
@@ -406,7 +425,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     @classmethod
     def from_split(
         cls,
-        *groups_of_annotations: list[AnnotatedPage],
+        *groups_of_annotations: list[OCRPage],
         p: float,
         orders: orders_type,
         orders_to_split_with: orders_type | None = None,

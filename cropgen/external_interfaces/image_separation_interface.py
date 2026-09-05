@@ -11,11 +11,11 @@ import numpy as np
 
 
 class ImageSeparationInterface(ExternalInterface):
-    def __init__(self, paths: PathBundle):
-        self.paths = paths
+    def __init__(self):
+        pass
 
     def __repr__(self):
-        return f"<ImageSeparationInterface with root '{self.paths.root}'>."
+        return f"<ImageSeparationInterface'>."
 
     def parts_required(self):
         return {"raw_images"}
@@ -23,9 +23,9 @@ class ImageSeparationInterface(ExternalInterface):
     def parts_managed(self):
         return {"background_images", "stroke_images"}
 
-    def setup(self):
+    def setup(self, paths: PathBundle):
         for raw_image_path in tqdm(
-            list(self.paths.raw_images_path.iterdir()),
+            list(paths.raw_images_path.iterdir()),
             desc="Stroke/background separation...",
         ):
 
@@ -34,7 +34,7 @@ class ImageSeparationInterface(ExternalInterface):
             if raw_image is None:
                 raise ValueError("Tried to separate nonexistent image.")
 
-            if self.paths.has_processed_images(raw_image_path.stem):
+            if paths.has_processed_images(raw_image_path.stem):
                 continue
 
             background, stroke = separate_background_and_stroke(

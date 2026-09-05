@@ -5,7 +5,7 @@ import numpy as np
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
 
-from cropgen.processing import Line, Paragraph
+from cropgen.ocr_units import OCRLine, OCRParagraph
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,

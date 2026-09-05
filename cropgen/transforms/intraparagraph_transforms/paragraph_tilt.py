@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from shapely.geometry import Polygon
 
-from cropgen.processing import Line, Paragraph
+from cropgen.ocr_units import OCRLine, OCRParagraph
 from cropgen.shared.geometry_processing import calculate_reading_angle
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo, Vector2D
