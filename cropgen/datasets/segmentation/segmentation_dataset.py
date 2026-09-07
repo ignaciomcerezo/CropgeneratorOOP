@@ -27,6 +27,7 @@ class SegmentationDataset(BaseAnnotationDataset):
         annotations: Sequence[OCRPage],
         *,
         orders: orders_type,
+        return_bounding_boxes: bool = True,
         cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
     ):
         self._annotated_pages = annotations
@@ -35,6 +36,7 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._use_full_pages = False
         self._transforms: OCRTransformPack | None = None
         self._update_orders(orders)  # the three previous attributes are updated here
+        self.return_bounding_boxes = return_bounding_boxes
 
         self._cluster_params = _default_cluster_parameters.copy()
         self._cluster_params.update(
@@ -66,5 +68,7 @@ class SegmentationDataset(BaseAnnotationDataset):
             overlay_polygons=self._cluster_params["overlay_polygons"],
             overlay_mbr=self._cluster_params["overlay_mbr"],
         )
-
-        return image, polygons
+        if not self.return_bounding_boxes:
+            return image, polygons
+        else:
+            return image, [polygon.minimum_rotated_rectangle for polygon in polygons]
