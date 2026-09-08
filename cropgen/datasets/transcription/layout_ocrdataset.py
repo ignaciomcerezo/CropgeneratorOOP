@@ -6,9 +6,7 @@ from cropgen.ocr_units import OCRPage
 from cropgen.datasets.base_annotation_dataset import (
     orders_type,
     _poss_cluster_args_literal,
-    _default_cluster_parameters,
 )
-from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.datasets.transcription.ocrdataset import OCRDataset
 
 
@@ -16,7 +14,7 @@ class LayoutOCRDataset(Dataset):
     """
     Dataset variant intended to be used for OCR model training. It is built atop
     cropgen.datasets.OCRDataset, but implements more agressive layout modification:
-    When .refresh_layouts() is called, the base OCRDataset is copied and each page´
+    When .refresh_layouts() is called, the base OCRDataset is copied and each page
     modified, changing the layout (via InterparagraphTransform).
     """
 
@@ -80,7 +78,7 @@ class LayoutOCRDataset(Dataset):
 
     @layout_generator.setter
     def layout_generator(self, value: LayoutGenerator):
-        self._layout_generator = value
+        self._layout_generator = deepcopy(value)
         self.refresh_layouts()
 
     def __len__(self):

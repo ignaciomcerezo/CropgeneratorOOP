@@ -1,3 +1,4 @@
+import shapely
 from cropgen.datasets.helpers.polygon_separation import separate_polygons, Vector2D
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 import numpy as np
@@ -157,15 +158,10 @@ def avoid_paragraph_intersections(
     max_iterations: int = 100,
     damping: float = 0.5,
 ) -> list[list[Polygon]]:
-
     # we use convex hulls: we dont want intersections to be so fine-grained that a far line
     # from a paragraph could be interleaved in the space between the lines of another.
-    union_hulls = [
-        LineGroupInfo.polygon_union(group).convex_hull for group in polygon_groups
-    ]
-
     _, shifts = separate_polygons(
-        union_hulls,
+        [shapely.GeometryCollection(group).convex_hull for group in polygon_groups],
         delta=delta,
         max_iterations=max_iterations,
         damping=damping,

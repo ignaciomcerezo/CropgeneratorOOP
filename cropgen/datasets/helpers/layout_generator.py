@@ -1,223 +1,144 @@
-from shapely import unary_union
+from copy import deepcopy
+
 import cv2
+import numpy as np
+from shapely.affinity import translate
+
+from cropgen.datasets.ocr_transform_pack import OCRTransformPack
+from cropgen.ocr_units import OCRPage
 from cropgen.shared.geometry_processing import get_union_rect
-from cropgen.transforms.transforms import (
-    LinewiseTransform,
-    IntraparagraphFromLinewiseTransform,
-)
-from typing import Literal
-from cropgen.datasets.helpers.intersection_correction import (
-    avoid_line_intersections,
-    avoid_paragraph_intersections,
-)
-from collections import defaultdict
-from cropgen.ocr_units import OCRParagraph, OCRPage
 from cropgen.transforms import (
     InterparagraphTransform,
     IntraparagraphTransform,
+    LinewiseTransform,
 )
-import numpy as np
-from shapely.affinity import translate
-from copy import deepcopy
+
+
+Transform = LinewiseTransform | IntraparagraphTransform | InterparagraphTransform
 
 
 class LayoutGenerator:
+    """Generate transformed OCRPage objects with an OCRTransformPack.
+
+    Unlike OCRDataset, which applies its pack to each requested sample, a layout
+    generator applies the pack to every line and builds a new page annotation
+    from the returned crops and polygons.
     """
-    Applies a series of transform to an annotated page to generate a new one.
-    Used in LayoutOCRDataset.
-    """
 
-    def __init__(
-        self,
-        avoid_line_intersections: bool = True,
-    ):
-        self._transform_index = 0
+    def __init__(self, avoid_line_intersections: bool = True):
+        # Retain the old argument name for compatibility. OCRTransformPack also
+        # handles intersections between paragraphs.
+        self._avoid_intersections = avoid_line_intersections
+        self._transforms = OCRTransformPack(
+            avoid_intersections=avoid_line_intersections
+        )
 
-        self.intra_transforms_to_all: list[tuple[IntraparagraphTransform, int]] = []
-        self.intra_transforms_specific: dict[
-            int, list[tuple[IntraparagraphTransform, int]]
-        ] = defaultdict(lambda: list())
-
-        self.inter_transforms: list[InterparagraphTransform] = []
-        self._avoid_line_intersections = avoid_line_intersections
+    @property
+    def transforms(self) -> OCRTransformPack | None:
+        if self._transforms.is_identity:
+            return None
+        return self._transforms
 
     def add_transform(
         self,
-        *transforms: InterparagraphTransform
-        | IntraparagraphTransform
-        | LinewiseTransform,
-        scope: Literal["all"] | int = "all",
-    ):
-        for transform in transforms:
-            self._validate_transforms(transform, scope)
+        transform: Transform | None,
+        probability: float = 1,
+    ) -> None:
+        """Append a transform, using the same interface as OCRDataset."""
+        if transform is not None:
+            self._transforms.add_transform(transform, probability)
 
-        for transform in transforms:
-            if isinstance(transform, InterparagraphTransform):
-                self._add_inter(transform)
-                return
-
-            transform = (
-                transform
-                if isinstance(transform, IntraparagraphTransform)
-                else IntraparagraphFromLinewiseTransform(transform)
-            )
-            if scope == "all":
-                self._add_intra_to_all(transform)
-            else:
-                self._add_intra_to_one(transform, scope)
-
-    @staticmethod
-    def _validate_transforms(transform, scope: Literal["all"] | int):
-        if isinstance(transform, InterparagraphTransform) and scope != "all":
-            raise ValueError(
-                "Cannot pass instances of InterparagraphTransforms when scope != 'all'."
-            )
-        if not isinstance(
-            transform,
-            (IntraparagraphTransform, InterparagraphTransform, LinewiseTransform),
-        ):
-            raise ValueError(
-                "Can only use instances of InterparagraphTransform, IntraparagraphTransform or LinewiseTransform."
-            )
-
-    def _add_intra_to_all(self, *transforms: IntraparagraphTransform):
-        self.intra_transforms_to_all.extend(
-            (transform, i)
-            for i, transform in enumerate(transforms, start=self._transform_index)
-        )
-        self._transform_index += len(transforms)
-
-    def _add_intra_to_one(
-        self, transform: IntraparagraphTransform, paragraph_index: int
-    ):
-
-        self.intra_transforms_specific[paragraph_index].append(
-            (transform, self._transform_index)
-        )
-        self._transform_index += 1
-
-    def _add_inter(self, layout: InterparagraphTransform):
-        self.inter_transforms.append(layout)
-
-    def apply(self, ann: OCRPage) -> OCRPage:
-        """
-        Generates a new AnnotatedPage instance by applying the transforms to an annotated page.
-        """
-
-        new_ann = deepcopy(ann)
-
-        if not (
-            self.intra_transforms_specific
-            or self.inter_transforms
-            or self.intra_transforms_to_all
-            or self._avoid_line_intersections
-        ):
-            return new_ann
-
-        for p_idx, paragraph in enumerate(new_ann.paragraphs):
-            transforms_p = self.intra_transforms_to_all.copy()
-
-            if p_idx in self.intra_transforms_specific:
-                transforms_p += self.intra_transforms_specific[p_idx]
-
-            transforms_p = sorted(transforms_p, key=lambda x: x[1])
-
-            for transform, _ in transforms_p:
-                transform.in_place(paragraph)
-
-        for layout in self.inter_transforms:
-            layout.in_place(new_ann.paragraphs)
-
-        self.refresh_annotations_geometric_info(new_ann)
-
-        polygons = [box.polygon for box in new_ann.lines.values()]
-        polygons.extend(
-            unary_union([line.polygon for line in paragraph.lines])
-            for paragraph in new_ann.paragraphs
-        )
-
-        if self._avoid_line_intersections:
-            for paragraph in new_ann.paragraphs:
-                polygons = avoid_line_intersections(
-                    [line.polygon for line in paragraph.lines]
+    def set_transform(
+        self,
+        *transform_probability_pairs: tuple[Transform | None, float],
+    ) -> None:
+        """Replace all transforms, using the same interface as OCRDataset."""
+        for transform, _ in transform_probability_pairs:
+            if transform is not None and not isinstance(
+                transform,
+                (LinewiseTransform, IntraparagraphTransform, InterparagraphTransform),
+            ):
+                raise ValueError(
+                    "Only accepts LinewiseTransform, IntraparagraphTransform or "
+                    f"InterparagraphTransform, got {type(transform)}"
                 )
-                for line, polygon in zip(paragraph.lines, polygons):
-                    line.polygon = polygon
 
-        # if self._avoid_paragraph_intersections:
-        #     new_polygons_by_paragraph = avoid_paragraph_intersections(
-        #         [
-        #             [line.polygon for line in paragraph]
-        #             for paragraph in new_ann.paragraphs
-        #         ]
-        #     )
-        #     for paragraph, new_polys in zip(
-        #         new_ann.paragraphs, new_polygons_by_paragraph
-        #     ):
-        #         for line, polygon in zip(paragraph.lines, new_polys):
-        #             line.polygon = polygon
-
-        x1, y1, x2, y2 = get_union_rect(polygons)
-
-        x1, y1 = int(x1), int(y1)
-        x2, y2 = int(x2) + 1, int(y2) + 1
-
-        w, h = max(1, x2 - x1), max(1, y2 - y1)
-        background = cv2.resize(
-            new_ann.background, (w, h), interpolation=cv2.INTER_CUBIC
+        self._transforms = OCRTransformPack(
+            avoid_intersections=self._avoid_intersections
         )
-        new_ann.background = background
+        for transform, probability in transform_probability_pairs:
+            if probability != 0:
+                self.add_transform(transform, probability)
 
-        return new_ann
+    def apply(self, annotation: OCRPage) -> OCRPage:
+        """Return a new page made from the transform pack's crops and polygons."""
+        new_annotation = deepcopy(annotation)
+        if not new_annotation.lines:
+            return new_annotation
+
+        lines_by_paragraph = [
+            list(paragraph.lines) for paragraph in new_annotation.paragraphs
+        ]
+        paragraph_equivalents = [
+            ([line.crop for line in lines], [line.polygon for line in lines])
+            for lines in lines_by_paragraph
+        ]
+
+        crops, polygons = self._transforms(paragraph_equivalents)
+        lines = [line for paragraph in lines_by_paragraph for line in paragraph]
+        if len(crops) != len(lines) or len(polygons) != len(lines):
+            raise ValueError("Layout transforms must preserve the number of OCR lines.")
+
+        min_x, min_y, max_x, max_y = get_union_rect(polygons)
+        polygons = [
+            translate(polygon, xoff=-min_x, yoff=-min_y) for polygon in polygons
+        ]
+
+        for line, crop, polygon in zip(lines, crops, polygons):
+            line.crop = crop
+            line.polygon = polygon
+
+        width = max(1, int(np.ceil(max_x - min_x)) + 1)
+        height = max(1, int(np.ceil(max_y - min_y)) + 1)
+        new_annotation.background = cv2.resize(
+            new_annotation.background,
+            (width, height),
+            interpolation=cv2.INTER_CUBIC,
+        )
+        self._refresh_geometric_info(new_annotation)
+        return new_annotation
 
     @staticmethod
-    def refresh_annotations_geometric_info(annotation: OCRPage) -> None:
-        """
-        Refreshes the geometric information of a page to not cause errors. Useful after applying transforms.
-        """
-        if not annotation.paragraphs:
-            return
-
-        if not annotation.lines:
-            return
-
-        min_x = min(line.polygon.bounds[0] for line in annotation.lines.values())
-        min_y = min(line.polygon.bounds[1] for line in annotation.lines.values())
-
+    def _refresh_geometric_info(annotation: OCRPage) -> None:
         for paragraph in annotation.paragraphs:
-            for line in paragraph:
-                line.polygon = translate(line.polygon, xoff=-min_x, yoff=-min_y)
+            if not paragraph.lines:
+                continue
 
-        for paragraph in annotation.paragraphs:
-            total_area = sum(line.polygon.area for line in annotation.lines.values())
-            paragraph.avg_rotation = (
-                1
-                / total_area
-                * sum(line.rotation * line.polygon.area for line in paragraph)
-            )
-            shape = paragraph[0].polygon
+            total_area = sum(line.polygon.area for line in paragraph.lines)
+            if total_area:
+                paragraph.avg_rotation = sum(
+                    line.rotation * line.polygon.area for line in paragraph.lines
+                ) / total_area
 
-            for line in [paragraph[i] for i in range(1, len(paragraph))]:
+            shape = paragraph.lines[0].polygon
+            for line in paragraph.lines[1:]:
                 shape = shape.union(line.polygon)
-
             paragraph.centroid = (  # ty: ignore[invalid-assignment]
                 shape.centroid.x,
                 shape.centroid.y,
             )
 
-            theta_rad = -np.radians(-paragraph.avg_rotation)
+            theta_rad = np.radians(paragraph.avg_rotation)
             cos_theta = float(np.cos(theta_rad))
             sin_theta = float(np.sin(theta_rad))
-
-            cx_para = float(paragraph.centroid[0])
-            cy_para = float(paragraph.centroid[1])
-
-            for line in paragraph:
+            cx_para, cy_para = paragraph.centroid
+            for line in paragraph.lines:
                 cx, cy = line.centroid()
-                dx = cx - cx_para
-                dy = cy - cy_para
+                dx, dy = cx - cx_para, cy - cy_para
+                line.corrected_centroid = (
+                    dx * cos_theta - dy * sin_theta + cx_para,
+                    dx * sin_theta + dy * cos_theta + cy_para,
+                )
 
-                corrected_x = dx * cos_theta - dy * sin_theta + cx_para
-                corrected_y = dx * sin_theta + dy * cos_theta + cy_para
-
-                line.corrected_centroid = (corrected_x, corrected_y)
+    # Compatibility alias for callers of the old public helper.
+    refresh_annotations_geometric_info = _refresh_geometric_info

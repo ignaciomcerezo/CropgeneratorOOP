@@ -96,16 +96,22 @@ class OCRTransformPack:
             if prob_ok(p):
                 paragraph_eq_list = list(zip(*interparagraph(paragraph_eq_list)))
 
-        polys_by_par = [pp[1] for pp in paragraph_eq_list]
-        polygons = sum(polys_by_par, start=[])
+        polys_by_par = [
+            tuple_images_polygons[1] for tuple_images_polygons in paragraph_eq_list
+        ]
 
         if self._avoid_intersections:
-            polygons = avoid_line_intersections(polygons)
 
-            # by-paragraph
-            # polys_by_par = [avoid_line_intersections(p) for p in polys_by_par]
-            # if len(polys_by_par) > 1:
-            #     polys_by_par = avoid_paragraph_intersections(polys_by_par)
+            for (
+                i,
+                par_polys,
+            ) in enumerate(polys_by_par):
+                polys_by_par[i] = avoid_line_intersections(par_polys)
+
+            if len(polys_by_par) > 1:
+                polys_by_par = avoid_paragraph_intersections(polys_by_par)
+
+        polygons = sum(polys_by_par, start=[])
 
         crops: list[np.ndarray] = sum(
             (paragraph_eq[0] for paragraph_eq in paragraph_eq_list), start=[]

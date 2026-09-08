@@ -1,21 +1,12 @@
-from cropgen.shared.parameters import Vector2D
-from typing import Literal, Any
+from dataclasses import dataclass
+
 import numpy as np
 from shapely import Polygon
 from shapely.affinity import translate
 
+from cropgen.shared.parameters import Vector2D
 
-def _polygon_axes(coords: np.ndarray) -> list[np.ndarray]:
-    """Outward edge normals of a convex polygon: one candidate SAT axis per edge."""
-    axes: list[np.ndarray] = []
-    n = len(coords)
-    for i in range(n):
-        edge = coords[(i + 1) % n] - coords[i]
-        normal = np.array([-edge[1], edge[0]], dtype=float)
-        norm = np.linalg.norm(normal)
-        if norm > 1e-12:
-            axes.append(normal / norm)
-    return axes
+_EPSILON = 1e-12
 
 
 def _coords_of(polygon: Polygon) -> np.ndarray:
@@ -25,114 +16,64 @@ def _coords_of(polygon: Polygon) -> np.ndarray:
     return coords
 
 
-def sat_minimum_translation_vector(
-    poly_a: Polygon,
-    poly_b: Polygon,
-) -> Vector2D | None:
-    """
-    Minimal translation to apply to poly_b so it no longer overlaps
-    poly_a.
-    """
-    coords_a = _coords_of(poly_a)
-    coords_b = _coords_of(poly_b)
+def _polygon_axes(coords: np.ndarray) -> np.ndarray:
+    """Return the outward edge normals of a convex polygon."""
+    edges = np.roll(coords, -1, axis=0) - coords
+    normals = np.column_stack((-edges[:, 1], edges[:, 0]))
+    lengths = np.linalg.norm(normals, axis=1)
+    valid = lengths > _EPSILON
+    return normals[valid] / lengths[valid, None]
 
-    axes = _polygon_axes(coords_a) + _polygon_axes(coords_b)
-    if not axes:
-        return None
 
-    min_overlap = np.inf
-    min_axis: Vector2D | None = None
-    push_sign = 1.0
+@dataclass(slots=True)
+class _SatPair:
+    """SAT cache (translation-invariant) for pairs of convex polygons."""
 
-    for axis in axes:
-        proj_a = coords_a @ axis
-        proj_b = coords_b @ axis
+    axes: np.ndarray
+    min_a: np.ndarray
+    max_a: np.ndarray
+    min_b: np.ndarray
+    max_b: np.ndarray
 
-        min_a, max_a = proj_a.min(), proj_a.max()
-        min_b, max_b = proj_b.min(), proj_b.max()
+    @classmethod
+    def from_coords(cls, coords_a: np.ndarray, coords_b: np.ndarray) -> "_SatPair":
+        axes = np.concatenate((_polygon_axes(coords_a), _polygon_axes(coords_b)))
+        if len(axes) == 0:
+            empty = np.empty(0, dtype=float)
+            return cls(axes, empty, empty, empty, empty)
 
-        overlap = min(max_a, max_b) - max(min_a, min_b)
+        projections_a = coords_a @ axes.T
+        projections_b = coords_b @ axes.T
+        return cls(
+            axes,
+            projections_a.min(axis=0),
+            projections_a.max(axis=0),
+            projections_b.min(axis=0),
+            projections_b.max(axis=0),
+        )
 
-        if overlap <= 0:
-            # Found a separating axis: the polygons don't actually overlap.
+    def minimum_translation_vector(
+        self, shift_a: Vector2D, shift_b: Vector2D
+    ) -> Vector2D | None:
+        if len(self.axes) == 0:
             return None
 
-        if overlap < min_overlap:
-            min_overlap = overlap
-            min_axis = axis
-            center_a = 0.5 * (min_a + max_a)
-            center_b = 0.5 * (min_b + max_b)
-            push_sign = 1.0 if center_b >= center_a else -1.0
+        offset_a = self.axes @ shift_a
+        offset_b = self.axes @ shift_b
+        min_a = self.min_a + offset_a
+        max_a = self.max_a + offset_a
+        min_b = self.min_b + offset_b
+        max_b = self.max_b + offset_b
+        overlaps = np.minimum(max_a, max_b) - np.maximum(min_a, min_b)
 
-    assert min_axis is not None
-    return min_axis * min_overlap * push_sign
+        if np.any(overlaps <= 0):
+            return None
 
-
-def separate_polygons(
-    polygons: list[Polygon],
-    *,
-    delta: float = 0.5,
-    max_iterations: int = 1000,
-    damping: float = 0.5,
-) -> tuple[list[Polygon], list[Vector2D]]:
-    n = len(polygons)
-    shifts: list[Vector2D] = [
-        np.zeros(2, dtype=float) for _ in range(n)
-    ]  # ty: ignore[invalid-assignment]
-
-    if n <= 1:
-        return list(polygons), shifts
-
-    current = list(polygons)
-
-    for _ in range(max_iterations):
-        moves = [np.zeros(2, dtype=float) for _ in range(n)]
-        any_adjustment = False
-
-        for i in range(n):
-            for j in range(i + 1, n):
-                mtv = sat_minimum_translation_vector(current[i], current[j])
-
-                if mtv is None:
-                    gap = current[i].distance(current[j])
-                    if gap >= delta:
-                        continue
-                    centroid_i = np.array(
-                        [current[i].centroid.x, current[i].centroid.y]
-                    )
-                    centroid_j = np.array(
-                        [current[j].centroid.x, current[j].centroid.y]
-                    )
-                    direction = centroid_j - centroid_i
-                    norm = np.linalg.norm(direction)
-                    direction = (
-                        direction / norm if norm > 1e-12 else np.array([1.0, 0.0])
-                    )
-                    push = (delta - gap) * direction
-                else:
-                    # Pad the raw SAT overlap by delta so shapes end up
-                    # with real clearance, not just zero overlap.
-                    unit = mtv / max(np.linalg.norm(mtv), 1e-12)
-                    push = mtv + delta * unit
-
-                half = 0.5 * damping * push
-                moves[j] += half
-                moves[i] -= half
-                any_adjustment = True
-
-        if not any_adjustment:
-            break
-
-        for i in range(n):
-            if np.any(moves[i]):
-                current[i] = translate(current[i], xoff=moves[i][0], yoff=moves[i][1])
-                shifts[i] += moves[i]
-
-    return current, shifts
-
-
-import numpy as np
-from shapely.affinity import translate
+        axis_index = int(np.argmin(overlaps))
+        center_a = 0.5 * (min_a[axis_index] + max_a[axis_index])
+        center_b = 0.5 * (min_b[axis_index] + max_b[axis_index])
+        sign = 1.0 if center_b >= center_a else -1.0
+        return self.axes[axis_index] * overlaps[axis_index] * sign
 
 
 def separate_polygons(
@@ -143,85 +84,75 @@ def separate_polygons(
     damping: float = 0.5,
     tol: float = 1e-3,
 ) -> tuple[list[Polygon], list[Vector2D]]:
+    """Linearly translate convex polygons until they have ``delta`` clearance."""
     n = len(polygons)
-    shifts: list[Vector2D] = [
-        np.zeros(2, dtype=float) for _ in range(n)
-    ]  # ty: ignore[invalid-assignment]
-
+    shifts = np.zeros((n, 2), dtype=float)
     if n <= 1:
-        return list(polygons), shifts
+        return list(polygons), [shift for shift in shifts]
 
     current = list(polygons)
+    coords = [_coords_of(polygon) for polygon in polygons]
+    centroids = np.array(
+        [(polygon.centroid.x, polygon.centroid.y) for polygon in polygons],
+        dtype=float,
+    )
+    bounds = np.array([polygon.bounds for polygon in polygons], dtype=float)
 
-    # Cache AABBs so we don't re-derive them from geometry every iteration;
-    # we can update them exactly (translate is a pure shift) as we move things.
-    bounds = np.array(
-        [p.bounds for p in current], dtype=float
-    )  # (n, 4): minx, miny, maxx, maxy
+    pairs = [
+        (i, j, _SatPair.from_coords(coords[i], coords[j]))
+        for i in range(n)
+        for j in range(i + 1, n)
+    ]
 
     for _ in range(max_iterations):
-        moves = [np.zeros(2, dtype=float) for _ in range(n)]
+        moves = np.zeros((n, 2), dtype=float)
         any_adjustment = False
-        max_move_sq = 0.0
 
-        # --- Broad phase: vectorized AABB check, padded by delta ---
-        # Two polygons can only possibly need work (overlap OR gap < delta)
-        # if their bounding boxes are within `delta` of each other. Since a
-        # polygon's AABB always contains it, this can never falsely skip a
-        # real candidate pair — it only skips pairs that are provably too
-        # far apart, which is exactly what the old code's `continue` did,
-        # just without paying for SAT/distance to find out.
-        minx, miny, maxx, maxy = bounds.T
-        overlap_x = (minx[:, None] - delta <= maxx[None, :]) & (
-            maxx[:, None] + delta >= minx[None, :]
-        )
-        overlap_y = (miny[:, None] - delta <= maxy[None, :]) & (
-            maxy[:, None] + delta >= miny[None, :]
-        )
-        candidates = np.triu(overlap_x & overlap_y, k=1)
-        iu, ju = np.where(candidates)
+        for i, j, sat_pair in pairs:
+            bounds_i = bounds[i]
+            bounds_j = bounds[j]
+            if (
+                bounds_i[0] - delta > bounds_j[2]
+                or bounds_i[2] + delta < bounds_j[0]
+                or bounds_i[1] - delta > bounds_j[3]
+                or bounds_i[3] + delta < bounds_j[1]
+            ):
+                continue
 
-        for i, j in zip(iu.tolist(), ju.tolist()):
-            mtv = sat_minimum_translation_vector(current[i], current[j])
-
+            mtv = sat_pair.minimum_translation_vector(shifts[i], shifts[j])
             if mtv is None:
                 gap = current[i].distance(current[j])
                 if gap >= delta:
                     continue
-                centroid_i = np.array([current[i].centroid.x, current[i].centroid.y])
-                centroid_j = np.array([current[j].centroid.x, current[j].centroid.y])
-                direction = centroid_j - centroid_i
+
+                direction = (centroids[j] + shifts[j]) - (centroids[i] + shifts[i])
                 norm = np.linalg.norm(direction)
-                direction = direction / norm if norm > 1e-12 else np.array([1.0, 0.0])
+                direction = (
+                    direction / norm if norm > _EPSILON else np.array([1.0, 0.0])
+                )
                 push = (delta - gap) * direction
             else:
-                unit = mtv / max(np.linalg.norm(mtv), 1e-12)
-                push = mtv + delta * unit
+                mtv_length = np.linalg.norm(mtv)
+                push = mtv + delta * mtv / max(mtv_length, _EPSILON)
 
-            half = 0.5 * damping * push
-            moves[j] += half
-            moves[i] -= half
+            half_push = 0.5 * damping * push
+            moves[j] += half_push
+            moves[i] -= half_push
             any_adjustment = True
 
         if not any_adjustment:
             break
 
-        for i in range(n):
-            mv = moves[i]
-            mv_sq = mv[0] * mv[0] + mv[1] * mv[1]
-            if mv_sq > 1e-18:  # skip rebuilding geometry for truly negligible shifts
-                current[i] = translate(current[i], xoff=mv[0], yoff=mv[1])
-                shifts[i] += mv
-                bounds[i, 0] += mv[0]
-                bounds[i, 2] += mv[0]
-                bounds[i, 1] += mv[1]
-                bounds[i, 3] += mv[1]
-                if mv_sq > max_move_sq:
-                    max_move_sq = mv_sq
+        move_lengths_sq = np.einsum("ij,ij->i", moves, moves)
+        moved = move_lengths_sq > _EPSILON**2
+        for i in np.flatnonzero(moved):
+            move = moves[i]
+            current[i] = translate(current[i], xoff=move[0], yoff=move[1])
+            shifts[i] += move
+            bounds[i, (0, 2)] += move[0]
+            bounds[i, (1, 3)] += move[1]
 
-        # Stop once nobody is moving meaningfully instead of chasing exact
-        # zero, which the damped update rarely reaches in floating point.
-        if max_move_sq < tol * tol:
+        if not np.any(moved) or float(move_lengths_sq.max()) < tol * tol:
             break
 
-    return current, shifts
+    return current, [shift for shift in shifts]
