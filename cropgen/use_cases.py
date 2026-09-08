@@ -3,20 +3,16 @@ from cropgen.external_interfaces.external_interface import ExternalInterface
 import os
 from pathlib import Path
 from typing import Literal
-from dotenv import load_dotenv
 from cropgen.shared.path_bundle import PathBundle
 
 
 def setup(
     paths: PathBundle,
     external_interfaces: list[ExternalInterface],
-) -> PathBundle:
+) -> None:
     """
     Downloads all files needed to instanciate the dataset given some external interfaces and a path to store them.
-    Descarga todos los archivos necesarios para crear el conjunto de datos, y genera sus respectivas interfaces.
     """
-    load_dotenv()
-
     parts = set()
     for i, external_interface in enumerate(external_interfaces):
         pm = external_interface.parts_managed()
@@ -44,5 +40,3 @@ def setup(
 
     for external_interface in external_interfaces:
         external_interface.setup(paths)
-
-    return paths
