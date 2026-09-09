@@ -18,10 +18,6 @@ class OCRParagraph:
         "centroid",
         "total_words",
         "avg_rotation",
-        "top",
-        "left",
-        "right",
-        "bot",
         "task_id",
         "_index",
     )
@@ -49,7 +45,7 @@ class OCRParagraph:
         self.task_id: int | None = task_id
         self._index: int | None = index
 
-        self._calculate_total_area_and_centroid()
+        self._set_geometric_and_topological_properties(subgraph)
 
         self._sort_lines_using_centroid_and_subgraph(subgraph)
 
@@ -95,24 +91,33 @@ class OCRParagraph:
     def __repr__(self):
         return f"<{self.index}-th paragraph of order {len(self)} contained in AnnotatedPage of task ({self.task_id})>"
 
-    @staticmethod
-    def _get_average_rotation(
-        angles_in_degrees: list[float], areas: list[float]
-    ) -> float:
+    @property
+    def top(self) -> float:
+        return min((line.top for line in self.lines))
 
-        angles_in_radians = np.radians(angles_in_degrees)
-        sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
-        sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
-        return -float(np.degrees(np.arctan2(sum_sin, sum_cos)))
+    @property
+    def left(self) -> float:
+        return min((line.left for line in self.lines))
 
-    def _calculate_total_area_and_centroid(self):
+    @property
+    def right(self) -> float:
+        return max((line.right for line in self.lines))
+
+    @property
+    def bot(self) -> float:
+        return max((line.bot for line in self.lines))
+
+    def _set_geometric_and_topological_properties(
+        self, subgraph: dict[str, set[str]]
+    ) -> None:
         self.centroid: np.ndarray = np.zeros((2,))
         self.total_words: int = 0
         total_area = 0
 
-        for line in self.lines:
+        areas = [line.polygon.area for line in self.lines]
+
+        for line, area in zip(self.lines, areas):
             self.total_words += len(line.text.split())
-            area = line.polygon.area
 
             self.centroid += np.array(line.centroid()) * area
             total_area += area
@@ -121,18 +126,15 @@ class OCRParagraph:
 
         self.centroid /= total_area
 
-        self.avg_rotation = self._get_average_rotation(
-            [line.rotation for line in self.lines],
-            [line.polygon.area for line in self.lines],
-        )
-
-        self.top: float = min([line.top for line in self.lines])
-        self.left: float = min([line.left for line in self.lines])
-        self.bot = max([line.bot for line in self.lines])
-        self.right = max([line.right for line in self.lines])
+        rotations = [line.rotation for line in self.lines]
+        angles_in_radians = np.radians(rotations)
+        sum_sin = np.sum(np.sin(angles_in_radians) * np.array(areas))
+        sum_cos = np.sum(np.cos(angles_in_radians) * np.array(areas))
+        self.avg_rotation = -float(np.degrees(np.arctan2(sum_sin, sum_cos)))
 
     def _sort_lines_using_centroid_and_subgraph(
-        self, subgraph: dict[str, set[str]]
+        self,
+        subgraph: dict[str, set[str]],
     ) -> None:
 
         theta_rad = -np.radians(-self.avg_rotation)
@@ -157,7 +159,7 @@ class OCRParagraph:
 
         if not is_path_graph(
             subgraph
-        ):  # si no es un grafo camino, empleamos el orden de lectura dado por las proyecciones
+        ):  # if it is not a path graph, we use the reading order given by the projections
             self.lines = sorted(
                 self.lines,
                 key=lambda line: (

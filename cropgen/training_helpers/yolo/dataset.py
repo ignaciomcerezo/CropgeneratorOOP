@@ -27,10 +27,7 @@ class _SegmentationLineDataset(Dataset):
 
     def __getitem__(self, index: int) -> dict:
         image, polygons = self._ds[index]
-        img_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-        img_bgr = np.ascontiguousarray(
-            img_rgb[:, :, ::-1]
-        )  # cv2/Ultralytics convention
+        img_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         h0, w0 = img_bgr.shape[:2]
 
         canvas, r, pad = letterbox(img_bgr, self._imgsz)

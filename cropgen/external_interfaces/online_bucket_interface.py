@@ -67,7 +67,6 @@ class OnlineBucketInterface(ExternalInterface):
     @classmethod
     def from_env(
         cls,
-        paths: PathBundle,
         bucket_url: str | None = None,
         folder: str | None = None,
         env_var: str = "BUCKET_URL",

@@ -21,7 +21,7 @@ class OCRTransformPack:
         self._intra_prob: list[float] = []
         self._inter: list[InterparagraphTransform] = []
         self._inter_prob: list[float] = []
-        self._avoid_intersections = avoid_intersections
+        self.avoid_intersections = avoid_intersections
 
     @property
     def is_identity(self):
@@ -100,7 +100,7 @@ class OCRTransformPack:
             tuple_images_polygons[1] for tuple_images_polygons in paragraph_eq_list
         ]
 
-        if self._avoid_intersections:
+        if self.avoid_intersections:
 
             for (
                 i,

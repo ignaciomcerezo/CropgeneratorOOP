@@ -5,7 +5,7 @@ from typing import Sequence, Any, Literal
 from cropgen.ocr_units import OCRPage
 from cropgen.datasets.base_annotation_dataset import (
     orders_type,
-    _poss_cluster_args_literal,
+    ClusterParams,
 )
 from cropgen.datasets.transcription.ocrdataset import OCRDataset
 
@@ -24,7 +24,7 @@ class LayoutOCRDataset(Dataset):
         layout_generator: LayoutGenerator,
         *,
         orders: orders_type,
-        cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
+        cluster_transform_params: ClusterParams | None = None,
     ):
         self._layout_generator = deepcopy(layout_generator)
         self._base_annotations = annotations
@@ -33,7 +33,7 @@ class LayoutOCRDataset(Dataset):
     def _set_underlying(
         self,
         orders: orders_type,
-        params: dict[_poss_cluster_args_literal, Any] | None = None,
+        params: ClusterParams | None = None,
     ):
         new_anns = []
         for ann in self._base_annotations:
@@ -67,10 +67,9 @@ class LayoutOCRDataset(Dataset):
     def cluster_params(self):
         return self._underlying_dataset._cluster_params
 
-    def set_cluster_param(
-        self, cluster_param_name: _poss_cluster_args_literal, value: Any
-    ):
-        self._underlying_dataset.set_cluster_param(cluster_param_name, value)
+    @cluster_params.setter
+    def cluster_params(self, value: ClusterParams):
+        self._underlying_dataset.cluster_params = value
 
     @property
     def layout_generator(self) -> LayoutGenerator:

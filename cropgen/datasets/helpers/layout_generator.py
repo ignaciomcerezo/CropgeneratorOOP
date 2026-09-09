@@ -13,7 +13,6 @@ from cropgen.transforms import (
     LinewiseTransform,
 )
 
-
 Transform = LinewiseTransform | IntraparagraphTransform | InterparagraphTransform
 
 
@@ -116,9 +115,10 @@ class LayoutGenerator:
 
             total_area = sum(line.polygon.area for line in paragraph.lines)
             if total_area:
-                paragraph.avg_rotation = sum(
-                    line.rotation * line.polygon.area for line in paragraph.lines
-                ) / total_area
+                paragraph.avg_rotation = (
+                    sum(line.rotation * line.polygon.area for line in paragraph.lines)
+                    / total_area
+                )
 
             shape = paragraph.lines[0].polygon
             for line in paragraph.lines[1:]:

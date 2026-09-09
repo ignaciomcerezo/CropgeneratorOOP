@@ -8,6 +8,22 @@ from cropgen.shared.default_parameters import (
 from shapely.geometry import Polygon
 
 
+def to_grayscale(image: np.ndarray) -> np.ndarray:
+    """Return an image as a two-dimensional grayscale array."""
+    if image.ndim == 2:
+        return image
+    if image.ndim == 3 and image.shape[2] == 1:
+        return image[:, :, 0]
+    if image.ndim == 3 and image.shape[2] == 3:
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if image.ndim == 3 and image.shape[2] == 4:
+        return cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
+    raise ValueError(
+        "Images must have shape (H, W), (H, W, 1), (H, W, 3), or "
+        f"(H, W, 4); got {image.shape}."
+    )
+
+
 def extract_stroke_and_stroke_mask(
     page_image_array: np.ndarray,
     background_diameter: int = 15,
@@ -139,6 +155,8 @@ def separate_background_and_stroke(
     """
     Separates a black and white page image or scan into its stroke and background components.
     """
+
+    image = to_grayscale(image)
 
     image_array = _resize_by_longest_side(image, processing_longest_side)
 

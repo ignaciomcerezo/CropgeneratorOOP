@@ -1,9 +1,8 @@
+from dataclasses import replace, asdict
 from cropgen.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
-    _poss_cluster_args_literal,
-    _default_cluster_param_values,
-    _default_cluster_parameters,
     orders_type,
+    ClusterParams,
 )
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
@@ -48,7 +47,7 @@ class OCRDataset(BaseAnnotationDataset):
         annotations: Sequence[OCRPage],
         *,
         orders: orders_type,
-        cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
+        cluster_transform_params: ClusterParams | None = None,
     ):
         self._annotated_pages = annotations
         # temp
@@ -58,12 +57,13 @@ class OCRDataset(BaseAnnotationDataset):
         self._update_orders(orders)  # the three previous attributes are updated here
         self._formatter: _formatter_signature | None = None
 
-        self._cluster_params = _default_cluster_parameters.copy()
-        self._cluster_params.update(
-            cluster_transform_params if cluster_transform_params is not None else dict()
+        self._cluster_params = (
+            replace(ClusterParams(), **asdict(cluster_transform_params))
+            if cluster_transform_params is not None
+            else ClusterParams()
         )
         self._transforms: OCRTransformPack = OCRTransformPack(
-            avoid_intersections=self._cluster_params["avoid_intersections"]
+            avoid_intersections=self._cluster_params.avoid_intersections
         )
 
     def __repr__(self):
@@ -85,11 +85,11 @@ class OCRDataset(BaseAnnotationDataset):
 
         synthetic_img, synthetic_transcription, sindex = ann.synthetic_sample(
             list(selected_line_ids),
-            tight_layout=self._cluster_params["tight_layout"],
-            margin_size_px=self._cluster_params["margin_size_px"],
+            tight_layout=self.cluster_params.tight_layout,
+            margin_size_px=self.cluster_params.margin_size_px,
             img_poly_transform=self._transforms,
-            overlay_polygons=self._cluster_params["overlay_polygons"],
-            overlay_mbr=self._cluster_params["overlay_mbr"],
+            overlay_polygons=self.cluster_params.overlay_polygons,
+            overlay_mbr=self.cluster_params.overlay_mbr,
         )
 
         # TODO: improve context generation - implement the use_previous_page_in_context cluster parameter here

@@ -4,7 +4,11 @@ from cropgen.shared.geometry_processing import get_union_rect
 from collections import defaultdict
 from pathlib import Path
 from cropgen.shared.path_bundle import PathBundle
-from cropgen.shared.image_processing import crop_or_resize, crop_image_with_polygon
+from cropgen.shared.image_processing import (
+    crop_or_resize,
+    crop_image_with_polygon,
+    to_grayscale,
+)
 from cropgen.shared.page_metadata import PageSampleMetadata
 from copy import deepcopy
 from shapely.geometry import Point, Polygon
@@ -69,7 +73,9 @@ class OCRPage:
         updater: str | None = None,
         polygons_are_in_percentage: bool = True,
     ):
-        if not (stroke.shape == background.shape):
+        stroke = to_grayscale(stroke)
+        background = to_grayscale(background)
+        if stroke.shape != background.shape:
             raise ValueError("Stroke and background must have the same dimensions.")
         self.background = background
         self.task_id = task_id
@@ -276,10 +282,6 @@ class OCRPage:
             for (idx, (line_cc, line_ids_cc)) in enumerate(zip(line_ccs, line_id_ccs))
         ]
 
-        # self.paragraphs.sort(key=lambda paragraph: paragraph.lines[0].top)
-        # for i, paragraph in enumerate(self.paragraphs):
-        #     paragraph.index = i
-
     def _correct_text_and_set_sindices_and_transcription(self):
         sindex = 0
         for paragraph_index, paragraph in enumerate(self.paragraphs):
@@ -421,8 +423,6 @@ class OCRPage:
         ).copy()
 
         canvas_h, canvas_w = canvas.shape[:2]
-        is_multichannel = canvas.ndim == 3 and canvas.shape[2] in (3, 4)
-
         for stroke_img, polygon in zip(crops, polygons):
             poly_x0, poly_y0, _, _ = polygon.bounds
 
@@ -444,35 +444,24 @@ class OCRPage:
             if dst_x1 <= dst_x0 or dst_y1 <= dst_y0:
                 continue
 
-            # Convert stroke to RGBA and slice the active region
-            # cv2 manages this slightly less concisely than PIL
             stroke_crop = stroke_img[src_y0:src_y1, src_x0:src_x1]
-
             if stroke_crop.ndim == 2:
-                stroke_rgba = cv2.cvtColor(stroke_crop, cv2.COLOR_GRAY2RGBA).astype(
-                    np.float32
-                )
-            elif stroke_crop.shape[2] == 3:
-                stroke_rgba = cv2.cvtColor(stroke_crop, cv2.COLOR_BGR2RGBA).astype(
-                    np.float32
-                )
-            elif stroke_crop.shape[2] == 4:
-                stroke_rgba = cv2.cvtColor(stroke_crop, cv2.COLOR_BGRA2RGBA).astype(
-                    np.float32
-                )
+                stroke_bgra = cv2.cvtColor(stroke_crop, cv2.COLOR_GRAY2BGRA)
+            elif stroke_crop.ndim == 3 and stroke_crop.shape[2] == 4:
+                stroke_bgra = stroke_crop
             else:
-                stroke_rgba = stroke_crop.astype(np.float32)
+                raise ValueError(
+                    "Transformed stroke crops must be grayscale or BGRA; "
+                    f"got {stroke_crop.shape}."
+                )
 
-            stroke_val = stroke_rgba[..., 0]
-            alpha = stroke_rgba[..., 3] / 255.0
-            masked_stroke = stroke_val * alpha
+            stroke_value = stroke_bgra[..., 0].astype(np.float32)
+            alpha = stroke_bgra[..., 3].astype(np.float32) / 255.0
+            masked_stroke = stroke_value * alpha
 
             # Perform the blend strictly on the slice
             roi = canvas[dst_y0:dst_y1, dst_x0:dst_x1].astype(np.float32)
-            if is_multichannel:
-                blended_roi = np.clip(roi - masked_stroke[..., None], 0, 255)
-            else:
-                blended_roi = np.clip(roi - masked_stroke, 0, 255)
+            blended_roi = np.clip(roi - masked_stroke, 0, 255)
 
             canvas[dst_y0:dst_y1, dst_x0:dst_x1] = blended_roi.astype(np.uint8)
 
@@ -545,7 +534,7 @@ class OCRPage:
         line_ids: list["str"] | Literal["all"],
         *,
         tight_layout: bool = True,
-        margin_size_px: int = 0,
+        margin_size_px: int | dict[Literal["right", "left", "top", "bottom"], int] = 0,
         img_poly_transform: ocr_transform | None = None,
         overlay_polygons: bool = False,
         overlay_mbr: bool = True,
@@ -575,108 +564,3 @@ class OCRPage:
         starting_index = self.synthetic_starting_index(line_ids)
 
         return manuscript, transcription, starting_index
-
-    @staticmethod
-    def from_path_bundle(
-        paths: PathBundle,
-        *,
-        pages: Collection[str | int] | None = None,
-        tasks: Collection[int] | None = None,
-        combine_same_page_annotations: bool = True,
-        length: int | None = None,
-    ) -> list["OCRPage"]:
-        """
-        Uses the information stored in paths.metadata_path to access the appropriate
-        images, transcriptions, polygons, ids and rotations and creates AnnotatedPage
-        instances.
-        """
-
-        tasks: set[int] | None = (
-            set([task for task in tasks]) if isinstance(tasks, Collection) else None
-        )
-        pages: set[str] | None = (
-            set([str(page) for page in pages])
-            if isinstance(pages, Collection)
-            else None
-        )
-
-        def _acceptable(page, task_id):
-            if (pages is None) and (tasks is None):
-                return True
-            if tasks is None:
-                return page in pages  # ty: ignore[unsupported-operator]
-            if pages is None:
-                return task_id in tasks
-
-            return (task_id in tasks) or (page in pages)
-
-        taskid2annpage: dict[int, list[OCRPage]] = defaultdict(lambda: list())
-
-        k = 0
-        for metadata_filepath in tqdm(
-            list(Path(paths.metadata_path).iterdir()),
-            desc="Loading A.P. data from disk...",
-        ):
-            metadata = PageSampleMetadata.model_validate(
-                json.loads(metadata_filepath.read_text())
-            )
-
-            page = metadata.page
-            task_id = metadata.task_id
-
-            if not _acceptable(page, task_id):
-                # print(f"Skipping {task_id=}/{page=} (looking for {tasks=} or {pages=})")
-                continue
-
-            completer: str = metadata.completer
-            updater: str = metadata.updater
-            # subindex: int = metadata_content["subindex"]
-            # ann_id  = metadata_content["ann_id"]
-            # order = metadata_content["order"]
-
-            polygons_are_in_percentage: bool = metadata.polygons_are_in_percentage
-
-            transcriptions = metadata.load_transcriptions()
-            polygon_coords = metadata.load_polygon_coords()
-            rotations = metadata.load_rotations()
-            ids = metadata.load_ids()
-            image_path = metadata.image_path
-
-            # stroke and background separation is not certain at this point
-            stroke = cv2.imread(
-                paths.stroke_images_path / (image_path.stem + image_path.suffix),
-                cv2.IMREAD_GRAYSCALE,
-            )
-            background = cv2.imread(
-                paths.background_images_path / (image_path.stem + image_path.suffix),
-                cv2.IMREAD_GRAYSCALE,
-            )
-            if (stroke is None) or (background is None):
-                raise ValueError(
-                    f"Stroke or background images could not be loaded for task {task_id}/page {page}."
-                )
-
-            taskid2annpage[task_id].append(
-                OCRPage(
-                    transcriptions=transcriptions,
-                    polygon_coords=polygon_coords,
-                    line_ids=ids,
-                    rotations=rotations,
-                    task_id=int(task_id),
-                    page=page,
-                    stroke=stroke,
-                    background=background,
-                    completer=completer,
-                    updater=updater,
-                    polygons_are_in_percentage=polygons_are_in_percentage,
-                )
-            )
-            k += 1
-            if length is not None and k > length:
-                break
-
-        if combine_same_page_annotations:
-            for page, annotations in taskid2annpage.items():
-                taskid2annpage[page] = [OCRPage.combine_annotations(*annotations)]
-
-        return sum(taskid2annpage.values(), start=[])

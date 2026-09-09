@@ -1,3 +1,5 @@
+from cropgen.ocr_units.ocr_page import OCRPage
+from cropgen.loading.page_loader import load_pages
 from cropgen.shared.page_metadata import PageSampleMetadata
 from cropgen.external_interfaces.external_interface import ExternalInterface
 import os
@@ -9,7 +11,7 @@ from cropgen.shared.path_bundle import PathBundle
 def setup(
     paths: PathBundle,
     external_interfaces: list[ExternalInterface],
-) -> None:
+) -> list[OCRPage]:
     """
     Downloads all files needed to instanciate the dataset given some external interfaces and a path to store them.
     """
@@ -40,3 +42,5 @@ def setup(
 
     for external_interface in external_interfaces:
         external_interface.setup(paths)
+
+    return load_pages(paths)

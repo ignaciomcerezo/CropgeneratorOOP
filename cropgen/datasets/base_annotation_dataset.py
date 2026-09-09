@@ -15,32 +15,19 @@ import numpy as np
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
 
-_poss_cluster_args_literal = Literal[
-    "tight_layout",
-    "margin_size_px",
-    "use_previous_page_in_context",
-    "avoid_intersections",
-    "overlay_polygons",
-    "overlay_mbr",
-]
-
-_default_cluster_param_values = (
-    True,
-    {"left": 0, "right": 0, "top": 0, "bottom": 0},
-    False,
-    True,
-    False,
-    False,
-)
-
-_default_cluster_parameters: dict[_poss_cluster_args_literal, Any] = {
-    arg: value
-    for arg, value in zip(
-        get_args(_poss_cluster_args_literal), _default_cluster_param_values
-    )
-}
-
 T = TypeVar("T")
+
+
+@dataclass
+class ClusterParams:
+    tight_layout: bool = True
+    margin_size_px: int | dict[Literal["left", "right", "top", "bottom"], int] = field(
+        default_factory=lambda: {"left": 0, "right": 0, "top": 0, "bottom": 0}
+    )
+    use_previous_page_in_context: bool = False
+    avoid_intersections: bool = True
+    overlay_polygons: bool = False
+    overlay_mbr: bool = False
 
 
 class BaseAnnotationDataset(Dataset, ABC):
@@ -48,8 +35,8 @@ class BaseAnnotationDataset(Dataset, ABC):
     _orders: list[int]
     _use_paragraphs: bool
     _use_full_pages: bool
-    _transforms: OCRTransformPack
-    _cluster_params = field(default_factory=lambda: _default_cluster_parameters.copy())
+    _transforms: OCRTransformPack = field(default_factory=lambda: OCRTransformPack())
+    cluster_params: ClusterParams = field(default_factory=lambda: ClusterParams())
 
     @property
     def pages(self) -> list[str | None]:
@@ -67,29 +54,18 @@ class BaseAnnotationDataset(Dataset, ABC):
             + ["page"] * self._use_full_pages
         )
 
+    @property
+    def cluster_params(self) -> ClusterParams:
+        return self._cluster_params
+
+    @cluster_params.setter
+    def cluster_params(self, value: ClusterParams) -> None:
+        self._cluster_params = value
+        self._transforms.avoid_intersections = value.avoid_intersections
+
     @orders.setter
     def orders(self, value: Sequence[int | Literal["paragraph", "page"]]):
         self._update_orders(value)
-
-    @property
-    def cluster_params(self):
-        return tuple([(key, value) for key, value in self._cluster_params.items()])
-
-    def set_cluster_param(
-        self, cluster_param_name: _poss_cluster_args_literal, value: Any
-    ):
-        if cluster_param_name not in _default_cluster_parameters:
-            raise ValueError(
-                f"Unknown cluster parameter '{cluster_param_name}' (expected one of {_default_cluster_parameters})."
-            )
-        if value is not None:
-            self._cluster_params[cluster_param_name] = value
-        else:
-            self._cluster_params[cluster_param_name] = _default_cluster_parameters[
-                cluster_param_name
-            ]
-        if cluster_param_name == "avoid_intersections":
-            self._transforms._avoid_intersections = value
 
     def _update_orders(
         self,
@@ -331,7 +307,7 @@ class BaseAnnotationDataset(Dataset, ABC):
             None | IntraparagraphTransform | LinewiseTransform | InterparagraphTransform
         )
         self._transforms = OCRTransformPack(
-            avoid_intersections=self._cluster_params["avoid_intersections"]
+            avoid_intersections=self.cluster_params.avoid_intersections
         )
         for transform, probability in transform_probability_pairs:
             if probability != 0:

@@ -1,11 +1,10 @@
 from shapely.geometry import Polygon
 from cropgen.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
-    _poss_cluster_args_literal,
-    _default_cluster_param_values,
-    _default_cluster_parameters,
+    ClusterParams,
     orders_type,
 )
+from dataclasses import replace, asdict
 from cropgen.ocr_units import OCRPage
 from typing import Any, Sequence
 import numpy as np
@@ -28,19 +27,20 @@ class SegmentationDataset(BaseAnnotationDataset):
         *,
         orders: orders_type,
         return_bounding_boxes: bool = True,
-        cluster_transform_params: dict[_poss_cluster_args_literal, Any] | None = None,
+        cluster_transform_params: ClusterParams | None = None,
     ):
         self._annotated_pages = annotations
         self._orders: list[int] = []
         self._use_paragraphs = False
         self._use_full_pages = False
-        self._transforms: OCRTransformPack | None = None
+        self._transforms: OCRTransformPack = OCRTransformPack()
         self._update_orders(orders)  # the three previous attributes are updated here
         self.return_bounding_boxes = return_bounding_boxes
 
-        self._cluster_params = _default_cluster_parameters.copy()
-        self._cluster_params.update(
-            cluster_transform_params if cluster_transform_params is not None else dict()
+        self._cluster_params = (
+            replace(ClusterParams(), **asdict(cluster_transform_params))
+            if cluster_transform_params is not None
+            else ClusterParams()
         )
 
     def __repr__(self):
@@ -62,11 +62,11 @@ class SegmentationDataset(BaseAnnotationDataset):
 
         image, polygons = ann.synthetic_manuscript(
             line_ids=list(selected_line_ids),
-            tight_layout=self._cluster_params["tight_layout"],
-            margin_size_px=self._cluster_params["margin_size_px"],
+            tight_layout=self.cluster_params.tight_layout,
+            margin_size_px=self.cluster_params.margin_size_px,
             img_poly_transform=self._transforms,
-            overlay_polygons=self._cluster_params["overlay_polygons"],
-            overlay_mbr=self._cluster_params["overlay_mbr"],
+            overlay_polygons=self.cluster_params.overlay_polygons,
+            overlay_mbr=self.cluster_params.overlay_mbr,
         )
         if not self.return_bounding_boxes:
             return image, polygons
