@@ -1,7 +1,7 @@
 from cropgen.ocr_units.ocr_page import OCRPage
 from cropgen.loading.page_loader import load_pages
-from cropgen.shared.page_metadata import PageSampleMetadata
-from cropgen.external_interfaces.external_interface import ExternalInterface
+from cropgen.loading.page_metadata import PageSampleMetadata
+from cropgen.loading.external_interfaces.external_interface import ExternalInterface
 import os
 from pathlib import Path
 from typing import Literal

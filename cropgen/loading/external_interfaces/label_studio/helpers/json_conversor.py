@@ -1,5 +1,5 @@
 from shapely.geometry import Polygon
-from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
+from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts import (
     PolygonValue,
     RectangleResult,
     PolygonResult,

@@ -6,15 +6,15 @@ from urllib.parse import unquote as url_unquote
 from label_studio_sdk import Client
 from shapely.geometry import Polygon
 
-from cropgen.external_interfaces.external_interface import ExternalInterface
-from cropgen.external_interfaces.label_studio.helpers.json_conversor import (
+from cropgen.loading.external_interfaces.external_interface import ExternalInterface
+from cropgen.loading.external_interfaces.label_studio.helpers.json_conversor import (
     extract_bounds,
     pair_lines,
 )
-from cropgen.external_interfaces.label_studio.helpers.simplify_export import (
+from cropgen.loading.external_interfaces.label_studio.helpers.simplify_export import (
     simplify_tasks,
 )
-from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
+from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts import (
     RectangleResult,
     SimplifiedAnnotation,
     SimplifiedTask,

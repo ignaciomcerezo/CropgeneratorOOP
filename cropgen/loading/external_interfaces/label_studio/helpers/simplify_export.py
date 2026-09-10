@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Union
 
-from cropgen.external_interfaces.label_studio.ls_typed_dicts import (
+from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts import (
     LabelStudioTask,
     PolygonResult,
     RawAnnotation,

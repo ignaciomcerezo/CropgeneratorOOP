@@ -2,7 +2,7 @@ import cv2
 import json
 from pathlib import Path
 from tqdm.auto import tqdm
-from cropgen.shared.page_metadata import PageSampleMetadata
+from cropgen.loading.page_metadata import PageSampleMetadata
 from collections import defaultdict
 from typing import Collection
 from cropgen.shared.path_bundle import PathBundle
@@ -47,6 +47,8 @@ def load_pages(
         list(Path(paths.metadata_path).iterdir()),
         desc="Loading A.P. data from disk...",
     ):
+        if length is not None and k > length:
+            break
         metadata = PageSampleMetadata.model_validate(
             json.loads(metadata_filepath.read_text())
         )
@@ -102,8 +104,6 @@ def load_pages(
             )
         )
         k += 1
-        if length is not None and k > length:
-            break
 
     if combine_same_page_annotations:
         for page, annotations in taskid2annpage.items():

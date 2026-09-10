@@ -1,3 +1,3 @@
-from .transcription.ocrdataset import OCRDataset
-from .transcription.layout_ocrdataset import LayoutOCRDataset
-from .segmentation.segmentation_dataset import SegmentationDataset
+from .transcription import OCRDataset, LayoutOCRDataset
+from .transcription import LayoutOCRDataset
+from .segmentation import SegmentationDataset

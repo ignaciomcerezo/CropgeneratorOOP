@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Callable, Literal
 import urllib.parse
 
-from cropgen.external_interfaces.external_interface import ExternalInterface
+from cropgen.loading.external_interfaces.external_interface import ExternalInterface
 from cropgen.shared.path_bundle import PathBundle
 from dotenv import load_dotenv
 import requests

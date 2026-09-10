@@ -3,7 +3,7 @@ from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
     PROCESSING_LONGEST_SIDE_PX,
 )
-from cropgen.external_interfaces.external_interface import ExternalInterface
+from cropgen.loading.external_interfaces.external_interface import ExternalInterface
 from cropgen.shared.path_bundle import PathBundle
 from cropgen.shared.image_processing import separate_background_and_stroke
 from tqdm.auto import tqdm

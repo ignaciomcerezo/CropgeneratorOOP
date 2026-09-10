@@ -2,7 +2,7 @@ from cropgen.shared.path_bundle import PathBundle
 from pathlib import Path
 from typing import Literal, Collection, Sequence
 from abc import ABC, abstractmethod
-from cropgen.shared.page_metadata import PageSampleMetadata
+from cropgen.loading.page_metadata import PageSampleMetadata
 
 _PARTS = set[
     Literal[

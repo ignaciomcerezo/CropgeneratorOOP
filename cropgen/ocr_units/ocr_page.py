@@ -1,24 +1,17 @@
-import cv2
-import shapely
 from cropgen.shared.geometry_processing import get_union_rect
-from collections import defaultdict
-from pathlib import Path
-from cropgen.shared.path_bundle import PathBundle
 from cropgen.shared.image_processing import (
     crop_or_resize,
     crop_image_with_polygon,
     to_grayscale,
 )
-from cropgen.shared.page_metadata import PageSampleMetadata
+import cv2
 from copy import deepcopy
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Polygon
 from cropgen.ocr_units.ocr_line import OCRLine
 from cropgen.ocr_units.ocr_paragraph import OCRParagraph
-from typing import Literal, Callable, Collection
+from typing import Literal, Callable
 from shapely.affinity import translate
 import numpy as np
-from PIL import Image, ImageDraw
-import json
 
 from cropgen.ocr_units.helpers.helper_to_classes import (
     get_connected_components,
@@ -128,8 +121,8 @@ class OCRPage:
             for paragraph in annotation.paragraphs
         ]
 
-        if (not len(set(ann.page for ann in annotations)) == 1) or (
-            not len(set(ann.task_id for ann in annotations))
+        if (len(set(ann.page for ann in annotations)) != 1) and (
+            (len(set(ann.task_id for ann in annotations)) != 1)
         ):
             raise ValueError(
                 "Can only commbine annotations from the same page and task."
@@ -154,7 +147,7 @@ class OCRPage:
         combined_ocr_page.task_id = first.task_id
         combined_ocr_page.line_separator = first.line_separator
         combined_ocr_page.completer = first.completer
-        combined_ocr_page.updater = "+".join(other.completer for other in annotations)
+        combined_ocr_page.updater = "+".join(other.updater for other in annotations)
         combined_ocr_page.background = background
         combined_ocr_page.page = first.page
 
