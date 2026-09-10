@@ -8,12 +8,12 @@ from cropgen.shared.geometry_processing import calculate_reading_angle
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo, Vector2D
 from cropgen.transforms.transforms import (
-    IntraparagraphTransform,
+    ParagraphTransform,
     line_group_equivalent_type,
 )
 
 
-class ParagraphTilt(IntraparagraphTransform):
+class ParagraphTilt(ParagraphTransform):
     def __init__(
         self,
         strength: Parameter | float = 0.2,
@@ -24,6 +24,7 @@ class ParagraphTilt(IntraparagraphTransform):
             -1, 1
         ), "The strength of the tilt must lie be between (-1, 1)."
         self._tilt_horizontal = tilt_axis == "horizontal"
+        self.may_cause_intersections = True
 
     def __call__(
         self,

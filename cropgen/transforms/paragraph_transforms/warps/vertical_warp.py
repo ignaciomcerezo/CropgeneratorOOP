@@ -1,6 +1,6 @@
 import numpy as np
 
-from cropgen.transforms.intraparagraph_transforms.warps._directional_warp import (
+from cropgen.transforms.paragraph_transforms.warps._directional_warp import (
     _DirectionalArchWarp,
 )
 

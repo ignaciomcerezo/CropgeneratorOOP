@@ -1,28 +1,35 @@
+from typing import Literal
+
 import cv2
 import numpy as np
-from shapely import Polygon
 from shapely.affinity import rotate
+from shapely.geometry import Polygon
 
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import (
-    IntraparagraphTransform,
+    ParagraphTransform,
     line_group_equivalent_type,
 )
 
 
-class ParagraphwiseRotation(IntraparagraphTransform):
+class ParagraphLinewiseRotation(ParagraphTransform):
     """
-    Rotates a whole paragraph around its centroid.
+    Rotates the lines of a paragraph individually.
     """
 
     def __init__(
         self,
-        absolute: Parameter | float,
+        absolute: float | Parameter,
         *,
-        metric: str = "degrees",
+        metric: Literal[
+            "degrees",
+            "pi radians",
+            "radians",
+        ] = "degrees",
     ):
         self._absolute = Parameter(absolute)
         self._metric = metric
+        self.may_cause_intersections = True
 
     def __call__(
         self,
@@ -30,27 +37,27 @@ class ParagraphwiseRotation(IntraparagraphTransform):
     ) -> tuple[list[np.ndarray], list[Polygon]]:
         images, polygons = self._extract_polygons_and_images(line_equivalent_group)
 
-        if not polygons:
-            return images, polygons
-
-        min_x = min(p.bounds[0] for p in polygons)
-        min_y = min(p.bounds[1] for p in polygons)
-        max_x = max(p.bounds[2] for p in polygons)
-        max_y = max(p.bounds[3] for p in polygons)
-        center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
-
         match self._metric:
             case "degrees":
                 rotation = float(self._absolute())
+
             case "radians":
                 rotation = float(self._absolute()) / np.pi * 180.0
+
             case "pi radians":
                 rotation = float(self._absolute()) * 180.0
+
             case _:
                 raise ValueError(f"Unknown metric: {self._metric}")
 
         for i, (image, polygon) in enumerate(zip(images, polygons, strict=True)):
             orig_bounds = polygon.bounds
+
+            x0, y0, x1, y1 = orig_bounds
+            center = (
+                (x0 + x1) / 2.0,
+                (y0 + y1) / 2.0,
+            )
 
             polygons[i] = self._rotate_poly(
                 polygon,
@@ -83,7 +90,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
 
     @staticmethod
     def _rotate_img(
-        img_array: np.ndarray,
+        image: np.ndarray,
         angle: float,
         center: tuple[float, float],
         orig_bounds: tuple[float, float, float, float],
@@ -113,7 +120,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
         )
 
         return cv2.warpAffine(
-            img_array,
+            image,
             affine_matrix,
             (new_width, new_height),
             flags=cv2.INTER_LINEAR,

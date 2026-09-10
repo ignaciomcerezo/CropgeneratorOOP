@@ -10,45 +10,54 @@ from cropgen.datasets.helpers.intersection_correction import (
     avoid_paragraph_intersections,
 )
 from cropgen.transforms import (
-    InterparagraphTransform,
-    IntraparagraphTransform,
-    LinewiseTransform,
+    LineTransform,
+    PageTransform,
+    ParagraphTransform,
 )
 
 
 class OCRTransformPack:
     def __init__(self, avoid_intersections: bool = True):
-        self._linewise: list[LinewiseTransform] = []
+        self._linewise: list[LineTransform] = []
         self._linewise_prob: list[float] = []
-        self._intra: list[IntraparagraphTransform] = []
+        self._intra: list[ParagraphTransform] = []
         self._intra_prob: list[float] = []
-        self._inter: list[InterparagraphTransform] = []
+        self._inter: list[PageTransform] = []
         self._inter_prob: list[float] = []
         self.avoid_intersections = avoid_intersections
 
+    def _all_transforms(
+        self,
+    ) -> list[LineTransform | ParagraphTransform | PageTransform]:
+        return self._linewise + self._intra + self._inter
+
     @property
-    def is_identity(self):
+    def is_identity(self) -> bool:
         return (
             sum(self._intra_prob) + sum(self._inter_prob) + sum(self._linewise_prob)
         ) == 0
 
+    @property
+    def may_cause_intersections(self) -> bool:
+        return any(
+            transform.may_cause_intersections for transform in self._all_transforms()
+        )
+
     def add_transform(
         self,
-        transform: (
-            IntraparagraphTransform | LinewiseTransform | InterparagraphTransform
-        ),
+        transform: ParagraphTransform | LineTransform | PageTransform,
         probability: float = 1,
     ):
         """Only accepts IntraparagraphTransforms and LinewiseTransforms"""
         if (probability > 1) or (probability < 0):
             raise ValueError("probability must be between 0 and 1")
-        if isinstance(transform, LinewiseTransform):
+        if isinstance(transform, LineTransform):
             self._linewise.append(transform)
             self._linewise_prob.append(probability)
-        elif isinstance(transform, IntraparagraphTransform):
+        elif isinstance(transform, ParagraphTransform):
             self._intra.append(transform)
             self._intra_prob.append(probability)
-        elif isinstance(transform, InterparagraphTransform):
+        elif isinstance(transform, PageTransform):
             self._inter.append(transform)
             self._inter_prob.append(probability)
         else:
@@ -109,7 +118,11 @@ class OCRTransformPack:
             tuple_images_polygons[1] for tuple_images_polygons in paragraph_eq_list
         ]
 
-        if self.avoid_intersections:
+        if (
+            self.avoid_intersections
+            and self.may_cause_intersections
+            and not self.is_identity
+        ):
 
             for (
                 i,

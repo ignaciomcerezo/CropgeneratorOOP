@@ -9,9 +9,9 @@ from torch.utils.data import Dataset
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
 from cropgen.transforms.transforms import (
-    InterparagraphTransform,
-    IntraparagraphTransform,
-    LinewiseTransform,
+    LineTransform,
+    PageTransform,
+    ParagraphTransform,
 )
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
@@ -37,7 +37,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     _use_paragraphs: bool
     _use_full_pages: bool
     _transforms: OCRTransformPack = field(default_factory=lambda: OCRTransformPack())
-    cluster_params: ClusterParams = field(default_factory=lambda: ClusterParams())
+    _cluster_params: ClusterParams = field(default_factory=lambda: ClusterParams())
 
     @property
     def pages(self) -> list[str | None]:
@@ -277,9 +277,7 @@ class BaseAnnotationDataset(Dataset, ABC):
 
     def add_transform(
         self,
-        transform: (
-            LinewiseTransform | IntraparagraphTransform | InterparagraphTransform | None
-        ),
+        transform: LineTransform | ParagraphTransform | PageTransform | None,
         probability: float = 1,
     ) -> None:
         if transform is not None:
@@ -288,10 +286,7 @@ class BaseAnnotationDataset(Dataset, ABC):
     def set_transform(
         self,
         *transform_probability_pairs: tuple[
-            LinewiseTransform
-            | IntraparagraphTransform
-            | InterparagraphTransform
-            | None,
+            LineTransform | ParagraphTransform | PageTransform | None,
             float,
         ],
     ) -> None:
@@ -299,14 +294,13 @@ class BaseAnnotationDataset(Dataset, ABC):
         for transform in (transform for transform, _ in transform_probability_pairs):
             if transform is not None and not isinstance(
                 transform,
-                (LinewiseTransform, IntraparagraphTransform, InterparagraphTransform),
+                (LineTransform, ParagraphTransform, PageTransform),
             ):
                 raise ValueError(
-                    f"Only accepts LinewiseTransform, IntraparagraphTransform or InterparagraphTransform, got {type(transform)}"
+                    "Only accepts LinewiseTransform, IntraparagraphTransform "
+                    "or InterparagraphTransform, got {type(transform)}"
                 )
-        transform: (
-            IntraparagraphTransform | LinewiseTransform | InterparagraphTransform | None
-        )
+        transform: ParagraphTransform | LineTransform | PageTransform | None
         self._transforms = OCRTransformPack(
             avoid_intersections=self.cluster_params.avoid_intersections
         )

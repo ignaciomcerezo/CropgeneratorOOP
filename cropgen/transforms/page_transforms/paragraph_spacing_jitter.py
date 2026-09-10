@@ -5,7 +5,7 @@ from shapely.geometry import Polygon
 
 from cropgen.shared.parameters import Parameter, TrimmedNormalDistribution
 from cropgen.transforms.transforms import (
-    InterparagraphTransform,
+    PageTransform,
     line_group_equivalent_type,
 )
 
@@ -17,7 +17,7 @@ from ._layout_helpers import (
 )
 
 
-class ParagraphSpacingJitter(InterparagraphTransform):
+class ParagraphSpacingJitter(PageTransform):
     """
     Adds vertical traslations between consecutive paragraphs.
     """
@@ -37,6 +37,7 @@ class ParagraphSpacingJitter(InterparagraphTransform):
                 "relative_gap_noise must greater than -1 to preserve paragraph "
                 "ordering."
             )
+        self.may_cause_intersections = True
 
     def __call__(
         self,

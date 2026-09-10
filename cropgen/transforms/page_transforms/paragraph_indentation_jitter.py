@@ -5,35 +5,34 @@ from shapely.geometry import Polygon
 
 from cropgen.shared.parameters import Parameter, TrimmedNormalDistribution
 from cropgen.transforms.transforms import (
-    InterparagraphTransform,
+    PageTransform,
     line_group_equivalent_type,
 )
 
 from ._layout_helpers import (
+    center_data,
+    median_extention,
     ordered_layout_axes,
     paragraph_hulls,
     translate_polygon_group,
 )
 
 
-class GlobalLayoutTilt(InterparagraphTransform):
+class ParagraphIndentationJitter(PageTransform):
     """
-    Translates paragraphs to place them in a sloped layout. The paragraph orientation
-    remains invariant.
+    Adds smooth horizontal movement to the paragraphs using random walks.
     """
 
-    def __init__(self, angle_degrees: Parameter | float | None = None):
-        if angle_degrees is None:
-            angle_degrees = TrimmedNormalDistribution(
-                clip_low=-7.5,
-                clip_high=7.5,
+    def __init__(self, relative_step: Parameter | float | None = None):
+        if relative_step is None:
+            relative_step = TrimmedNormalDistribution(
+                clip_low=-0.12,
+                clip_high=0.12,
                 mean=0.0,
-                sigma=2.5,
+                sigma=0.04,
             )
-        self._angle_degrees = Parameter(angle_degrees)
-        low, high = self._angle_degrees.bounds
-        if low <= -89.0 or high >= 89.0:
-            raise ValueError("angle_degrees must be less, in absolute value, than 89.")
+        self._relative_step = Parameter(relative_step)
+        self.may_cause_intersections = True
 
     def __call__(
         self,
@@ -46,13 +45,14 @@ class GlobalLayoutTilt(InterparagraphTransform):
             return image_groups, polygon_groups
 
         hulls = paragraph_hulls(polygon_groups)
-        centers, reading_direction, orthogonal_direction = ordered_layout_axes(hulls)
+        _, _, orthogonal_direction = ordered_layout_axes(hulls)
+        reference_width = median_extention(hulls, orthogonal_direction)
 
-        coordinates = centers @ reading_direction
-        centered_coordinates = coordinates - float(np.mean(coordinates))
-        slope = float(np.tan(np.deg2rad(self._angle_degrees())))
-        offsets = slope * centered_coordinates
+        offsets = np.zeros(len(hulls), dtype=float)
+        for i in range(1, len(hulls)):
+            offsets[i] = offsets[i - 1] + self._relative_step() * reference_width
 
+        offsets = center_data(offsets)
         new_polygon_groups = [
             translate_polygon_group(polygons, orthogonal_direction * offset)
             for polygons, offset in zip(polygon_groups, offsets, strict=True)

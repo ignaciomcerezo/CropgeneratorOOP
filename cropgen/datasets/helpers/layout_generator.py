@@ -8,12 +8,12 @@ from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
 from cropgen.shared.geometry_processing import get_union_rect
 from cropgen.transforms import (
-    InterparagraphTransform,
-    IntraparagraphTransform,
-    LinewiseTransform,
+    LineTransform,
+    PageTransform,
+    ParagraphTransform,
 )
 
-Transform = LinewiseTransform | IntraparagraphTransform | InterparagraphTransform
+Transform = LineTransform | ParagraphTransform | PageTransform
 
 
 class LayoutGenerator:
@@ -55,7 +55,7 @@ class LayoutGenerator:
         for transform, _ in transform_probability_pairs:
             if transform is not None and not isinstance(
                 transform,
-                (LinewiseTransform, IntraparagraphTransform, InterparagraphTransform),
+                (LineTransform, ParagraphTransform, PageTransform),
             ):
                 raise ValueError(
                     "Only accepts LinewiseTransform, IntraparagraphTransform or "

@@ -3,11 +3,13 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import torch
+from shapely.affinity import affine_transform
+from shapely.geometry import box
 from torch.utils.data import Dataset
 
 from cropgen.datasets.segmentation.formatters import _polygon_to_mask
 from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
-from cropgen.training_helpers.yolo.helpers import letterbox, letterbox_mask
+from cropgen.training_helpers.yolo.helpers import letterbox
 
 
 class _SegmentationLineDataset(Dataset):
@@ -34,17 +36,27 @@ class _SegmentationLineDataset(Dataset):
 
         mh = mw = self._imgsz // self._mask_ratio
         cls_list, bbox_list, mask_list = [], [], []
+        left, top = pad
+        canvas_bounds = box(0, 0, self._imgsz, self._imgsz)
 
         for poly in polygons:
-            raw_mask = _polygon_to_mask(poly, h0, w0)
-            lb_mask = letterbox_mask(raw_mask, self._imgsz, r, pad)
+            letterboxed_poly = affine_transform(poly, (r, 0, 0, r, left, top))
+            if letterboxed_poly.area == 0:
+                letterboxed_poly = letterboxed_poly.buffer(1.5)
 
-            ys, xs = np.where(lb_mask > 0)
-            if xs.size == 0 or ys.size == 0:
-                continue  # vanished after downscaling -- drop rather than emit a 0-area box
+            visible_poly = letterboxed_poly.intersection(canvas_bounds)
+            if visible_poly.is_empty:
+                continue
 
-            x0, x1 = int(xs.min()), int(xs.max())
-            y0, y1 = int(ys.min()), int(ys.max())
+            lb_mask = _polygon_to_mask(letterboxed_poly, self._imgsz, self._imgsz)
+
+            min_x, min_y, max_x, max_y = visible_poly.bounds
+            x0 = max(0, int(min_x))
+            y0 = max(0, int(min_y))
+            x1 = min(self._imgsz - 1, int(max_x))
+            y1 = min(self._imgsz - 1, int(max_y))
+            if x0 > x1 or y0 > y1:
+                continue
 
             cls_list.append(0.0)
             bbox_list.append(

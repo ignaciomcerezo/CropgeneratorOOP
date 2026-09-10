@@ -7,14 +7,14 @@ from shapely.geometry import Polygon
 
 from cropgen.shared.parameters import Parameter, TrimmedNormalDistribution
 from cropgen.transforms.transforms import (
-    InterparagraphTransform,
+    PageTransform,
     line_group_equivalent_type,
 )
 
 from ._layout_helpers import paragraph_hulls, polygon_center
 
 
-class ParagraphScaleJitter(InterparagraphTransform):
+class ParagraphScaleJitter(PageTransform):
     """
     Rescales each paragraph independently from each other.
     """
@@ -31,6 +31,7 @@ class ParagraphScaleJitter(InterparagraphTransform):
         low, _ = self._scale_factor.bounds
         if low <= 0:
             raise ValueError("scale_factor must be bounded strictly above zero.")
+        self.may_cause_intersections = True
 
     def __call__(
         self,

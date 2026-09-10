@@ -5,12 +5,12 @@ from shapely.geometry import Polygon
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.transforms.transforms import (
-    IntraparagraphTransform,
+    ParagraphTransform,
     line_group_equivalent_type,
 )
 
 
-class ReadingDirectionClearance(IntraparagraphTransform):
+class ReadingDirectionClearance(ParagraphTransform):
     """
     Spreads lines of a paragraph apart in the reading direction.
     """
@@ -23,6 +23,7 @@ class ReadingDirectionClearance(IntraparagraphTransform):
 
         self._relative = Parameter(relative_size_increment)
         self.noise = add_probabilistic_noise
+        self.may_cause_intersections = True
 
     def __call__(
         self,

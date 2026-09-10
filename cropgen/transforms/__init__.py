@@ -1,6 +1,6 @@
 from .transforms import (
-    InterparagraphTransform,
-    IntraparagraphTransform,
-    LinewiseTransform,
+    LineTransform,
     OCRTransform,
+    PageTransform,
+    ParagraphTransform,
 )

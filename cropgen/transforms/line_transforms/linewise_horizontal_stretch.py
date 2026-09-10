@@ -4,13 +4,14 @@ from shapely.affinity import scale
 from shapely.geometry import Polygon
 
 from cropgen.shared.parameters import Parameter
-from cropgen.transforms.transforms import LinewiseTransform
+from cropgen.transforms.transforms import LineTransform
 
 
-class LinewiseHorizontalStretch(LinewiseTransform):
+class LinewiseHorizontalStretch(LineTransform):
     def __init__(self, scale_factor: Parameter | float = 1.2):
 
         self.scale_factor = Parameter(scale_factor)
+        self.may_cause_intersections = True
 
     def __call__(
         self, image: np.ndarray, polygon: Polygon

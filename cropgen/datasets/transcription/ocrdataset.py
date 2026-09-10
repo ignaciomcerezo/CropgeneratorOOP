@@ -28,12 +28,14 @@ _formatter_signature = Callable[[dict[_default_getitem_output_literal, Any]], An
 
 class OCRDataset(BaseAnnotationDataset):
     """
-    Dataset variant intended to be used for OCR tasks. Takes as input a sequence of annotations
-    (of type AnnotatedPage) and a collecion of orders that will be used to sample the pages.
+    Dataset variant intended to be used for OCR tasks. Takes as input a sequence of
+    annotations (of type AnnotatedPage) and a collecion of orders that will be used to
+    sample the pages.
 
-    When an item is requested, the dataset deterministically chooses an item (taken from all
-    possible contiguous clusters of lines of length one of the orders provided), transforms it using
-    the transform given (via .set_transform()) and returns the crop, its transcription, and other data.
+    When an item is requested, the dataset deterministically chooses an item (taken from
+    all possible contiguous clusters of lines of length one of the orders provided),
+    transforms it using the transform given (via .set_transform()) and returns the crop,
+    its transcription, and other data.
 
     The output may be formatted using .set_formatter().
     """
@@ -63,11 +65,14 @@ class OCRDataset(BaseAnnotationDataset):
         )
 
     def __repr__(self):
-        return f"<OCRDataset ({len(self)} samples: {len(self._annotated_pages)} pages using orders {self.orders}>"
+        return (
+            f"<OCRDataset ({len(self)} samples: {len(self._annotated_pages)}"
+            f" pages using orders {self.orders}>"
+        )
 
     def __getitem__(self, index: int):
         """
-        Chooses a line cluster / paragraph / full page according to the available orders.
+        Chooses a line cluster / paragraph / full page using only the available orders.
         Each sample is chosen uniformly, and applies the layout transforms defined.
         """
         if index < 0 or index >= self._size:
@@ -88,11 +93,9 @@ class OCRDataset(BaseAnnotationDataset):
             overlay_mbr=self.cluster_params.overlay_mbr,
         )
 
-        # TODO: improve context generation - implement the use_previous_page_in_context cluster parameter here
-        if sindex > 0:
-            context = ann.full_transcription[:sindex]
-        else:
-            context = ""
+        # TODO: improve context generation - implement the use_previous_page_in_context
+        # cluster parameter here
+        context = ann.full_transcription[:sindex] if sindex > 0 else ""
 
         sample: dict[_default_getitem_output_literal, Any] = {
             "image": synthetic_img,

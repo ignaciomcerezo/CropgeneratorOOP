@@ -19,16 +19,19 @@ line_group_equivalent_type = (
 
 
 class OCRTransform(ABC):
+    may_cause_intersections: bool
 
     @abstractmethod
     def __call__(self, *args, **kwargs):
         raise NotImplementedError
 
 
-class LinewiseTransform(OCRTransform):
+class LineTransform(OCRTransform):
     """
-    Base class used to modify single linges, for example single line
-    distortions and stretching.
+    Base transform to be applied over individual lines, as stretching
+    a single line or distorting it.
+
+    It should be called over a crop and its corresponding polygon.
     """
 
     @abstractmethod
@@ -87,11 +90,13 @@ class LinewiseTransform(OCRTransform):
         return line.crop, line.polygon
 
 
-class IntraparagraphTransform(OCRTransform):
+class ParagraphTransform(OCRTransform):
     """
+    Base transform to be applied to a paragraph or group of lines, for example shears,
+    paragraph rotations (both linewise and paragraphwise) or relative line movements.
+
+    It is called over groups of stroke images with their respective polygons.
     Base class used to modify layouts for individual paragraphs.
-    For example line shears or paragraph rotations. or line-by-line distortions could be
-    implemented like this.
     """
 
     @abstractmethod
@@ -102,8 +107,8 @@ class IntraparagraphTransform(OCRTransform):
         raise NotImplementedError
 
     @staticmethod
-    def from_linewise(transform: LinewiseTransform):
-        return IntraparagraphFromLinewiseTransform(transform)
+    def from_linewise(transform: LineTransform):
+        return ParagraphFromLineTransform(transform)
 
     def in_place(
         self,
@@ -145,12 +150,12 @@ class IntraparagraphTransform(OCRTransform):
         return line.crop, line.polygon
 
 
-class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
+class ParagraphFromLineTransform(ParagraphTransform):
     """
-    Linewise transform turned paragraph transform.
+    LineTransform turned ParagraphTransform by applying it to all lines in a paragraph.
     """
 
-    def __init__(self, transform: LinewiseTransform):
+    def __init__(self, transform: LineTransform):
         self._transform = transform
 
     def __call__(
@@ -160,11 +165,11 @@ class IntraparagraphFromLinewiseTransform(IntraparagraphTransform):
         return self._transform.bulk_transform(line_equivalent_group)
 
 
-class InterparagraphTransform(OCRTransform):
+class PageTransform(OCRTransform):
     """
-    Base class used to modify layouts for complete documents.
-    For example this could be used to separate paragraphs between them,
-    rotate them globally, etc.
+    Base transform to be applied to a complete page divided in paragraphs.
+
+    For example paragraphs separation, global page rotation, etc.
     """
 
     @abstractmethod
@@ -194,7 +199,7 @@ class InterparagraphTransform(OCRTransform):
     ) -> tuple[list[list[np.ndarray]], list[list[Polygon]]]:
 
         groups = [
-            IntraparagraphTransform._extract_polygons_and_images(element)
+            ParagraphTransform._extract_polygons_and_images(element)
             for element in line_equivalent_groups
         ]
         image_groups = []

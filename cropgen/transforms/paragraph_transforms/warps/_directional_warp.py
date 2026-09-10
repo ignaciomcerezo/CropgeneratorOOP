@@ -9,12 +9,12 @@ from shapely import Polygon
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.transforms.transforms import (
-    IntraparagraphTransform,
+    ParagraphTransform,
     line_group_equivalent_type,
 )
 
 
-class _DirectionalArchWarp(IntraparagraphTransform):
+class _DirectionalArchWarp(ParagraphTransform):
     """
     Shared function for warping a group of lines along the two
     paragraph-relevant axis.
@@ -33,6 +33,7 @@ class _DirectionalArchWarp(IntraparagraphTransform):
     ):
         self.amplitude = Parameter(amplitude)
         self.segmentation_thinness = segmentation_thinness
+        self.may_cause_intersections = True
 
     def __call__(
         self,

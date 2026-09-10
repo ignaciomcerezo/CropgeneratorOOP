@@ -11,7 +11,7 @@ from cropgen.shared.parameters import (
 )
 from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.transforms.transforms import (
-    IntraparagraphFromLinewiseTransform,
+    ParagraphFromLineTransform,
     line_group_equivalent_type,
 )
 
@@ -32,7 +32,7 @@ def _centroid(poly: Polygon) -> tuple[float, float]:
 
 
 @dataclass
-class HorizontalMovement(IntraparagraphFromLinewiseTransform):
+class HorizontalMovement(ParagraphFromLineTransform):
     """
     Moves (adds noise) to the position of the lines. The noise is only added in the orthogonal
     direction to the reading axis.
@@ -60,6 +60,7 @@ class HorizontalMovement(IntraparagraphFromLinewiseTransform):
             "zigzag": self._call_zigzag_polygons,
         }
         self._validate_parameters()
+        self.may_cause_intersections = True
 
     def __repr__(self) -> str:
         return f"<HorizontalMovement of type {self.noise_type} with parameters>"
