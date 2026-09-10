@@ -1,23 +1,14 @@
-from cropgen.shared.parameters import Parameter
-from typing import Sequence
-from cropgen.ocr_units import OCRParagraph, OCRLine
+
+import cv2
+import numpy as np
 from shapely import Polygon
 from shapely.affinity import rotate
-import numpy as np
-import cv2
+
+from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     line_group_equivalent_type,
 )
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
-from typing import Sequence
-import cv2
-import numpy as np
-from shapely import Polygon
-from shapely.affinity import rotate
-from cropgen.shared.geometry_processing import calculate_reading_angle
-from cropgen.shared.parameters import Parameter
-from cropgen.transforms.transforms import IntraparagraphTransform
 
 
 class ParagraphwiseRotation(IntraparagraphTransform):

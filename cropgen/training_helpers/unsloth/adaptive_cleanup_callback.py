@@ -1,6 +1,7 @@
+import gc
+
 import torch
 from transformers import TrainerCallback  # ty: ignore[unresolved-import]
-import gc
 
 
 class AdaptiveCleanupCallback(TrainerCallback):
@@ -91,7 +92,7 @@ class ProactiveCleanupCallback(TrainerCallback):
         su baseline sin ensuciarse con las anteriores.
         """
         print(
-            f"\n [Epoch End] Flushing VRAM caches and resetting EWMA metrics for curriculum shift."
+            "\n [Epoch End] Flushing VRAM caches and resetting EWMA metrics for curriculum shift."
         )
         gc.collect()
         torch.cuda.empty_cache()

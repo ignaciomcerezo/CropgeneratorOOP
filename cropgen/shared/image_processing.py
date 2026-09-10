@@ -1,11 +1,11 @@
-from shapely.geometry import Polygon
 import cv2
 import numpy as np
+from shapely.geometry import Polygon
+
 from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
     PROCESSING_LONGEST_SIDE_PX,
 )
-from shapely.geometry import Polygon
 
 
 def to_grayscale(image: np.ndarray) -> np.ndarray:

@@ -1,13 +1,16 @@
+from collections.abc import Sequence
 from copy import deepcopy
+from typing import Literal
+
 from torch.utils.data import Dataset
-from cropgen.datasets.helpers.layout_generator import LayoutGenerator
-from typing import Sequence, Any, Literal
-from cropgen.ocr_units import OCRPage
+
 from cropgen.datasets.base_annotation_dataset import (
-    orders_type,
     ClusterParams,
+    orders_type,
 )
+from cropgen.datasets.helpers.layout_generator import LayoutGenerator
 from cropgen.datasets.transcription.ocrdataset import OCRDataset
+from cropgen.ocr_units import OCRPage
 
 
 class LayoutOCRDataset(Dataset):

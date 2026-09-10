@@ -1,5 +1,6 @@
-from cropgen.training_helpers.unsloth.part_detector import extract_collator_markers
 import jiwer  # ty: ignore[unresolved-import]
+
+from cropgen.training_helpers.unsloth.part_detector import extract_collator_markers
 
 
 def preprocess_logits_for_metrics(logits, labels):
@@ -93,7 +94,7 @@ class DualMetricsCalculator:
                     f.write(f"\tpredicción s/ctx: {p_nc}\n")
                     f.write(f"\tpredicción c/ctx:  {p_wc}\n\n")
 
-                f.write(f"--- METRICS ---\n")
+                f.write("--- METRICS ---\n")
                 f.write(f"CER s/ctx: {cer_no_context:.4f}\n")
                 f.write(f"CER c/ctx: {current_cer:.4f}\n")
                 f.write(f"CER COMB:  {combined_cer:.4f}\n")

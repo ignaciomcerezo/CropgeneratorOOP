@@ -1,9 +1,9 @@
 import cv2
-from cropgen.shared.parameters import Parameter
 import numpy as np
-from cropgen.ocr_units import OCRLine
-from cropgen.transforms.transforms import LinewiseTransform
 from shapely.geometry import Polygon
+
+from cropgen.shared.parameters import Parameter
+from cropgen.transforms.transforms import LinewiseTransform
 
 
 class Blur(LinewiseTransform):

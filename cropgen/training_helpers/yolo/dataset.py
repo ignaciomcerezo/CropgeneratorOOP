@@ -1,13 +1,13 @@
 from __future__ import annotations
-from cropgen.training_helpers.yolo.helpers import letterbox, letterbox_mask
-from cropgen.datasets.segmentation.formatters import _polygon_to_mask
-from typing import Literal
+
 import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from shapely.geometry import Polygon, MultiPolygon
+
+from cropgen.datasets.segmentation.formatters import _polygon_to_mask
 from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
+from cropgen.training_helpers.yolo.helpers import letterbox, letterbox_mask
 
 
 class _SegmentationLineDataset(Dataset):

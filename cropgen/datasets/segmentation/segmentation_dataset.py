@@ -1,14 +1,16 @@
+from collections.abc import Sequence
+from dataclasses import asdict, replace
+
+import numpy as np
 from shapely.geometry import Polygon
+
 from cropgen.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
     ClusterParams,
     orders_type,
 )
-from dataclasses import replace, asdict
-from cropgen.ocr_units import OCRPage
-from typing import Any, Sequence
-import numpy as np
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
+from cropgen.ocr_units import OCRPage
 
 
 class SegmentationDataset(BaseAnnotationDataset):

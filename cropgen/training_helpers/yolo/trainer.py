@@ -1,9 +1,11 @@
 from typing import Literal
-from cropgen.training_helpers.yolo.dataset import _SegmentationLineDataset
-from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
+
 from ultralytics.models.yolo.segment.train import (  # ty: ignore[unresolved-import]
     SegmentationTrainer,
 )
+
+from cropgen.datasets.segmentation.segmentation_dataset import SegmentationDataset
+from cropgen.training_helpers.yolo.dataset import _SegmentationLineDataset
 
 
 class SegmentationDatasetTrainer(SegmentationTrainer):

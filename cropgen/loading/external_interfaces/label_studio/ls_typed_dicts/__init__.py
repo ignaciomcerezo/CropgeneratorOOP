@@ -1,23 +1,23 @@
+from .aggregates import LabelStudioTask, RawAnnotation, ResultItem, TaskData
 from .results import (
     BaseResult,
     ImageBaseResult,
-    TextRegionResult,
-    TextCorrectionResult,
-    RectangleResult,
     PolygonResult,
+    RectangleResult,
     RelationResult,
+    TextCorrectionResult,
+    TextRegionResult,
 )
 from .simplified import (
-    SimplifiedTextCorrectionValue,
-    SimplifiedTextCorrectionResult,
     SimplifiedAnnotation,
-    SimplifiedTask,
     SimplifiedResultItem,
+    SimplifiedTask,
+    SimplifiedTextCorrectionResult,
+    SimplifiedTextCorrectionValue,
 )
 from .values import (
-    TextRegionValue,
-    TextCorrectionValue,
-    RectangleValue,
     PolygonValue,
+    RectangleValue,
+    TextCorrectionValue,
+    TextRegionValue,
 )
-from .aggregates import TaskData, RawAnnotation, LabelStudioTask, ResultItem

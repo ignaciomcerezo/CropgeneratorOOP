@@ -1,14 +1,12 @@
-from shapely.geometry import Polygon
+import numpy as np
+
 from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts import (
-    PolygonValue,
-    RectangleResult,
     PolygonResult,
+    RectangleResult,
     RelationResult,
     SimplifiedResultItem,
     SimplifiedTextCorrectionResult,
 )
-import numpy as np
-import math
 
 
 def pair_lines(
@@ -37,7 +35,7 @@ def pair_lines(
         elif identifyer in id2boxres:
             return False
         else:
-            raise ValueError(f"A relation connects a non-box non-fragment object.")
+            raise ValueError("A relation connects a non-box non-fragment object.")
 
     seen_boxes: set[str] = set()
     seen_fragments: set[str] = set()

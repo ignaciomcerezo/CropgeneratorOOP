@@ -1,17 +1,19 @@
 from __future__ import annotations
-import cv2
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
-from pathlib import Path
-from typing import Callable, Literal
 import urllib.parse
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Literal
+
+import cv2
+import requests
+from dotenv import load_dotenv
+from tqdm.auto import tqdm
 
 from cropgen.loading.external_interfaces.external_interface import ExternalInterface
 from cropgen.shared.path_bundle import PathBundle
-from dotenv import load_dotenv
-import requests
-from tqdm.auto import tqdm
 
 
 class OnlineBucketInterface(ExternalInterface):
@@ -185,7 +187,7 @@ class OnlineBucketInterface(ExternalInterface):
         if not pending:
             return
         print(
-            f" - Downloading images into {str(self.corresponding_path_accesor(paths)('*'))}"
+            f" - Downloading images into {self.corresponding_path_accesor(paths)('*')!s}"
         )
 
         with ThreadPoolExecutor() as executor:

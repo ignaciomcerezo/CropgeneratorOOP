@@ -1,14 +1,14 @@
-from cropgen.shared.parameters import Parameter
-from typing import Sequence
+
+import numpy as np
+from shapely.affinity import translate
 from shapely.geometry import Polygon
-from cropgen.ocr_units import OCRParagraph, OCRLine
+
+from cropgen.shared.parameters import Parameter
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     line_group_equivalent_type,
 )
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
-from shapely.affinity import translate
-import numpy as np
 
 
 class ReadingDirectionClearance(IntraparagraphTransform):

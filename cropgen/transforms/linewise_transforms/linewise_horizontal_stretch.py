@@ -1,10 +1,10 @@
-from cropgen.shared.parameters import Parameter
+import cv2
+import numpy as np
 from shapely.affinity import scale
 from shapely.geometry import Polygon
-import cv2
-from cropgen.ocr_units import OCRLine
+
+from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import LinewiseTransform
-import numpy as np
 
 
 class LinewiseHorizontalStretch(LinewiseTransform):

@@ -1,13 +1,13 @@
 import cv2
+from tqdm.auto import tqdm
+
+from cropgen.loading.external_interfaces.external_interface import ExternalInterface
 from cropgen.shared.default_parameters import (
     DATASET_LONGEST_SIZE_PX,
     PROCESSING_LONGEST_SIDE_PX,
 )
-from cropgen.loading.external_interfaces.external_interface import ExternalInterface
-from cropgen.shared.path_bundle import PathBundle
 from cropgen.shared.image_processing import separate_background_and_stroke
-from tqdm.auto import tqdm
-import numpy as np
+from cropgen.shared.path_bundle import PathBundle
 
 
 class ImageSeparationInterface(ExternalInterface):
@@ -15,7 +15,7 @@ class ImageSeparationInterface(ExternalInterface):
         pass
 
     def __repr__(self):
-        return f"<ImageSeparationInterface'>."
+        return "<ImageSeparationInterface'>."
 
     def parts_required(self):
         return {"raw_images"}

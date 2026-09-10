@@ -1,30 +1,30 @@
+
 from pydantic import BaseModel
-from typing import Union, List
 
 
 class TextRegionValue(BaseModel):
     start: int
     end: int
     text: str
-    labels: List[str]
+    labels: list[str]
 
 
 class TextCorrectionValue(BaseModel):
     start: int
     end: int
-    text: List[str]
+    text: list[str]
 
 
 class RectangleValue(BaseModel):
-    x: Union[float, int]
-    y: Union[float, int]
-    width: Union[float, int]
-    height: Union[float, int]
-    rotation: Union[float, int]
-    rectanglelabels: List[str]
+    x: float | int
+    y: float | int
+    width: float | int
+    height: float | int
+    rotation: float | int
+    rectanglelabels: list[str]
 
 
 class PolygonValue(BaseModel):
-    points: List[List[Union[float, int]]]
+    points: list[list[float | int]]
     closed: bool
-    polygonlabels: List[str]
+    polygonlabels: list[str]

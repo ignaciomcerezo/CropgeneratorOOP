@@ -1,6 +1,6 @@
-from .paragraph_linewise_rotation import ParagraphLinewiseRotation
 from .horizontal_movement import HorizontalMovement
+from .paragraph_linewise_rotation import ParagraphLinewiseRotation
+from .paragraph_tilt import ParagraphTilt
 from .paragraphwise_rotation import ParagraphwiseRotation
 from .reading_direction_clearance import ReadingDirectionClearance
-from .paragraph_tilt import ParagraphTilt
-from .warps import VerticalWarp, HorizontalWarp
+from .warps import HorizontalWarp, VerticalWarp

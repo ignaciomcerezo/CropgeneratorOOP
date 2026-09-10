@@ -1,8 +1,7 @@
-from typing import Literal
-import urllib.parse
-from pathlib import Path
-from os import getcwd
 import shutil
+from os import getcwd
+from pathlib import Path
+from typing import Literal
 
 _raw_export_json_filename = "raw_export.json"
 _simplified_export_json_filename = "simplified_export.json"
@@ -24,15 +23,15 @@ class PathBundle:
 
     @property
     def raw_images_path(self) -> Path:
-        return self.data_in_path / f"images/raw/"
+        return self.data_in_path / "images/raw/"
 
     @property
     def stroke_images_path(self) -> Path:
-        return self.data_in_path / f"images/stroke/"
+        return self.data_in_path / "images/stroke/"
 
     @property
     def background_images_path(self) -> Path:
-        return self.data_in_path / f"images/background/"
+        return self.data_in_path / "images/background/"
 
     @property
     def transcriptions_path(self) -> Path:

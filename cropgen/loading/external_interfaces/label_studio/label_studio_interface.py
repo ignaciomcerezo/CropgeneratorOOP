@@ -16,7 +16,6 @@ from cropgen.loading.external_interfaces.label_studio.helpers.simplify_export im
 )
 from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts import (
     RectangleResult,
-    SimplifiedAnnotation,
     SimplifiedTask,
 )
 from cropgen.shared.geometry_processing import calculate_reading_angle

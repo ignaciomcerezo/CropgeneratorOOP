@@ -1,17 +1,11 @@
-from cropgen.shared.geometry_processing import get_union_rect
-from cropgen.shared.image_processing import (
-    crop_or_resize,
-    crop_image_with_polygon,
-    to_grayscale,
-)
-import cv2
+from collections.abc import Callable
 from copy import deepcopy
-from shapely.geometry import Polygon
-from cropgen.ocr_units.ocr_line import OCRLine
-from cropgen.ocr_units.ocr_paragraph import OCRParagraph
-from typing import Literal, Callable
-from shapely.affinity import translate
+from typing import Literal
+
+import cv2
 import numpy as np
+from shapely.affinity import translate
+from shapely.geometry import Polygon
 
 from cropgen.ocr_units.helpers.helper_to_classes import (
     get_connected_components,
@@ -21,7 +15,14 @@ from cropgen.ocr_units.helpers.text_regularization import (
     regularize_line,
     regularize_text,
 )
-from tqdm.auto import tqdm
+from cropgen.ocr_units.ocr_line import OCRLine
+from cropgen.ocr_units.ocr_paragraph import OCRParagraph
+from cropgen.shared.geometry_processing import get_union_rect
+from cropgen.shared.image_processing import (
+    crop_image_with_polygon,
+    crop_or_resize,
+    to_grayscale,
+)
 
 ocr_transform = Callable[
     [list[tuple[list[np.ndarray], list[Polygon]]]],
@@ -38,16 +39,16 @@ class OCRPage:
     n_annotation_errors: int = 0
 
     __slots__ = (
-        "lines",
-        "background",
-        "task_id",
         "_graph",
+        "background",
         "completer",
-        "updater",
-        "paragraphs",
-        "line_separator",
-        "page",
         "full_transcription",
+        "line_separator",
+        "lines",
+        "page",
+        "paragraphs",
+        "task_id",
+        "updater",
     )
 
     def __init__(
@@ -122,7 +123,7 @@ class OCRPage:
         ]
 
         if (len(set(ann.page for ann in annotations)) != 1) and (
-            (len(set(ann.task_id for ann in annotations)) != 1)
+            len(set(ann.task_id for ann in annotations)) != 1
         ):
             raise ValueError(
                 "Can only commbine annotations from the same page and task."
@@ -132,7 +133,7 @@ class OCRPage:
 
         first = annotations[0]
 
-        combined_ocr_page: "OCRPage" = object.__new__(OCRPage)
+        combined_ocr_page: OCRPage = object.__new__(OCRPage)
 
         combined_ocr_page._graph = {}
 

@@ -1,21 +1,17 @@
+from typing import Annotated, Any, Union
+
 from pydantic import BaseModel, Field
-from typing import Union, Optional, Any, List, Dict, Annotated
+
 from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts.results import (
+    PolygonResult,
+    RectangleResult,
+    RelationResult,
     TextCorrectionResult,
     TextRegionResult,
-    RectangleResult,
-    PolygonResult,
-    RelationResult,
 )
 
 ResultItem = Annotated[
-    Union[
-        TextRegionResult,
-        TextCorrectionResult,
-        RectangleResult,
-        PolygonResult,
-        RelationResult,
-    ],
+    TextRegionResult | TextCorrectionResult | RectangleResult | PolygonResult | RelationResult,
     Field(discriminator="type"),
 ]
 
@@ -30,7 +26,7 @@ ResultItemNotRelation = Union[
 class RawAnnotation(BaseModel):
     id: int
     completed_by: int
-    result: List[ResultItem]
+    result: list[ResultItem]
     result_count: int
     was_cancelled: bool
     ground_truth: bool
@@ -44,13 +40,13 @@ class RawAnnotation(BaseModel):
     updated_by: int
 
     # Optional fields based on trace
-    draft_created_at: Optional[str] = None
-    import_id: Optional[int] = None
-    last_action: Optional[Any] = None
-    last_created_by: Optional[Any] = None
-    parent_annotation: Optional[int] = None
-    parent_prediction: Optional[Any] = None
-    prediction: Dict = {}
+    draft_created_at: str | None = None
+    import_id: int | None = None
+    last_action: Any | None = None
+    last_created_by: Any | None = None
+    parent_annotation: int | None = None
+    parent_prediction: Any | None = None
+    prediction: dict = {}
 
 
 class TaskData(BaseModel):
@@ -68,16 +64,16 @@ class LabelStudioTask(BaseModel):
     updated_by: int
 
     data: TaskData
-    annotations: List[RawAnnotation]
-    drafts: List[Any]
-    predictions: List[Any]
-    meta: Dict
+    annotations: list[RawAnnotation]
+    drafts: list[Any]
+    predictions: list[Any]
+    meta: dict
 
     total_annotations: int
     cancelled_annotations: int
     total_predictions: int
 
-    comment_authors: List[Any]
+    comment_authors: list[Any]
     comment_count: int
     unresolved_comment_count: int
-    last_comment_updated_at: Optional[Any] = None
+    last_comment_updated_at: Any | None = None

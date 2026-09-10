@@ -1,7 +1,8 @@
+import numpy as np
+
 from cropgen.transforms.intraparagraph_transforms.warps._directional_warp import (
     _DirectionalArchWarp,
 )
-import numpy as np
 
 
 class VerticalWarp(_DirectionalArchWarp):

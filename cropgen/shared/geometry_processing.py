@@ -1,6 +1,7 @@
-from typing import Sequence
-from shapely import Polygon
+from collections.abc import Sequence
+
 import numpy as np
+from shapely import Polygon
 
 
 def calculate_reading_angle(polygon: Polygon) -> float:

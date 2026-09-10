@@ -1,17 +1,18 @@
-from cropgen.transforms.transforms import (
-    LinewiseTransform,
-    IntraparagraphTransform,
-    InterparagraphTransform,
-)
-from warnings import warn
+from abc import ABC, abstractmethod
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass, field
+from typing import Literal, TypeVar
+
+import numpy as np
+from torch.utils.data import Dataset
+
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
-from typing import Sequence, Optional, TypeVar
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
-from torch.utils.data import Dataset
-from typing import Collection, Literal, get_args, Any
-import numpy as np
+from cropgen.transforms.transforms import (
+    InterparagraphTransform,
+    IntraparagraphTransform,
+    LinewiseTransform,
+)
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
 
@@ -239,7 +240,7 @@ class BaseAnnotationDataset(Dataset, ABC):
             num_lines = len(line_ids)
 
             curr = item_idx
-            selected_line_ids: Optional[list[str]] = None
+            selected_line_ids: list[str] | None = None
 
             for order in self._orders:
                 n_windows: int = max(0, num_lines - order + 1)
@@ -304,7 +305,7 @@ class BaseAnnotationDataset(Dataset, ABC):
                     f"Only accepts LinewiseTransform, IntraparagraphTransform or InterparagraphTransform, got {type(transform)}"
                 )
         transform: (
-            None | IntraparagraphTransform | LinewiseTransform | InterparagraphTransform
+            IntraparagraphTransform | LinewiseTransform | InterparagraphTransform | None
         )
         self._transforms = OCRTransformPack(
             avoid_intersections=self.cluster_params.avoid_intersections

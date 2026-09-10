@@ -1,10 +1,7 @@
-from pathlib import Path
-from typing import List, Union
 
 from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts import (
     LabelStudioTask,
     PolygonResult,
-    RawAnnotation,
     RectangleResult,
     RelationResult,
     ResultItem,
@@ -20,7 +17,7 @@ newline = "\n"
 tab = "\t"
 
 
-def resolve_text_for_group(group: List[ResultItem], full_text: str) -> list[str]:
+def resolve_text_for_group(group: list[ResultItem], full_text: str) -> list[str]:
     correction_res_list: list[TextCorrectionResult] = [
         r for r in group if isinstance(r, TextCorrectionResult)
     ]
@@ -92,7 +89,7 @@ def convert_result_raw(
             raise ValueError(f"Unknown result type: {obj.get('type')}")
 
 
-def simplify_task(task_input: Union[dict, LabelStudioTask]) -> SimplifiedTask:
+def simplify_task(task_input: dict | LabelStudioTask) -> SimplifiedTask:
     task = (
         LabelStudioTask.model_validate(task_input)
         if isinstance(task_input, dict)

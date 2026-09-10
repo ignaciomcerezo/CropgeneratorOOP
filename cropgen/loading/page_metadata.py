@@ -1,10 +1,12 @@
-import cv2
-from cropgen.shared.path_bundle import PathBundle
-from typing import Annotated, Union, Any
 import json
-from pydantic import BaseModel, AfterValidator, model_validator
 from pathlib import Path
+from typing import Annotated, Any
+
+import cv2
 import numpy as np
+from pydantic import BaseModel, model_validator
+
+from cropgen.shared.path_bundle import PathBundle
 
 
 def _validate_path_and_existance(path):
@@ -159,7 +161,7 @@ class PageSampleMetadata(BaseModel):
             )
         return self._polygons
 
-    def load_rotations(self) -> list[Union[float, int]]:
+    def load_rotations(self) -> list[float | int]:
         if self._rotations is None:
             rotations = _load_path_content(self.rotations_path)
             self._rotations = _validate_rotations(rotations)

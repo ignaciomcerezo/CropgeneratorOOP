@@ -1,11 +1,13 @@
-from cropgen.shared.parameters import Vector2D
-from shapely.geometry import MultiPolygon
-from cropgen.shared.geometry_processing import calculate_reading_angle
+from collections.abc import Collection, Sequence
+
+import numpy as np
 import shapely
 from shapely import Polygon
+from shapely.geometry import MultiPolygon
+
 from cropgen.ocr_units import OCRLine, OCRParagraph
-from typing import Collection, Sequence, Literal
-import numpy as np
+from cropgen.shared.geometry_processing import calculate_reading_angle
+from cropgen.shared.parameters import Vector2D
 
 
 class LineGroupInfo:

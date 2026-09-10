@@ -1,16 +1,14 @@
 from __future__ import annotations
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
-from shapely.geometry import Polygon
-from typing import Collection, Sequence, TYPE_CHECKING, Literal
+
 from abc import ABC, abstractmethod
-import shapely
-import numpy as np
-import numpy as np
-from shapely.affinity import translate
+from collections.abc import Sequence
 from copy import copy
 
+import numpy as np
+import shapely
+from shapely.geometry import Polygon
 
-from cropgen.ocr_units import OCRPage, OCRParagraph, OCRLine
+from cropgen.ocr_units import OCRLine, OCRParagraph
 
 line_group_equivalent_type = (
     OCRParagraph

@@ -1,12 +1,14 @@
-import cv2
 import json
-from pathlib import Path
-from tqdm.auto import tqdm
-from cropgen.loading.page_metadata import PageSampleMetadata
 from collections import defaultdict
-from typing import Collection
-from cropgen.shared.path_bundle import PathBundle
+from collections.abc import Collection
+from pathlib import Path
+
+import cv2
+from tqdm.auto import tqdm
+
+from cropgen.loading.page_metadata import PageSampleMetadata
 from cropgen.ocr_units.ocr_page import OCRPage
+from cropgen.shared.path_bundle import PathBundle
 
 
 def load_pages(

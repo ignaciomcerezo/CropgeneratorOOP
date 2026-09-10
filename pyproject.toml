@@ -21,7 +21,6 @@ dependencies = [
     "requests>=2.32.5",
     "shapely>=2.1.2",
     "tqdm>=4.67.3",
-    "ruff>=0.15.9",
     "pillow>=12.1.1",
     "torch",
 ]
@@ -49,6 +48,14 @@ train = [
     "unsloth; sys_platform == 'linux'",
 ]
 
+dev = [
+    "cropgen",
+    "ty>=0.0.72",
+    "ipykernel",
+    "ipywidgets",
+    "ruff",
+]
+
 
 [tool.setuptools.packages.find]
 include = ["cropgen*"]
@@ -65,15 +72,27 @@ unsloth = { git = "https://github.com/unslothai/unsloth.git" }
 
 [dependency-groups]
 dev = [
-    "cropgen",
-    "ty>=0.0.72",
-    "ipykernel",
-    "ipywidgets",
-    "jupyterlab",
+    "ruff>=0.16.6",
 ]
 
 
 [pytest]
 markers = [
     "audit: marks tests as an audit to the structure of the annotations.",
+]
+
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # Pyflakes
+    "I",    # import sorting
+    "UP",   # modern Python syntax
+    "B",    # likely bugs
+    "SIM",  # simplify unnecessarily complicated code
+    "RUF",  # Ruff-specific checks
 ]

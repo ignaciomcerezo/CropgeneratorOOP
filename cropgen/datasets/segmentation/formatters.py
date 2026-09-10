@@ -1,7 +1,9 @@
-from typing import Callable, Any, Sequence
-from shapely import Polygon, MultiPolygon
-import numpy as np
+from collections.abc import Callable, Sequence
+from typing import Any
+
 import cv2
+import numpy as np
+from shapely import MultiPolygon, Polygon
 
 _formatter_type = Callable[[np.ndarray, Sequence[Polygon]], Any]
 

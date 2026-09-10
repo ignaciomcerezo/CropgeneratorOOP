@@ -1,16 +1,18 @@
-from typing import Callable
+from collections.abc import Callable
+
+import numpy as np
+from numpy.random import rand
+from shapely.geometry import Polygon
+
 from cropgen.datasets.helpers.intersection_correction import (
     avoid_line_intersections,
     avoid_paragraph_intersections,
 )
-from shapely.geometry import Polygon
 from cropgen.transforms import (
-    LinewiseTransform,
     InterparagraphTransform,
     IntraparagraphTransform,
+    LinewiseTransform,
 )
-from numpy.random import rand
-import numpy as np
 
 
 class OCRTransformPack:

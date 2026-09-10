@@ -1,25 +1,22 @@
-from cropgen.ocr_units.ocr_line import OCRLine
-from typing import Optional, Iterator
+from collections.abc import Iterator
 
 import numpy as np
-from shapely import unary_union
-from shapely import Polygon
-from shapely.affinity import affine_transform
 
 from cropgen.ocr_units.helpers.helper_to_classes import (
     is_path_graph,
 )
+from cropgen.ocr_units.ocr_line import OCRLine
 
 
 class OCRParagraph:
     __slots__ = (
-        "lines",
-        "line_ids",
-        "centroid",
-        "total_words",
-        "avg_rotation",
-        "task_id",
         "_index",
+        "avg_rotation",
+        "centroid",
+        "line_ids",
+        "lines",
+        "task_id",
+        "total_words",
     )
 
     def __init__(
@@ -93,19 +90,19 @@ class OCRParagraph:
 
     @property
     def top(self) -> float:
-        return min((line.top for line in self.lines))
+        return min(line.top for line in self.lines)
 
     @property
     def left(self) -> float:
-        return min((line.left for line in self.lines))
+        return min(line.left for line in self.lines)
 
     @property
     def right(self) -> float:
-        return max((line.right for line in self.lines))
+        return max(line.right for line in self.lines)
 
     @property
     def bot(self) -> float:
-        return max((line.bot for line in self.lines))
+        return max(line.bot for line in self.lines)
 
     def _set_geometric_and_topological_properties(
         self, subgraph: dict[str, set[str]]

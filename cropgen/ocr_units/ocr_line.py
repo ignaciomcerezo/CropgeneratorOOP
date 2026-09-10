@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import Optional
+
 import numpy as np
-from shapely import Polygon, box as boxshape
-from shapely.affinity import scale
+from shapely import Polygon
 
 
 @dataclass(slots=True, kw_only=True)
@@ -17,9 +16,9 @@ class OCRLine:
     rotation: float
     task_id: int
     text: str
-    corrected_centroid: Optional[tuple[float, float]] = None
-    index: Optional[int] = None
-    paragraph_index: Optional[int] = None
+    corrected_centroid: tuple[float, float] | None = None
+    index: int | None = None
+    paragraph_index: int | None = None
 
     def __hash__(self):
         return hash(

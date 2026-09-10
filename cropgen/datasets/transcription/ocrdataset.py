@@ -1,21 +1,17 @@
-from dataclasses import replace, asdict
+from collections.abc import Callable, Sequence
+from dataclasses import asdict, replace
+from typing import (
+    Any,
+    Literal,
+)
+
 from cropgen.datasets.base_annotation_dataset import (
     BaseAnnotationDataset,
-    orders_type,
     ClusterParams,
+    orders_type,
 )
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
-from typing import (
-    Collection,
-    Literal,
-    Any,
-    Sequence,
-    Sequence,
-    Optional,
-    get_args,
-    Callable,
-)
 
 _default_getitem_output_literal = Literal[
     "image",

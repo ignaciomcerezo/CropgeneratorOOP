@@ -1,4 +1,6 @@
-from typing import Callable, Literal, Any
+from collections.abc import Callable
+from typing import Any, Literal
+
 import numpy as np
 
 Vector2D = np.ndarray[tuple[Literal[2], Any]]
@@ -10,7 +12,7 @@ class Parameter:
     Useful for transformation configuration.
     """
 
-    __slots__ = ("_value", "_bounds")
+    __slots__ = ("_bounds", "_value")
 
     def __init__(self, value: "Parameter | float | Callable[[], float]"):
         if isinstance(value, Parameter):
@@ -84,7 +86,7 @@ def TrimmedNormalDistribution(Parameter):
 
 
 class UniformDistribution(Parameter):
-    __slots__ = ("_min", "_max")
+    __slots__ = ("_max", "_min")
 
     def __init__(self, low: float, high: float):
         self._min = low

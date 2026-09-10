@@ -1,10 +1,11 @@
-import shapely
-from cropgen.datasets.helpers.polygon_separation import separate_polygons, Vector2D
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 import numpy as np
-from shapely import Polygon, STRtree
+import shapely
+from shapely import Polygon
 from shapely.affinity import translate
 from shapely.prepared import prep
+
+from cropgen.datasets.helpers.polygon_separation import separate_polygons
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 
 
 def avoid_line_intersections(

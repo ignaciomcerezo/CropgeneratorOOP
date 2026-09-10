@@ -1,32 +1,31 @@
+from typing import Annotated, Any, Literal
+
 from pydantic import BaseModel, Field
-from typing import Literal, Union, Optional, Any, List, Dict, Annotated
 
 from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts.aggregates import (
     TaskData,
 )
 from cropgen.loading.external_interfaces.label_studio.ls_typed_dicts.results import (
     BaseResult,
-    RectangleResult,
     PolygonResult,
+    RectangleResult,
     RelationResult,
 )
 
 
 class SimplifiedTextCorrectionValue(BaseModel):
-    text: List[str]
+    text: list[str]
 
 
 class SimplifiedTextCorrectionResult(BaseResult):
     from_name: Literal["correction", "text_adapter"]
     type: Literal["textarea"]
     value: SimplifiedTextCorrectionValue
-    origin: Optional[str] = None  # sobreescribimos el base
+    origin: str | None = None  # sobreescribimos el base
 
 
 SimplifiedResultItem = Annotated[
-    Union[
-        SimplifiedTextCorrectionResult, RectangleResult, PolygonResult, RelationResult
-    ],
+    SimplifiedTextCorrectionResult | RectangleResult | PolygonResult | RelationResult,
     Field(discriminator="type"),
 ]
 
@@ -34,7 +33,7 @@ SimplifiedResultItem = Annotated[
 class SimplifiedAnnotation(BaseModel):
     id: int
     completed_by: int
-    result: List[SimplifiedResultItem]
+    result: list[SimplifiedResultItem]
     result_count: int
     was_cancelled: bool
     ground_truth: bool
@@ -47,13 +46,13 @@ class SimplifiedAnnotation(BaseModel):
     project: int
     updated_by: int
 
-    draft_created_at: Optional[str] = None
-    import_id: Optional[int] = None
-    last_action: Optional[Any] = None
-    last_created_by: Optional[Any] = None
-    parent_annotation: Optional[int] = None
-    parent_prediction: Optional[Any] = None
-    prediction: Dict = {}
+    draft_created_at: str | None = None
+    import_id: int | None = None
+    last_action: Any | None = None
+    last_created_by: Any | None = None
+    parent_annotation: int | None = None
+    parent_prediction: Any | None = None
+    prediction: dict = {}
 
 
 class SimplifiedTask(BaseModel):
@@ -66,16 +65,16 @@ class SimplifiedTask(BaseModel):
     updated_by: int
 
     data: TaskData
-    annotations: List[SimplifiedAnnotation]
-    drafts: List[Any]
-    predictions: List[Any]
-    meta: Dict
+    annotations: list[SimplifiedAnnotation]
+    drafts: list[Any]
+    predictions: list[Any]
+    meta: dict
 
     total_annotations: int
     cancelled_annotations: int
     total_predictions: int
 
-    comment_authors: List[Any]
+    comment_authors: list[Any]
     comment_count: int
     unresolved_comment_count: int
-    last_comment_updated_at: Optional[Any] = None
+    last_comment_updated_at: Any | None = None

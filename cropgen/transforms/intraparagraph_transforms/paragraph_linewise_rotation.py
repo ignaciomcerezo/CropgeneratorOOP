@@ -1,11 +1,10 @@
-from typing import Literal, Sequence
+from typing import Literal
 
 import cv2
 import numpy as np
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
 
-from cropgen.ocr_units import OCRLine, OCRParagraph
 from cropgen.shared.parameters import Parameter
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,

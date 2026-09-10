@@ -1,16 +1,17 @@
 from abc import abstractmethod
-from cropgen.ocr_units import OCRLine, OCRParagraph
-from cropgen.transforms.helpers.line_group_info import LineGroupInfo
+from collections.abc import Sequence
+
+import cv2
+import numpy as np
+import shapely
+from shapely import Polygon
+
 from cropgen.shared.parameters import Parameter
+from cropgen.transforms.helpers.line_group_info import LineGroupInfo
 from cropgen.transforms.transforms import (
     IntraparagraphTransform,
     line_group_equivalent_type,
 )
-from typing import Sequence
-from shapely import Polygon
-import numpy as np
-import shapely
-import cv2
 
 
 class _DirectionalArchWarp(IntraparagraphTransform):
