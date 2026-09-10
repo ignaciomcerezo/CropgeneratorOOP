@@ -168,7 +168,7 @@ def avoid_paragraph_intersections(
         damping=damping,
     )
 
-    for polygon_group, shift in zip(polygon_groups, shifts):
+    for polygon_group, shift in zip(polygon_groups, shifts, strict=True):
         for i in range(len(polygon_group)):
             polygon_group[i] = translate(polygon_group[i], shift[0], shift[1])
 

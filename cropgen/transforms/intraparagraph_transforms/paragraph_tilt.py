@@ -110,7 +110,7 @@ class ParagraphTilt(IntraparagraphTransform):
             np.float64
         )
 
-        for i, (image, polygon) in enumerate(zip(images, polygons)):
+        for i, (image, polygon) in enumerate(zip(images, polygons, strict=True)):
             orig_bounds = polygon.bounds
 
             transformed_polygon = self._transform_polygon(polygon, H_global)

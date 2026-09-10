@@ -93,7 +93,7 @@ class LayoutGenerator:
             translate(polygon, xoff=-min_x, yoff=-min_y) for polygon in polygons
         ]
 
-        for line, crop, polygon in zip(lines, crops, polygons):
+        for line, crop, polygon in zip(lines, crops, polygons, strict=True):
             line.crop = crop
             line.polygon = polygon
 

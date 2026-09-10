@@ -36,8 +36,6 @@ class OCRParagraph:
                 "The length of the subgraph passed to an OCRParagraph must be equal to the number of lines it contains."
             )
 
-            r
-
         self.lines = lines
         self.task_id: int | None = task_id
         self._index: int | None = index
@@ -113,7 +111,7 @@ class OCRParagraph:
 
         areas = [line.polygon.area for line in self.lines]
 
-        for line, area in zip(self.lines, areas):
+        for line, area in zip(self.lines, areas, strict=True):
             self.total_words += len(line.text.split())
 
             self.centroid += np.array(line.centroid()) * area

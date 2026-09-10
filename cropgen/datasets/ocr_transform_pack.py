@@ -76,7 +76,9 @@ class OCRTransformPack:
             for j in range(len(images)):
                 cur_image = images[j]
                 cur_polygon = polygons[j]
-                for linewise_transform, p in zip(self._linewise, self._linewise_prob):
+                for linewise_transform, p in zip(
+                    self._linewise, self._linewise_prob, strict=True
+                ):
                     if prob_ok(p):
                         cur_image, cur_polygon = linewise_transform(
                             cur_image, cur_polygon
@@ -87,7 +89,9 @@ class OCRTransformPack:
             current_paragraph = (images, polygons)
 
             # Process paragraph-level transforms
-            for intraparagraph_transform, p in zip(self._intra, self._intra_prob):
+            for intraparagraph_transform, p in zip(
+                self._intra, self._intra_prob, strict=True
+            ):
                 if prob_ok(p):
                     current_paragraph = intraparagraph_transform(current_paragraph)
 
@@ -96,7 +100,9 @@ class OCRTransformPack:
         # Process interparagraph transforms
         for interparagraph, p in zip(self._inter, self._inter_prob):
             if prob_ok(p):
-                paragraph_eq_list = list(zip(*interparagraph(paragraph_eq_list)))
+                paragraph_eq_list = list(
+                    zip(*interparagraph(paragraph_eq_list), strict=True)
+                )
 
         polys_by_par = [
             tuple_images_polygons[1] for tuple_images_polygons in paragraph_eq_list

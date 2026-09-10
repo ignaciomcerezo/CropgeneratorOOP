@@ -221,7 +221,7 @@ class OCRPage:
         lines = []
 
         for polygon, transcription, line_id, rotation in zip(
-            polygons, transcriptions, line_ids, rotations
+            polygons, transcriptions, line_ids, rotations, strict=True
         ):
             stroke_crop = crop_image_with_polygon(stroke, polygon)
             lines.append(
@@ -273,7 +273,9 @@ class OCRPage:
             OCRParagraph(
                 lines=line_cc, task_id=self.task_id, subgraph=line_ids_cc, index=idx
             )
-            for (idx, (line_cc, line_ids_cc)) in enumerate(zip(line_ccs, line_id_ccs))
+            for (idx, (line_cc, line_ids_cc)) in enumerate(
+                zip(line_ccs, line_id_ccs, strict=True)
+            )
         ]
 
     def _correct_text_and_set_sindices_and_transcription(self):
@@ -292,7 +294,7 @@ class OCRPage:
                 )
 
             for line, new_transcription in zip(
-                paragraph.lines, regularized_transcriptions
+                paragraph.lines, regularized_transcriptions, strict=True
             ):
                 line.text = regularize_line(new_transcription)
                 line.index = sindex
@@ -417,7 +419,7 @@ class OCRPage:
         ).copy()
 
         canvas_h, canvas_w = canvas.shape[:2]
-        for stroke_img, polygon in zip(crops, polygons):
+        for stroke_img, polygon in zip(crops, polygons, strict=True):
             poly_x0, poly_y0, _, _ = polygon.bounds
 
             paste_x = int(poly_x0 - x0)

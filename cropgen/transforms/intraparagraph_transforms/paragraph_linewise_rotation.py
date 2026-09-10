@@ -49,7 +49,7 @@ class ParagraphLinewiseRotation(IntraparagraphTransform):
             case _:
                 raise ValueError(f"Unknown metric: {self._metric}")
 
-        for i, (image, polygon) in enumerate(zip(images, polygons)):
+        for i, (image, polygon) in enumerate(zip(images, polygons, strict=True)):
             orig_bounds = polygon.bounds
 
             x0, y0, x1, y1 = orig_bounds

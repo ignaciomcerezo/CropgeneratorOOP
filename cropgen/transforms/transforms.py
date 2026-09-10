@@ -43,7 +43,9 @@ class LinewiseTransform(OCRTransform):
     ) -> tuple[list[np.ndarray], list[Polygon]]:
         new_imgs, new_polygons = [], []
 
-        for img, poly in zip(*self._extract_polygons_and_images(line_equivalent_group)):
+        for img, poly in zip(
+            *self._extract_polygons_and_images(line_equivalent_group), strict=True
+        ):
             new_img, new_polygon = self(img, poly)
             new_imgs.append(new_img)
             new_polygons.append(new_polygon)
@@ -108,7 +110,7 @@ class IntraparagraphTransform(OCRTransform):
         line_group: OCRParagraph | Sequence[OCRLine],
     ) -> None:
         imgs, polys = self(line_group)
-        for line, img, poly in zip(line_group, imgs, polys):
+        for line, img, poly in zip(line_group, imgs, polys, strict=True):
             line.crop = img
             line.polygon = poly
 
@@ -180,9 +182,9 @@ class InterparagraphTransform(OCRTransform):
         img_groups, poly_groups = self(line_groups)
 
         for line_group, img_group, poly_group in zip(
-            line_groups, img_groups, poly_groups
+            line_groups, img_groups, poly_groups, strict=True
         ):
-            for line, img, poly in zip(line_group, img_group, poly_group):
+            for line, img, poly in zip(line_group, img_group, poly_group, strict=True):
                 line.crop = img
                 line.polygon = poly
 

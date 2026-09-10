@@ -56,7 +56,7 @@ class _DirectionalArchWarp(IntraparagraphTransform):
         new_images = []
 
         amplitude = self.amplitude()
-        for image, polygon in zip(images, polygons):
+        for image, polygon in zip(images, polygons, strict=True):
             orig_bounds = polygon.bounds
 
             new_polygon = self._apply_arch_poly(

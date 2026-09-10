@@ -1,4 +1,3 @@
-
 import numpy as np
 from shapely.affinity import translate
 from shapely.geometry import Polygon
@@ -53,7 +52,7 @@ class ReadingDirectionClearance(IntraparagraphTransform):
         new_images = []
         new_polygons = []
 
-        for k, (image, polygon) in enumerate(zip(images, polygons)):
+        for k, (image, polygon) in enumerate(zip(images, polygons, strict=True)):
             # -Delta moves upwards, as topmost vertex has the most negative y coordinate
 
             if k:

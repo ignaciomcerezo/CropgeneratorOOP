@@ -1,4 +1,3 @@
-
 import cv2
 import numpy as np
 from shapely import Polygon
@@ -50,7 +49,7 @@ class ParagraphwiseRotation(IntraparagraphTransform):
             case _:
                 raise ValueError(f"Unknown metric: {self._metric}")
 
-        for i, (image, polygon) in enumerate(zip(images, polygons)):
+        for i, (image, polygon) in enumerate(zip(images, polygons, strict=True)):
             orig_bounds = polygon.bounds
 
             polygons[i] = self._rotate_poly(

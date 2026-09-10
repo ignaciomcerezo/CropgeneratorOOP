@@ -112,11 +112,11 @@ class LineGroupInfo:
 
     @property
     def ws(self) -> list[float]:
-        return [abs(x0 - xf) for (x0, xf) in zip(self.x0s, self.xfs)]
+        return [abs(x0 - xf) for (x0, xf) in zip(self.x0s, self.xfs, strict=True)]
 
     @property
     def hs(self) -> list[float]:
-        return [abs(y0 - yf) for (y0, yf) in zip(self.y0s, self.yfs)]
+        return [abs(y0 - yf) for (y0, yf) in zip(self.y0s, self.yfs, strict=True)]
 
     @classmethod
     def from_polygons(
@@ -141,7 +141,7 @@ class LineGroupInfo:
             if total_area == 0
             else sum(
                 rotation * polygon.area
-                for rotation, polygon in zip(instance.rotations, polygons)
+                for rotation, polygon in zip(instance.rotations, polygons, strict=True)
             )
             / total_area
         )
