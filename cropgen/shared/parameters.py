@@ -63,7 +63,7 @@ class NormalDistribution(Parameter):
         return f"<N({self._mean},{self._sigma})>"
 
 
-def TrimmedNormalDistribution(Parameter):
+class TrimmedNormalDistribution(Parameter):
     __slots__ = ("_mean", "_sigma")
 
     def __init__(

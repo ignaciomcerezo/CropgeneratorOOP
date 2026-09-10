@@ -279,6 +279,9 @@ class OCRPage:
         ]
 
     def _correct_text_and_set_sindices_and_transcription(self):
+        """
+        Corrects the text, sets line indices and
+        """
         sindex = 0
         for paragraph_index, paragraph in enumerate(self.paragraphs):
             paragraph.index = paragraph_index
