@@ -294,10 +294,10 @@ class OCRPage:
                 paragraph.lines, regularized_transcriptions
             ):
                 line.text = regularize_line(new_transcription)
-                line.starting_index = sindex
+                line.index = sindex
                 sindex += len(line.text) + len(self.line_separator)
         lines = sorted(
-            list(self.lines.values()), key=lambda line: line.starting_index
+            list(self.lines.values()), key=lambda line: line.index
         )  # ty: ignore[no-matching-overload]
         self.full_transcription = self.line_separator.join(line.text for line in lines)
 
@@ -313,12 +313,12 @@ class OCRPage:
     def synthetic_starting_index(
         self, line_ids: set[str] | list[str] | Literal["all"]
     ) -> int:
-        if None in set(self.lines[line_id].starting_index for line_id in line_ids):
+        if None in set(self.lines[line_id].index for line_id in line_ids):
             raise ValueError(
                 "Cannot compute transcription or sindex for an unordered group of lines."
             )
         starting_index: int = min(
-            self.lines[line_id].starting_index
+            self.lines[line_id].index
             for line_id in line_ids  # ty: ignore[invalid-argument-type]
         )
 
@@ -336,7 +336,7 @@ class OCRPage:
 
         # using .starting_index has the same ordering as the reading order in image_boxes by design
         lines: list[OCRLine] = sorted(
-            lines, key=lambda x: x.starting_index
+            lines, key=lambda x: x.index
         )  # ty: ignore[no-matching-overload]
 
         return self.line_separator.join([line.text for line in lines])
@@ -379,7 +379,7 @@ class OCRPage:
             line_groups = self._group_sorted_by_paragraph(
                 sorted(  # ty: ignore[no-matching-overload]
                     [self.lines[box_id] for box_id in line_ids],
-                    key=lambda line: line.starting_index,
+                    key=lambda line: line.index,
                 )
             )
             paragraph_equivalent_pairs = [

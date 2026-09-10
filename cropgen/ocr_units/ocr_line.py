@@ -17,9 +17,8 @@ class OCRLine:
     rotation: float
     task_id: int
     text: str
-    index: Optional[int] = -1
     corrected_centroid: Optional[tuple[float, float]] = None
-    starting_index: Optional[int] = None
+    index: Optional[int] = None
     paragraph_index: Optional[int] = None
 
     def __hash__(self):
