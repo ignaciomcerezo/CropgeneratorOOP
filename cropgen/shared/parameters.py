@@ -18,7 +18,7 @@ class Parameter:
         if isinstance(value, Parameter):
             self._value = getattr(value, "_value", value)
             self._bounds = value._bounds
-        elif isinstance(value, float):
+        elif isinstance(value, (float, int)):
             self._value = value
             self._bounds = (value, value)
         else:

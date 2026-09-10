@@ -50,7 +50,7 @@ class SegmentationDataset(BaseAnnotationDataset):
     def __repr__(self):
         return (
             f"<OCRDataset ({len(self)} samples: {len(self._annotated_pages)}"
-            f" pages using orders {self.orders}>"
+            f" pages using orders {self.orders})>"
         )
 
     def __getitem__(self, index: int) -> tuple[np.ndarray, list[Polygon]]:
