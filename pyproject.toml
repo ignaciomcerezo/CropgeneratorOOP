@@ -72,6 +72,8 @@ unsloth = { git = "https://github.com/unslothai/unsloth.git" }
 
 [dependency-groups]
 dev = [
+    "ipykernel>=7.2.0",
+    "ipython>=8.39.0",
     "ruff>=0.16.6",
 ]
 

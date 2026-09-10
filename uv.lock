@@ -772,6 +772,10 @@ train = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "ipykernel" },
+    { name = "ipython", version = "8.39.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "ipython", version = "9.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "ipython", version = "9.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "ruff" },
 ]
 
@@ -820,7 +824,11 @@ requires-dist = [
 provides-extras = ["train", "dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.16.6" }]
+dev = [
+    { name = "ipykernel", specifier = ">=7.2.0" },
+    { name = "ipython", specifier = ">=8.39.0" },
+    { name = "ruff", specifier = ">=0.16.6" },
+]
 
 [[package]]
 name = "cuda-bindings"

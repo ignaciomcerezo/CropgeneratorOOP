@@ -1,4 +1,5 @@
-from collections.abc import Callable
+import functools
+import operator
 
 import numpy as np
 from numpy.random import rand
@@ -52,9 +53,13 @@ class OCRTransformPack:
             self._inter_prob.append(probability)
         else:
             raise ValueError(
-                "Can only add LinewiseTransform and IntraparagraphTransform instances, but got "
+                "Can only add LinewiseTransform and IntraparagraphTransform instances, "
+                "but got "
                 f"unsupported type {type(transform)}."
             )
+
+    def should_call(self, p):
+        return (p == 1) or ((p <= 1) and (rand() < p))
 
     def __call__(
         self,
@@ -64,10 +69,6 @@ class OCRTransformPack:
         Takes as input a list of 2-tuples (list of images, list of polygons) that represent the crop
         and polygons of each paragraph
         """
-
-        prob_ok: Callable[[float], bool] = lambda p: (
-            (p == 1) or ((p <= 1) and (rand() < p))
-        )
 
         for i in range(len(paragraph_eq_list)):
             images, polygons = paragraph_eq_list[i]
@@ -79,7 +80,7 @@ class OCRTransformPack:
                 for linewise_transform, p in zip(
                     self._linewise, self._linewise_prob, strict=True
                 ):
-                    if prob_ok(p):
+                    if self.should_call(p):
                         cur_image, cur_polygon = linewise_transform(
                             cur_image, cur_polygon
                         )
@@ -92,14 +93,14 @@ class OCRTransformPack:
             for intraparagraph_transform, p in zip(
                 self._intra, self._intra_prob, strict=True
             ):
-                if prob_ok(p):
+                if self.should_call(p):
                     current_paragraph = intraparagraph_transform(current_paragraph)
 
             paragraph_eq_list[i] = current_paragraph
 
         # Process interparagraph transforms
-        for interparagraph, p in zip(self._inter, self._inter_prob):
-            if prob_ok(p):
+        for interparagraph, p in zip(self._inter, self._inter_prob, strict=True):
+            if self.should_call(p):
                 paragraph_eq_list = list(
                     zip(*interparagraph(paragraph_eq_list), strict=True)
                 )
@@ -119,10 +120,10 @@ class OCRTransformPack:
             if len(polys_by_par) > 1:
                 polys_by_par = avoid_paragraph_intersections(polys_by_par)
 
-        polygons = sum(polys_by_par, start=[])
+        polygons = functools.reduce(operator.iadd, polys_by_par, [])
 
-        crops: list[np.ndarray] = sum(
-            (paragraph_eq[0] for paragraph_eq in paragraph_eq_list), start=[]
+        crops: list[np.ndarray] = functools.reduce(
+            operator.iadd, (paragraph_eq[0] for paragraph_eq in paragraph_eq_list), []
         )
 
         return crops, polygons

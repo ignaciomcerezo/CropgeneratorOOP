@@ -1,4 +1,6 @@
+import functools
 import json
+import operator
 from collections import defaultdict
 from collections.abc import Collection
 from pathlib import Path
@@ -111,4 +113,4 @@ def load_pages(
         for page, annotations in taskid2annpage.items():
             taskid2annpage[page] = [OCRPage.combine_annotations(*annotations)]
 
-    return sum(taskid2annpage.values(), start=[])
+    return functools.reduce(operator.iadd, taskid2annpage.values(), [])
