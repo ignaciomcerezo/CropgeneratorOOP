@@ -1,0 +1,75 @@
+import numpy as np
+from numpy.random import rand
+
+from cropgen.transforms import (
+    BackgroundTransform,
+    GlobalImageTransform,
+    StrokeTransform,
+)
+from cropgen.transforms.transforms import ImageTransform
+
+
+class ImageTransformPack:
+    """Groups transforms by the image-composition stage they operate on."""
+
+    def __init__(self):
+        self._stroke: list[StrokeTransform] = []
+        self._stroke_prob: list[float] = []
+        self._background: list[BackgroundTransform] = []
+        self._background_prob: list[float] = []
+        self._global_image: list[GlobalImageTransform] = []
+        self._global_image_prob: list[float] = []
+
+    @property
+    def is_identity(self) -> bool:
+        return (
+            sum(self._stroke_prob)
+            + sum(self._background_prob)
+            + sum(self._global_image_prob)
+        ) == 0
+
+    @staticmethod
+    def _should_call(probability: float) -> bool:
+        return probability == 1 or rand() < probability
+
+    def add_transform(self, transform: ImageTransform, probability: float = 1) -> None:
+        if not 0 <= probability <= 1:
+            raise ValueError("probability must be between 0 and 1")
+
+        if isinstance(transform, StrokeTransform):
+            self._stroke.append(transform)
+            self._stroke_prob.append(probability)
+        elif isinstance(transform, BackgroundTransform):
+            self._background.append(transform)
+            self._background_prob.append(probability)
+        elif isinstance(transform, GlobalImageTransform):
+            self._global_image.append(transform)
+            self._global_image_prob.append(probability)
+        else:
+            raise ValueError(f"Unsupported image transform type {type(transform)}.")
+
+    def transform_strokes(self, strokes: list[np.ndarray]) -> list[np.ndarray]:
+        for index, stroke in enumerate(strokes):
+            for transform, probability in zip(
+                self._stroke, self._stroke_prob, strict=True
+            ):
+                if self._should_call(probability):
+                    stroke = transform(stroke)
+            strokes[index] = stroke
+        return strokes
+
+    def transform_background(self, background: np.ndarray) -> np.ndarray:
+        for transform, probability in zip(
+            self._background, self._background_prob, strict=True
+        ):
+            if self._should_call(probability):
+                background = transform(background)
+        return background
+
+    def transform_global_image(self, image: np.ndarray) -> np.ndarray:
+        for transform, probability in zip(
+            self._global_image, self._global_image_prob, strict=True
+        ):
+            if self._should_call(probability):
+                image = transform(image)
+        return image
