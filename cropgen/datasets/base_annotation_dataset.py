@@ -6,17 +6,23 @@ from typing import Literal, TypeVar
 import numpy as np
 from torch.utils.data import Dataset
 
+from cropgen.datasets.image_transform_pack import ImageTransform, ImageTransformPack
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
 from cropgen.transforms.transforms import (
+    BackgroundTransform,
+    GlobalImageTransform,
     LineTransform,
     PageTransform,
     ParagraphTransform,
+    StrokeTransform,
 )
+
+DatasetTransform = LineTransform | ParagraphTransform | PageTransform | ImageTransform
 
 orders_type = Collection[int | Literal["paragraph", "page"]]
 
-T = TypeVar("T")
+T = TypeVar("T", bound="BaseAnnotationDataset")
 
 
 @dataclass
@@ -37,7 +43,20 @@ class BaseAnnotationDataset(Dataset, ABC):
     _use_paragraphs: bool
     _use_full_pages: bool
     _transforms: OCRTransformPack = field(default_factory=lambda: OCRTransformPack())
+    _image_transforms: ImageTransformPack = field(
+        default_factory=lambda: ImageTransformPack()
+    )
     _cluster_params: ClusterParams = field(default_factory=lambda: ClusterParams())
+
+    @abstractmethod
+    def __init__(
+        self,
+        pages: Sequence[OCRPage],
+        *,
+        orders: orders_type,
+        **kwargs,
+    ) -> None:
+        raise NotImplementedError
 
     @property
     def pages(self) -> list[str | None]:
@@ -275,18 +294,26 @@ class BaseAnnotationDataset(Dataset, ABC):
         else:
             return self._transforms
 
+    @property
+    def image_transforms(self) -> ImageTransformPack | None:
+        if self._image_transforms is None or self._image_transforms.is_identity:
+            return None
+        return self._image_transforms
+
     def add_transform(
         self,
-        transform: LineTransform | ParagraphTransform | PageTransform | None,
+        transform: DatasetTransform | None,
         probability: float = 1,
     ) -> None:
-        if transform is not None:
+        if isinstance(transform, ImageTransform):
+            self._image_transforms.add_transform(transform, probability)
+        elif transform is not None:
             self._transforms.add_transform(transform, probability)
 
     def set_transform(
         self,
         *transform_probability_pairs: tuple[
-            LineTransform | ParagraphTransform | PageTransform | None,
+            DatasetTransform | None,
             float,
         ],
     ) -> None:
@@ -294,16 +321,21 @@ class BaseAnnotationDataset(Dataset, ABC):
         for transform in (transform for transform, _ in transform_probability_pairs):
             if transform is not None and not isinstance(
                 transform,
-                (LineTransform, ParagraphTransform, PageTransform),
+                (
+                    LineTransform,
+                    ParagraphTransform,
+                    PageTransform,
+                    StrokeTransform,
+                    BackgroundTransform,
+                    GlobalImageTransform,
+                ),
             ):
-                raise ValueError(
-                    "Only accepts LinewiseTransform, IntraparagraphTransform "
-                    "or InterparagraphTransform, got {type(transform)}"
-                )
-        transform: ParagraphTransform | LineTransform | PageTransform | None
+                raise ValueError(f"Unsupported transform type {type(transform)}")
+        transform: DatasetTransform | None
         self._transforms = OCRTransformPack(
             avoid_intersections=self.cluster_params.avoid_intersections
         )
+        self._image_transforms = ImageTransformPack()
         for transform, probability in transform_probability_pairs:
             if probability != 0:
                 self.add_transform(transform, probability)
@@ -399,7 +431,7 @@ class BaseAnnotationDataset(Dataset, ABC):
 
     @classmethod
     def from_split(
-        cls,
+        cls: type[T],
         *groups_of_annotations: list[OCRPage],
         p: float,
         orders: orders_type,
@@ -452,18 +484,10 @@ class BaseAnnotationDataset(Dataset, ABC):
             train += train_i
             test += test_i
 
-        # TODO: this is not too idiomatic: we are not explicitly telling
-        # Python that heirs must have an __init__ of this type...
         return (
-            cls(
-                train,  # ty: ignore[too-many-positional-arguments]
-                orders=orders,  # ty: ignore[unknown-argument]
-            ),
-            cls(
-                test,  # ty: ignore[too-many-positional-arguments]
-                orders=orders,  # ty: ignore[unknown-argument]
-            ),
-        )  # ty: ignore[invalid-return-type]
+            cls(train, orders=orders),
+            cls(test, orders=orders),
+        )
 
     @abstractmethod
     def __getitem__(self, index: int):

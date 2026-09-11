@@ -1,5 +1,5 @@
-from collections.abc import Callable
-from typing import Any, Literal
+from collections.abc import Callable, Sequence
+from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
 
@@ -38,7 +38,7 @@ class Parameter:
             )
 
     @property
-    def bounds(self):
+    def bounds(self) -> tuple[float, float]:
         return self._bounds
 
     def is_bounded(self, low: float | None = None, high: float | None = None):
@@ -98,3 +98,27 @@ class UniformDistribution(Parameter):
 
     def __repr__(self):
         return f"<U({self._min},{self._max})>"
+
+
+T = TypeVar("T")
+
+
+class DiscreteDistribution(Generic[T]):
+    def __init__(self, values: Sequence[T], probabilities: Sequence[float] | None):
+        if probabilities is not None:
+            if len(probabilities) != len(values):
+                raise ValueError(
+                    "The given probabilities and values must have the same length"
+                )
+            if not (np.isclose(sum(probabilities), 1)):
+                raise ValueError("The sum of the given probabilities must be 1.")
+        self._values = values
+        self._probabilities = (
+            [1 / len(values)] * len(values) if probabilities is None else probabilities
+        )
+        self._bounds = None
+
+    def __call__(self) -> T:
+        return np.random.choice(
+            self._values, p=self._probabilities
+        )  # ty: ignore[no-matching-overload]

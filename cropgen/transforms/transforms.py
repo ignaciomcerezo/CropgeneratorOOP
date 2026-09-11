@@ -209,3 +209,41 @@ class PageTransform(OCRTransform):
             polygon_groups.append(group[1])
 
         return image_groups, polygon_groups
+
+
+class ImageTransform(ABC):
+    may_cause_intersections = False
+
+    @abstractmethod
+    def __call__(self, image: np.ndarray) -> np.ndarray:
+        raise NotImplementedError
+
+
+class StrokeTransform(ImageTransform, ABC):
+    """
+    Stroke-only base image transform.
+    """
+
+    @abstractmethod
+    def __call__(self, image: np.ndarray) -> np.ndarray:
+        raise NotImplementedError
+
+
+class BackgroundTransform(ImageTransform, ABC):
+    """
+    Background-only base image transform.
+    """
+
+    @abstractmethod
+    def __call__(self, image: np.ndarray) -> np.ndarray:
+        raise NotImplementedError
+
+
+class GlobalImageTransform(ImageTransform, ABC):
+    """
+    Base transforms for modifying the complete image.
+    """
+
+    @abstractmethod
+    def __call__(self, image: np.ndarray) -> np.ndarray:
+        raise NotImplementedError

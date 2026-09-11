@@ -15,6 +15,8 @@ from cropgen.transforms import (
     ParagraphTransform,
 )
 
+Transform = LineTransform | ParagraphTransform | PageTransform
+
 
 class OCRTransformPack:
     def __init__(self, avoid_intersections: bool = True):
@@ -28,7 +30,7 @@ class OCRTransformPack:
 
     def _all_transforms(
         self,
-    ) -> list[LineTransform | ParagraphTransform | PageTransform]:
+    ) -> list[Transform]:
         return self._linewise + self._intra + self._inter
 
     @property
@@ -45,10 +47,10 @@ class OCRTransformPack:
 
     def add_transform(
         self,
-        transform: ParagraphTransform | LineTransform | PageTransform,
+        transform: Transform,
         probability: float = 1,
     ):
-        """Only accepts IntraparagraphTransforms and LinewiseTransforms"""
+        """Append a supported OCR layout transform."""
         if (probability > 1) or (probability < 0):
             raise ValueError("probability must be between 0 and 1")
         if isinstance(transform, LineTransform):
@@ -61,11 +63,7 @@ class OCRTransformPack:
             self._inter.append(transform)
             self._inter_prob.append(probability)
         else:
-            raise ValueError(
-                "Can only add LinewiseTransform and IntraparagraphTransform instances, "
-                "but got "
-                f"unsupported type {type(transform)}."
-            )
+            raise ValueError(f"Unsupported OCR transform type {type(transform)}.")
 
     def should_call(self, p):
         return (p == 1) or ((p <= 1) and (rand() < p))

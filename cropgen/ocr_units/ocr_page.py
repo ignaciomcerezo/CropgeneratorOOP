@@ -28,6 +28,8 @@ ocr_transform = Callable[
     [list[tuple[list[np.ndarray], list[Polygon]]]],
     tuple[list[np.ndarray], list[Polygon]],
 ]
+StrokeTransformCallable = Callable[[list[np.ndarray]], list[np.ndarray]]
+ImageTransformCallable = Callable[[np.ndarray], np.ndarray]
 
 
 class OCRPage:
@@ -354,6 +356,9 @@ class OCRPage:
         tight_layout: bool = True,
         margin_size_px: int | dict[Literal["left", "right", "top", "bottom"], int] = 0,
         img_poly_transform: ocr_transform | None = None,
+        stroke_transform: StrokeTransformCallable | None = None,
+        background_transform: ImageTransformCallable | None = None,
+        global_image_transform: ImageTransformCallable | None = None,
         refit_polygons: bool = True,
         overlay_polygons: bool = False,
         overlay_mbr: bool = False,
@@ -400,6 +405,9 @@ class OCRPage:
             polygons = [self.lines[line_id].polygon for line_id in line_ids]
             crops = [self.lines[line_id].crop for line_id in line_ids]
 
+        if stroke_transform is not None:
+            crops = stroke_transform(crops)
+
         min_x, min_y, max_x, max_y = get_union_rect(polygons)
         bg_h, bg_w = self.image_dimensions
 
@@ -420,6 +428,8 @@ class OCRPage:
         canvas = crop_or_resize(
             bg_np, x0=x0, xf=xf, y0=y0, yf=yf, can_crop=can_crop
         ).copy()
+        if background_transform is not None:
+            canvas = background_transform(canvas)
 
         canvas_h, canvas_w = canvas.shape[:2]
         for stroke_img, polygon in zip(crops, polygons, strict=True):
@@ -463,6 +473,9 @@ class OCRPage:
             blended_roi = np.clip(roi - masked_stroke, 0, 255)
 
             canvas[dst_y0:dst_y1, dst_x0:dst_x1] = blended_roi.astype(np.uint8)
+
+        if global_image_transform is not None:
+            canvas = global_image_transform(canvas)
 
         if refit_polygons:
             # displace the polygons to the new dimensions of the image
@@ -535,6 +548,9 @@ class OCRPage:
         tight_layout: bool = True,
         margin_size_px: int | dict[Literal["right", "left", "top", "bottom"], int] = 0,
         img_poly_transform: ocr_transform | None = None,
+        stroke_transform: StrokeTransformCallable | None = None,
+        background_transform: ImageTransformCallable | None = None,
+        global_image_transform: ImageTransformCallable | None = None,
         overlay_polygons: bool = False,
         overlay_mbr: bool = True,
     ) -> tuple[np.ndarray, str, int]:
@@ -555,6 +571,9 @@ class OCRPage:
             tight_layout=tight_layout,
             margin_size_px=margin_size_px,
             img_poly_transform=img_poly_transform,
+            stroke_transform=stroke_transform,
+            background_transform=background_transform,
+            global_image_transform=global_image_transform,
             overlay_polygons=overlay_polygons,
             overlay_mbr=overlay_mbr,
         )[0]

@@ -9,6 +9,7 @@ from cropgen.datasets.base_annotation_dataset import (
     ClusterParams,
     orders_type,
 )
+from cropgen.datasets.image_transform_pack import ImageTransformPack
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
 
@@ -38,6 +39,7 @@ class SegmentationDataset(BaseAnnotationDataset):
         self._use_paragraphs = False
         self._use_full_pages = False
         self._transforms: OCRTransformPack = OCRTransformPack()
+        self._image_transforms = ImageTransformPack()
         self._update_orders(orders)  # the three previous attributes are updated here
         self.return_bounding_boxes = return_bounding_boxes
 
@@ -70,6 +72,9 @@ class SegmentationDataset(BaseAnnotationDataset):
             tight_layout=self.cluster_params.tight_layout,
             margin_size_px=self.cluster_params.margin_size_px,
             img_poly_transform=self._transforms,
+            stroke_transform=self._image_transforms.transform_strokes,
+            background_transform=self._image_transforms.transform_background,
+            global_image_transform=self._image_transforms.transform_global_image,
             overlay_polygons=self.cluster_params.overlay_polygons,
             overlay_mbr=self.cluster_params.overlay_mbr,
         )
