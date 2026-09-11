@@ -6,6 +6,9 @@ from cropgen.transforms.transforms import StrokeTransform
 
 
 class DirectionalBlur(StrokeTransform):
+    """
+    Anisotropic gaussian blur, mimicking movement of the page.
+    """
 
     def __init__(
         self,

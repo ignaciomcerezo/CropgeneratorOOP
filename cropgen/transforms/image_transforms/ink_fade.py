@@ -9,6 +9,10 @@ Direction = Literal["left", "right"]
 
 
 class InkFade(StrokeTransform):
+    """
+    Ink fading in a specific direction.
+    """
+
     def __init__(
         self,
         strength: Parameter | float = 0.2,

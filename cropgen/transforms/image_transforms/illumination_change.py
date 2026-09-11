@@ -6,6 +6,10 @@ from cropgen.transforms.transforms import GlobalImageTransform
 
 
 class IlluminationChange(GlobalImageTransform):
+    """
+    Adition of lighting noise to the page, mimicking scanner shadows.
+    """
+
     def __init__(
         self, intensity: Parameter | float = 0.05, relative_scale: Parameter | float = 3
     ):

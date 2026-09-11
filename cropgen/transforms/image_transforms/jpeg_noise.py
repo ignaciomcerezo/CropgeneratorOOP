@@ -6,6 +6,11 @@ from cropgen.transforms.transforms import GlobalImageTransform
 
 
 class ResolutionNoise(GlobalImageTransform):
+    """
+    Compresses and uncompresses a JPEG image, leaving visible JPEG artifacts on the
+    image, that distort it.
+    """
+
     def __init__(self, quality: Parameter | float = 75):
         self.quality = Parameter(quality)
 
