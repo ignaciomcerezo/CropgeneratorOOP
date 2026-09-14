@@ -6,7 +6,7 @@ from cropgen.shared.path_bundle import PathBundle
 
 def setup(
     external_interfaces: list[ExternalInterface],
-    paths: PathBundle | None,
+    paths: PathBundle | None = None,
 ) -> list[OCRPage]:
     """
     Downloads all files needed to instanciate the dataset given some external interfaces and a path to store them.
