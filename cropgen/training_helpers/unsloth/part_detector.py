@@ -1,11 +1,9 @@
 def extract_collator_markers(tokenizer, verbose=False) -> tuple[str, str]:
     """
-    Extrae los marcadores de asistente y usuario del tokenizador de forma automática.
+    Extracts assistant and user tokens automatically.
     """
-    # Buscando la parte de instrucción y de respuesta de un tokenizer y modelo automáticamente
-    u1, a1, u2 = "USUARIO_1_EJEMPLO", "MODELO_1_EJEMPLO", "USUARIO_2_EJEMPLO"
+    u1, a1, u2 = "USER_1_EXAMPLE", "MODEL_1_EXAMPLE", "USER_2_EXAMPLE"
 
-    # Isolate response_part via generation prompt delta
     t_false = tokenizer.apply_chat_template(
         [{"role": "user", "content": u1}], tokenize=False, add_generation_prompt=False
     )

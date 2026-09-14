@@ -12,8 +12,8 @@ class DirectionalBlur(StrokeTransform):
 
     def __init__(
         self,
-        sigma_x: Parameter | float = 0.5,
-        sigma_y: Parameter | float = 0.5,
+        sigma_x: Parameter | float = 1,
+        sigma_y: Parameter | float = 0,
         angle: Parameter | float = 0,
     ):
         self.sigma_x = Parameter(sigma_x)

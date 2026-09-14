@@ -1,4 +1,3 @@
-
 from cropgen.loading.external_interfaces.external_interface import ExternalInterface
 from cropgen.loading.page_loader import load_pages
 from cropgen.ocr_units.ocr_page import OCRPage
@@ -6,24 +5,26 @@ from cropgen.shared.path_bundle import PathBundle
 
 
 def setup(
-    paths: PathBundle,
     external_interfaces: list[ExternalInterface],
+    paths: PathBundle | None,
 ) -> list[OCRPage]:
     """
     Downloads all files needed to instanciate the dataset given some external interfaces and a path to store them.
     """
+    paths = PathBundle() if paths is None else paths
     parts = set()
-    for i, external_interface in enumerate(external_interfaces):
-        pm = external_interface.parts_managed()
-        if pm.intersection(parts):
-            for other_external_interface in external_interfaces[:i]:
-                other_pm = other_external_interface.parts_managed()
-                if other_pm.intersection(pm):
+    for i, ext_int_1 in enumerate(external_interfaces):
+        pm_1 = ext_int_1.parts_managed()
+        if pm_1.intersection(parts):
+            for ext_int_2 in external_interfaces[:i]:
+                pm_2 = ext_int_2.parts_managed()
+                if pm_2.intersection(pm_1):
                     break
             raise ValueError(
-                f"External interface conflict: {other_external_interface} and {external_interface} manage the same parts: {pm.intersection(other_pm)}"
+                f"External interface conflict: {ext_int_2} and "
+                f"{ext_int_1} manages the same parts: {pm_1.intersection(pm_2)}"
             )
-        pr = external_interface.parts_required()
+        pr = ext_int_1.parts_required()
         if not pr.issubset(parts):
             prev_msg = (
                 f"(after {external_interfaces[:i]})"
@@ -31,13 +32,13 @@ def setup(
                 else "(it is the first one)"
             )
             raise ValueError(
-                f"External interface {external_interface} needs parts {pr} to setup, but "
+                f"External interface {ext_int_1} needs parts {pr} to setup, but "
                 f"only {parts} is setup when it is called {prev_msg}. Try reordering the external interfaces to solve this, "
                 "or perhaps the combination you chose is just incompatible."
             )
-        parts.update(pm)
+        parts.update(pm_1)
 
-    for external_interface in external_interfaces:
-        external_interface.setup(paths)
+    for ext_int_1 in external_interfaces:
+        ext_int_1.setup(paths)
 
     return load_pages(paths)

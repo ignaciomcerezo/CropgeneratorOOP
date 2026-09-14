@@ -14,7 +14,7 @@ from cropgen.datasets.image_transform_pack import ImageTransformPack
 from cropgen.datasets.ocr_transform_pack import OCRTransformPack
 from cropgen.ocr_units import OCRPage
 
-_default_getitem_output_literal = Literal[
+_OCRDataset_default_getitem_fields = Literal[
     "image",
     "text",
     "sindex",
@@ -24,7 +24,9 @@ _default_getitem_output_literal = Literal[
     "page_id",
 ]
 
-_formatter_signature = Callable[[dict[_default_getitem_output_literal, Any]], Any]
+_OCRDataset_formatter_signature = Callable[
+    [dict[_OCRDataset_default_getitem_fields, Any]], Any
+]
 
 
 class OCRDataset(BaseAnnotationDataset):
@@ -54,7 +56,7 @@ class OCRDataset(BaseAnnotationDataset):
         self._use_paragraphs = False
         self._use_full_pages = False
         self._update_orders(orders)  # the three previous attributes are updated here
-        self._formatter: _formatter_signature | None = None
+        self._formatter: _OCRDataset_formatter_signature | None = None
 
         self._cluster_params = (
             replace(ClusterParams(), **asdict(cluster_transform_params))
@@ -102,7 +104,7 @@ class OCRDataset(BaseAnnotationDataset):
         # cluster parameter here
         context = ann.full_transcription[:sindex] if sindex > 0 else ""
 
-        sample: dict[_default_getitem_output_literal, Any] = {
+        sample: dict[_OCRDataset_default_getitem_fields, Any] = {
             "image": synthetic_img,
             "text": synthetic_transcription,
             "sindex": sindex,
@@ -116,3 +118,11 @@ class OCRDataset(BaseAnnotationDataset):
             return sample
         else:
             return self._formatter(sample)
+
+    @property
+    def formatter(self) -> _OCRDataset_formatter_signature | None:
+        return self._formatter
+
+    @formatter.setter
+    def formatter(self, value: _OCRDataset_formatter_signature | None) -> None:
+        self._formatter = value
