@@ -1,5 +1,10 @@
+from typing import Literal
+
+from PIL import Image
+
+
 def prepare_unsloth_formatter(instruction_text: str):
-    def formatter(sample):
+    def formatter(sample: dict[Literal["image", "text"], Image.Image | str]):
         return {
             "messages": [
                 {
@@ -11,7 +16,9 @@ def prepare_unsloth_formatter(instruction_text: str):
                         },
                         {
                             "type": "image",
-                            "image": sample["image"],
+                            "image": Image.fromarray(
+                                sample["image"]  # ty: ignore[invalid-argument-type]
+                            ),
                         },
                     ],
                 },
