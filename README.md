@@ -1,6 +1,6 @@
-# cropgen
+# synthscript
 
-`cropgen` is a Python package for generating OCR training datasets from annotated document images. It provides a PyTorch-compatible `OCRDataset` class that samples variable-length sequences of document lines with optional augmentation transforms.
+`synthscript` is a Python package for generating OCR training datasets from annotated document images. It provides a PyTorch-compatible `OCRDataset` class that samples variable-length sequences of document lines with optional augmentation transforms.
 
 ## Overview
 
@@ -14,27 +14,27 @@ This repository provides dataset generation and augmentation for handwritten doc
 
 ## Main components
 
-- **`cropgen.shared`**  
+- **`synthscript.shared`**  
   Shared data structures and utilities used across the pipeline.
 
-- **`cropgen.external_interfaces`**  
+- **`synthscript.external_interfaces`**  
   Interfaces to external systems: Label Studio for annotations and Oracle Cloud for storage.
 
-- **`cropgen.processing`**  
+- **`synthscript.processing`**  
   Core processing logic for turning annotations into image/text samples with geometric analysis.
 
-- **`cropgen.datasets`**  
+- **`synthscript.datasets`**  
   The main `OCRDataset` (and other dataset variants) class for training, with configurable line-sequence sampling and clustering.
 
-- **`cropgen.transforms`**  
+- **`synthscript.transforms`**  
   Image and geometry augmentation transforms: linewise (distortion, stretching), intra-paragraph (paragraph layout modifications), and inter-paragraph (multi-line sampling, moving paragraphs).
 
-- **`cropgen.tests`**  
+- **`synthscript.tests`**  
   Test suite for validating the pipeline.
 
 ## Package metadata
 
-- **Package name:** `cropgen`
+- **Package name:** `synthscript`
 - **Python:** `>=3.10`
 - **Primary dependencies:** `numpy`, `scipy`, `datasets`, `fuzzywuzzy`, `pandas`, `pydantic`, `shapely`, `pillow`, `requests`, `tqdm`, `label-studio-sdk`
 - **Training extras:** `torch`, `transformers`, `trl`, `accelerate`, `unsloth`, `bitsandbytes`, `triton`, `sentencepiece`, `huggingface-hub`
