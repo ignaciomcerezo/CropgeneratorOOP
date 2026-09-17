@@ -2,9 +2,8 @@ from collections.abc import Sequence
 from copy import deepcopy
 from typing import Literal
 
-from torch.utils.data import Dataset
-
 from synthscript.datasets.base_annotation_dataset import (
+    BaseAnnotationDataset,
     ClusterParams,
     orders_type,
 )
@@ -13,7 +12,7 @@ from synthscript.datasets.transcription.ocrdataset import OCRDataset
 from synthscript.ocr_units import OCRPage
 
 
-class LayoutOCRDataset(Dataset):
+class LayoutOCRDataset(BaseAnnotationDataset):
     """
     Dataset variant intended to be used for OCR model training. It is built atop
     synthscript.datasets.OCRDataset, but implements more agressive layout modification:

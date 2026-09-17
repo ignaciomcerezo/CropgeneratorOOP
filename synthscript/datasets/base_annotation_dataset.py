@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
-from typing import Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import numpy as np
-from torch.utils.data import Dataset
 
 from synthscript.datasets.image_transform_pack import ImageTransform, ImageTransformPack
 from synthscript.datasets.ocr_transform_pack import OCRTransformPack
@@ -17,6 +16,23 @@ from synthscript.transforms.transforms import (
     ParagraphTransform,
     StrokeTransform,
 )
+
+if TYPE_CHECKING:
+    from torch.utils.data import Dataset
+else:
+    try:
+        from torch.utils.data import Dataset
+    except ImportError:
+
+        class Dataset:
+            """Fallback class when torch is not installed (no train)."""
+
+            def __len__(self) -> int:
+                raise NotImplementedError
+
+            def __getitem__(self, index: int):
+                raise NotImplementedError
+
 
 DatasetTransform = LineTransform | ParagraphTransform | PageTransform | ImageTransform
 
