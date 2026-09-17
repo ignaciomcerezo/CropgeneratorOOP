@@ -1,6 +1,7 @@
 data/
 data_out/
 data_in/
+.vscode/
 .idea/
 __pycache__/
 synthscript.egg-info/
@@ -9,3 +10,5 @@ build/
 .venv/
 .env
 *.ipynb
+.ruff_cache
+.pytest_cache

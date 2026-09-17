@@ -6,10 +6,10 @@
 
 This repository provides dataset generation and augmentation for handwritten document OCR. It is designed to:
 
-- ingest Label Studio annotation exports,
+- ingest image + line polygon regions + transcription information (for example from LabelStudio),
 - extract and normalize image crops with automatic layout analysis,
 - produce an `OCRDataset` that samples contiguous line sequences at training time,
-- apply trainable augmentation transforms (line-wise, intra-paragraph, inter-paragraph),
+- apply augmentation layout-aware transforms (line, paragraph, page and image transforms),
 - handle complex geometry with automatic intersection correction and stroke/background separation.
 
 ## Main components
@@ -17,37 +17,34 @@ This repository provides dataset generation and augmentation for handwritten doc
 - **`synthscript.shared`**  
   Shared data structures and utilities used across the pipeline.
 
-- **`synthscript.external_interfaces`**  
-  Interfaces to external systems: Label Studio for annotations and Oracle Cloud for storage.
+- **`synthscript.loading`**  
+  Loading the data, both from external sources (downloading images from a bucket) and organizing them on disk, and loading them from there.
 
-- **`synthscript.processing`**  
-  Core processing logic for turning annotations into image/text samples with geometric analysis.
+- **`synthscript.ocr_units`**
+  Core classes, used to perform the geometric analysis of the layout and represent a more structured version of the page.
 
 - **`synthscript.datasets`**  
   The main `OCRDataset` (and other dataset variants) class for training, with configurable line-sequence sampling and clustering.
 
 - **`synthscript.transforms`**  
-  Image and geometry augmentation transforms: linewise (distortion, stretching), intra-paragraph (paragraph layout modifications), and inter-paragraph (multi-line sampling, moving paragraphs).
-
-- **`synthscript.tests`**  
-  Test suite for validating the pipeline.
+  Image and geometry augmentation transforms: individual linea, paragraph and whole page layout transforms. Also implementes some image-only transforms, more typical of image augmentation.
 
 ## Package metadata
 
 - **Package name:** `synthscript`
 - **Python:** `>=3.10`
-- **Primary dependencies:** `numpy`, `scipy`, `datasets`, `fuzzywuzzy`, `pandas`, `pydantic`, `shapely`, `pillow`, `requests`, `tqdm`, `label-studio-sdk`
-- **Training extras:** `torch`, `transformers`, `trl`, `accelerate`, `unsloth`, `bitsandbytes`, `triton`, `sentencepiece`, `huggingface-hub`
+- **Core dependencies:** `numpy`, `scipy`, `python-levenshtein`, `levenshtein`, `fuzzywuzzy`, `label-studio-sdk`, `pydantic`, `pytest`, `python-dotenv`, `rapidfuzz`, `requests`, `shapely`, `tqdm`, `pillow`, `torch`
+- **Training extras (`[train]`):** `matplotlib`, `torch`, `ipywidgets`, `torchvision`, `accelerate`, `trl`, `sentencepiece`, `protobuf`, `huggingface-hub`, `hf-transfer`, `transformers`, `jiwer`, `peft`; on Linux also `xformers`, `bitsandbytes`, `triton`, `cut-cross-entropy`, `unsloth-zoo`, and `unsloth`
 
 ## Intended use
 
 The package is intended for OCR training workflows where:
 
-- source documents are annotated in Label Studio,
-- variable-length sequences of document lines are needed (single lines, paragraphs, full pages),
+- source documents are segmented in regions, with each region having its corresponding transcription,
+- sampling variable-length sequences of document regions is desirable (single lines, paragraphs, full pages),
 - on-the-fly augmentation is desired during training,
 - geometric transforms (rotation, scaling, distortion) should be applied to line crops,
-- and the dataset integrates with `torch.utils.data.Dataset` for PyTorch training.
+- the dataset integrates with `torch.utils.data.Dataset` for PyTorch training (otherwise it probably can be adapted using custom formatters or other integration).
 
 ## Installation
 
